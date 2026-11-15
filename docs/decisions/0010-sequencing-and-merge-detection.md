@@ -1,0 +1,35 @@
+# 0010: Sequencing and merge detection
+
+Status: draft
+
+## Context
+
+Middle units that depend on a previous one need that one merged, and a human review can take a long time. Ralph needs
+to learn about merges, and about other changes to pull requests, without being a hosting provider itself.
+
+## Decision
+
+- Whether a dependent middle unit waits for the previous merge or stacks on the previous branch is configurable. The
+  default is to wait: the next middle unit starts after the previous one merges, branching from the updated base.
+  Stacking is an option, not required in the first release.
+- Ralph can learn about pull request changes in three ways, and all are planned: polling the hosting provider, a
+  webhook into the API server, and a command the user runs. Each feeds the same handling, so behavior does not depend
+  on how a change was detected.
+- Viewing and acting are separate. A CLI command, working name `ralph monitor`, shows what is happening in the
+  project and polls the provider for updates, and changes nothing. A separate action applies what follows a detected
+  change, such as creating bottom units from review feedback or closing a merged unit. Both use the same handler, so a
+  user can look without anything changing. Acting automatically is off by default, and how much it handles is
+  configurable. See [0011](0011-after-merge-and-closed-pull-requests.md).
+
+## Alternatives rejected
+
+- Stacking by default: retargeting and rebasing when the earlier branch changes in review, and feedback on the earlier
+  pull request triggers exactly that.
+- A single detection path: polling alone is slow, webhooks need a reachable server, and manual alone is easy to forget.
+
+## Consequences
+
+- The pull request provider integration supports reading state, feedback and merges, and optionally receiving webhooks.
+- Webhooks apply only to instances that run the API server.
+- The monitor and the other detection paths share one handler for changes, which is the unit to specify and test.
+- Review latency stalls a feature under the default. Users who need more throughput opt into stacking later.
