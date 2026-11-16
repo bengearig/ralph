@@ -28,7 +28,7 @@ func schemaOf(t *testing.T, d *DB) []string {
 }
 
 func TestDependenciesMigrationApplies(t *testing.T) {
-	last := Migrations[len(Migrations)-1]
+	last := Migrations[4]
 	if last.Version != 5 || last.Name != "create dependencies" {
 		t.Fatalf("last migration = %d %q", last.Version, last.Name)
 	}
@@ -37,8 +37,8 @@ func TestDependenciesMigrationApplies(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = fresh.Close() }()
-	if v := version(t, fresh); v != 5 {
-		t.Errorf("version = %d, want 5", v)
+	if v := version(t, fresh); v != len(Migrations) {
+		t.Errorf("version = %d, want %d", v, len(Migrations))
 	}
 	var tables, indexes int
 	if err := fresh.SQL().QueryRow("SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'dependencies'").Scan(&tables); err != nil {
@@ -65,8 +65,8 @@ func TestDependenciesMigrationApplies(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = migrated.Close() }()
-	if v := version(t, migrated); v != 5 {
-		t.Errorf("migrated version = %d, want 5", v)
+	if v := version(t, migrated); v != len(Migrations) {
+		t.Errorf("migrated version = %d, want %d", v, len(Migrations))
 	}
 	a, b := schemaOf(t, fresh), schemaOf(t, migrated)
 	if strings.Join(a, "\n") != strings.Join(b, "\n") {

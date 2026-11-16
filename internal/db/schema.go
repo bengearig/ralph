@@ -97,3 +97,41 @@ BEGIN
 		OR (SELECT level FROM units WHERE id = NEW.depends_on_id) IS NOT 'slice';
 END;
 `
+
+const createDocumentsSQL = `
+CREATE TABLE documents (
+	id TEXT PRIMARY KEY,
+	number INTEGER NOT NULL UNIQUE,
+	kind TEXT NOT NULL CHECK (kind IN ('architecture', 'design', 'decision', 'reference')),
+	brief_id TEXT REFERENCES units(id),
+	title TEXT NOT NULL,
+	body TEXT NOT NULL,
+	status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'ARCHIVED', 'SUPERSEDED')),
+	superseded_by TEXT REFERENCES documents(id),
+	version INTEGER NOT NULL DEFAULT 1,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	created_by TEXT NOT NULL DEFAULT '',
+	updated_by TEXT NOT NULL DEFAULT '',
+	CHECK ((status = 'SUPERSEDED') = (superseded_by IS NOT NULL)),
+	CHECK (superseded_by IS NULL OR superseded_by <> id)
+);
+
+CREATE INDEX documents_brief ON documents (brief_id);
+
+CREATE TRIGGER documents_brief_level BEFORE INSERT ON documents
+WHEN NEW.brief_id IS NOT NULL
+BEGIN
+	SELECT RAISE(ABORT, 'a document is tied to a brief or to nothing')
+	WHERE (SELECT level FROM units WHERE id = NEW.brief_id) IS NOT 'brief';
+END;
+
+CREATE TRIGGER documents_identity_fixed BEFORE UPDATE ON documents
+WHEN NEW.id IS NOT OLD.id
+	OR NEW.number IS NOT OLD.number
+	OR NEW.brief_id IS NOT OLD.brief_id
+	OR NEW.created_at IS NOT OLD.created_at
+BEGIN
+	SELECT RAISE(ABORT, 'id, number, brief and creation time of a document never change');
+END;
+`
