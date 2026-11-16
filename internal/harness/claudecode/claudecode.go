@@ -37,7 +37,22 @@ func (adapter) Artifacts(in harness.Inputs) ([]harness.Artifact, error) {
 			Label:   "command /ralph:" + ins.Name,
 		})
 	}
+	notes := in.ProjectNotes
+	if notes == "" {
+		notes = workflow.ProjectNotes(in.Instructions, toolName(in.MCP.Name))
+	}
+	arts = append(arts, harness.Artifact{
+		Kind:    harness.KindSection,
+		Scope:   harness.ScopeProject,
+		Path:    "CLAUDE.md",
+		Content: []byte(notes),
+		Label:   "section in CLAUDE.md",
+	})
 	return arts, nil
+}
+
+func toolName(server string) func(string) string {
+	return func(tool string) string { return "mcp__" + server + "__" + tool }
 }
 
 type commandHead struct {
@@ -47,7 +62,7 @@ type commandHead struct {
 
 func command(ins workflow.Instruction, server string) ([]byte, error) {
 	body, err := ins.Render(workflow.RenderContext{
-		Tool:      func(tool string) string { return "mcp__" + server + "__" + tool },
+		Tool:      toolName(server),
 		Arguments: "$ARGUMENTS",
 	})
 	if err != nil {

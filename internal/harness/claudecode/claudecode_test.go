@@ -58,8 +58,8 @@ func TestArtifactsForStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(arts) != len(in.Instructions) {
-		t.Fatalf("%d artifacts for %d instructions", len(arts), len(in.Instructions))
+	if len(arts) != len(in.Instructions)+1 {
+		t.Fatalf("%d artifacts for %d instructions and the section", len(arts), len(in.Instructions))
 	}
 	a := statusArtifact(t)
 	if a.Kind != harness.KindFile || a.Scope != harness.ScopeProject || a.Label != "command /ralph:status" {
@@ -164,4 +164,45 @@ func TestToolNamesExistOnTheServer(t *testing.T) {
 
 func TestAdapterConformance(t *testing.T) {
 	harnesstest.Check(t, New())
+}
+
+func sectionArtifact(t *testing.T, in harness.Inputs) harness.Artifact {
+	t.Helper()
+	arts, err := New().Artifacts(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found []harness.Artifact
+	for _, a := range arts {
+		if a.Kind == harness.KindSection {
+			found = append(found, a)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("%d section artifacts, want 1", len(found))
+	}
+	return found[0]
+}
+
+func TestSectionArtifact(t *testing.T) {
+	a := sectionArtifact(t, inputs(t))
+	if a.Path != "CLAUDE.md" || a.Scope != harness.ScopeProject || a.Label != "section in CLAUDE.md" {
+		t.Errorf("artifact = %+v", a)
+	}
+	for _, want := range []string{"/ralph:status", "mcp__ralph__"} {
+		if !strings.Contains(string(a.Content), want) {
+			t.Errorf("content lacks %q:\n%s", want, a.Content)
+		}
+	}
+	if err := a.Validate(); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestSectionOverrideFromInputs(t *testing.T) {
+	in := inputs(t)
+	in.ProjectNotes = "custom notes"
+	if got := string(sectionArtifact(t, in).Content); got != "custom notes" {
+		t.Errorf("content = %q", got)
+	}
 }
