@@ -312,7 +312,7 @@ func TestHitForDocumentHasStatus(t *testing.T) {
 	if _, err := e.docs.Archive(context.Background(), d.ID, d.Fingerprint); err != nil {
 		t.Fatal(err)
 	}
-	if h := e.search(Query{Text: "quokka"}).Hits[0]; h.Status != "ARCHIVED" {
+	if h := e.search(Query{Text: "quokka", IncludeInactive: true}).Hits[0]; h.Status != "ARCHIVED" {
 		t.Errorf("status = %q", h.Status)
 	}
 }

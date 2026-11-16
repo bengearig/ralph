@@ -78,7 +78,7 @@ func (e *indexEnv) doc(title, body string) documents.Document {
 
 func (e *indexEnv) hits(text string) []Hit {
 	e.t.Helper()
-	r, err := e.svc.Search(context.Background(), Query{Text: text})
+	r, err := e.svc.Search(context.Background(), Query{Text: text, IncludeInactive: true})
 	if err != nil {
 		e.t.Fatalf("search %q: %v", text, err)
 	}

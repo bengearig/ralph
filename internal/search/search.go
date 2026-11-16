@@ -30,24 +30,30 @@ func (k Kind) valid() bool {
 const ModeKeyword = "keyword"
 
 // Query is a search. Text is plain words, never index syntax; empty Kinds
-// means all kinds and a zero Limit means the default.
+// means all kinds and a zero Limit means the default. Archived and superseded
+// documents, cancelled tasks and the notes on cancelled tasks are left out
+// unless IncludeInactive is set.
 type Query struct {
-	Text  string
-	Kinds []Kind
-	Limit int
+	Text            string
+	Kinds           []Kind
+	Limit           int
+	IncludeInactive bool
 }
 
 // Hit is one matching record. ID is the unit or document ID; for a note it is
 // the ID of the unit the note is on. Status is a task's state or a document's
-// status and is empty otherwise. A larger Score is a better match.
+// status and is empty otherwise. Inactive is true for a record that a search
+// leaves out unless it includes inactive records; Status says why. A larger
+// Score is a better match.
 type Hit struct {
-	Kind    Kind
-	ID      string
-	Title   string
-	Snippet string
-	Status  string
-	Score   float64
-	Unit    string
+	Kind     Kind
+	ID       string
+	Title    string
+	Snippet  string
+	Status   string
+	Score    float64
+	Unit     string
+	Inactive bool
 }
 
 // Result is the outcome of a search. Mode names the kind of search that

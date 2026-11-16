@@ -15,6 +15,12 @@ const (
 	snippetFallback = 120
 )
 
+// inactiveSQL is true for a document that is archived or superseded, a task
+// that is cancelled and a note on a cancelled task. Slices and briefs have
+// no state, so u.state is NULL for them and the comparison is never true.
+const inactiveSQL = `(CASE WHEN f.kind = 'document' THEN d.status IN ('ARCHIVED', 'SUPERSEDED')
+		ELSE coalesce(u.state = 'CANCELLED', 0) END)`
+
 type keyword struct {
 	db *db.DB
 }
@@ -40,12 +46,12 @@ func (k *keyword) Search(ctx context.Context, q Query) (Result, error) {
 	}
 
 	res := Result{Mode: ModeKeyword}
-	res.Hits, err = k.run(ctx, parsed.Match(joinAnd), q.Kinds, limit)
+	res.Hits, err = k.run(ctx, parsed.Match(joinAnd), q, limit)
 	if err != nil {
 		return Result{}, err
 	}
 	if len(res.Hits) == 0 && len(parsed.Terms) > 1 {
-		res.Hits, err = k.run(ctx, parsed.Match(joinOr), q.Kinds, limit)
+		res.Hits, err = k.run(ctx, parsed.Match(joinOr), q, limit)
 		if err != nil {
 			return Result{}, err
 		}
@@ -54,7 +60,7 @@ func (k *keyword) Search(ctx context.Context, q Query) (Result, error) {
 	return res, nil
 }
 
-func (k *keyword) run(ctx context.Context, match string, kinds []Kind, limit int) ([]Hit, error) {
+func (k *keyword) run(ctx context.Context, match string, q Query, limit int) ([]Hit, error) {
 	var sb strings.Builder
 	sb.WriteString(`
 SELECT f.kind, coalesce(CASE WHEN f.kind = 'document' THEN d.id ELSE u.id END, ''),
@@ -62,16 +68,20 @@ SELECT f.kind, coalesce(CASE WHEN f.kind = 'document' THEN d.id ELSE u.id END, '
 	coalesce(CASE WHEN f.kind = 'document' THEN d.status ELSE u.state END, ''),
 	bm25(search_fts, 5.0, 1.0) AS score,
 	snippet(search_fts, 1, '[', ']', '…', 12),
-	f.body
+	f.body,
+	` + inactiveSQL + ` AS inactive
 FROM search_fts f
 LEFT JOIN units u ON f.kind <> 'document' AND u.id = CASE WHEN f.kind = 'note' THEN f.unit ELSE f.ref END
 LEFT JOIN documents d ON f.kind = 'document' AND d.id = f.ref
 WHERE search_fts MATCH ?
 	AND (CASE WHEN f.kind = 'document' THEN d.id ELSE u.id END) IS NOT NULL`)
 	args := []any{match}
-	if len(kinds) > 0 {
-		sb.WriteString(" AND f.kind IN (" + strings.TrimSuffix(strings.Repeat("?,", len(kinds)), ",") + ")")
-		for _, kind := range kinds {
+	if !q.IncludeInactive {
+		sb.WriteString(" AND NOT (" + inactiveSQL + ")")
+	}
+	if len(q.Kinds) > 0 {
+		sb.WriteString(" AND f.kind IN (" + strings.TrimSuffix(strings.Repeat("?,", len(q.Kinds)), ",") + ")")
+		for _, kind := range q.Kinds {
 			args = append(args, string(kind))
 		}
 	}
@@ -88,7 +98,7 @@ WHERE search_fts MATCH ?
 		var h Hit
 		var kind, body string
 		var score float64
-		if err := rows.Scan(&kind, &h.ID, &h.Title, &h.Status, &score, &h.Snippet, &body); err != nil {
+		if err := rows.Scan(&kind, &h.ID, &h.Title, &h.Status, &score, &h.Snippet, &body, &h.Inactive); err != nil {
 			return nil, fmt.Errorf("search: read hit: %w", err)
 		}
 		h.Kind = Kind(kind)
