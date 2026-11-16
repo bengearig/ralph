@@ -155,3 +155,71 @@ func mustConfig(t *testing.T, root, userYAML string) *config.Config {
 	}
 	return cfg
 }
+
+const unknownHostText = `cannot tell which pull request provider remote "origin" (git.example.com) uses; set pr.provider to github or bitbucket, and for GitHub Enterprise set github.api_url`
+
+func TestOpenProviderAutoFromGitHubRemote(t *testing.T) {
+	e := newProviderEnv(t, "https://github.com/acme/widgets.git", "", "")
+	e.app.cfg = mustConfig(t, e.repo.Dir, "")
+	p, err := openProvider(context.Background(), e.app)
+	if err != nil || p == nil {
+		t.Fatalf("p = %v, err = %v", p, err)
+	}
+}
+
+func TestOpenProviderAutoLocalPathRemoteWithOwnerRepo(t *testing.T) {
+	e := newProviderEnv(t, t.TempDir(), "github:\n  owner: other\n  repo: gadgets\n", "")
+	if got := e.requestedPath(t); got != "/repos/other/gadgets/pulls" {
+		t.Fatalf("path = %q", got)
+	}
+}
+
+func TestOpenProviderAutoGitHubEnterpriseByAPIURL(t *testing.T) {
+	e := newProviderEnv(t, "git@git.example.com:acme/widgets.git", "", "")
+	if got := e.requestedPath(t); got != "/repos/acme/widgets/pulls" {
+		t.Fatalf("path = %q", got)
+	}
+}
+
+func TestOpenProviderAutoUnknownHostErrorText(t *testing.T) {
+	e := newProviderEnv(t, "git@git.example.com:acme/widgets.git", "", "")
+	e.app.cfg = mustConfig(t, e.repo.Dir, "")
+	_, err := openProvider(context.Background(), e.app)
+	if err == nil || err.Error() != unknownHostText {
+		t.Fatalf("err = %v", err)
+	}
+	if !strings.Contains(err.Error(), "github.api_url") || !strings.Contains(err.Error(), "pr.provider") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestOpenProviderAutoNoRemoteNoSettings(t *testing.T) {
+	e := newProviderEnv(t, "", "", "")
+	e.app.cfg = mustConfig(t, e.repo.Dir, "")
+	_, err := openProvider(context.Background(), e.app)
+	want := "cannot tell which pull request provider; set pr.provider to github or bitbucket, and for GitHub Enterprise set github.api_url"
+	if err == nil || err.Error() != want {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestOpenProviderExplicitGitHubUnchanged(t *testing.T) {
+	e := newProviderEnv(t, "git@git.example.com:acme/widgets.git", "pr:\n  provider: github\n", "")
+	if got := e.requestedPath(t); got != "/repos/acme/widgets/pulls" {
+		t.Fatalf("path = %q", got)
+	}
+	e.app.cfg = mustConfig(t, e.repo.Dir, "")
+	_, err := openProvider(context.Background(), e.app)
+	if err == nil || !strings.Contains(err.Error(), "which is not GitHub") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestOpenProviderBitbucketRemoteWithoutOpener(t *testing.T) {
+	e := newProviderEnv(t, "git@bitbucket.org:acme/widgets.git", "", "")
+	_, err := openProvider(context.Background(), e.app)
+	want := `pull request provider "bitbucket" is not supported by this build`
+	if err == nil || err.Error() != want {
+		t.Fatalf("err = %v", err)
+	}
+}

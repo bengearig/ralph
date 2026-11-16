@@ -161,7 +161,11 @@ func verificationText(err error) string {
 func pullRequestText(err error) string {
 	text := err.Error() + ". The commit and the push succeeded; call quick_finish again to retry opening the pull request."
 	if errors.Is(err, hosting.ErrUnauthorized) {
-		text += " The host refused the credentials: ask the user to set the github.token setting to a token that may open pull requests."
+		if setting, ok := hosting.CredentialSetting(err); ok {
+			text += " The host refused the credentials: ask the user to check the setting " + setting + " holds a token that may open pull requests."
+		} else {
+			text += " The provider rejected the credentials: ask the user to check they may open pull requests."
+		}
 	}
 	return text
 }

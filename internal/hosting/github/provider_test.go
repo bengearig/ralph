@@ -382,3 +382,39 @@ func TestGitHubStateMapping(t *testing.T) {
 		}
 	}
 }
+
+func TestGitHubCredentialErrorsNameSetting(t *testing.T) {
+	check := func(t *testing.T, err error) {
+		t.Helper()
+		var ce *hosting.CredentialError
+		if !errors.As(err, &ce) || ce.Setting != "github.token" || !strings.Contains(err.Error(), "github.token") {
+			t.Fatalf("err = %v", err)
+		}
+	}
+	for name, tok := range map[string]func() (string, error){
+		"empty":   func() (string, error) { return "", nil },
+		"failing": func() (string, error) { return "", errors.New("variable GITHUB_TOKEN is unset") },
+	} {
+		t.Run(name, func(t *testing.T) {
+			p, err := New(Config{APIURL: "http://127.0.0.1:1", Owner: "o", Repo: "r", Token: tok})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, _, err = p.FindPullRequest(context.Background(), "b")
+			check(t, err)
+		})
+	}
+	for _, status := range []int{401, 403} {
+		t.Run(strconv.Itoa(status), func(t *testing.T) {
+			p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(status)
+				_, _ = w.Write([]byte(`{"message":"nope"}`))
+			})
+			_, err := p.CreatePullRequest(context.Background(), newPR())
+			check(t, err)
+			if want := "unauthorized: GitHub answered " + strconv.Itoa(status) + ": nope; check the token in setting github.token"; err.Error() != want {
+				t.Fatalf("err = %q, want %q", err, want)
+			}
+		})
+	}
+}

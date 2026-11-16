@@ -325,10 +325,28 @@ func TestQuickDirtyTreeListsPaths(t *testing.T) {
 }
 
 func TestQuickPullRequestFailedUnauthorizedNamesToken(t *testing.T) {
-	err := fmt.Errorf("%w: %w; the branch is pushed", quick.ErrPullRequestFailed, hosting.ErrUnauthorized)
+	err := fmt.Errorf("%w: %w; the branch is pushed", quick.ErrPullRequestFailed, hosting.NewCredentialError("github.token", "bad credentials"))
 	cs := quickClient(t, &fakeQuick{finishErr: err})
 	res := fails(t, cs, "quick_finish", nil, "pull_request_failed")
 	if !strings.Contains(text(res), "github.token") {
+		t.Errorf("text = %q", text(res))
+	}
+}
+
+func TestQuickPullRequestFailedNamesCredentialSetting(t *testing.T) {
+	err := fmt.Errorf("%w: %w", quick.ErrPullRequestFailed, hosting.NewCredentialError("bitbucket.token", "refused"))
+	cs := quickClient(t, &fakeQuick{finishErr: err})
+	res := fails(t, cs, "quick_finish", nil, "pull_request_failed")
+	if !strings.Contains(text(res), "check the setting bitbucket.token") || strings.Contains(text(res), "github.token") {
+		t.Errorf("text = %q", text(res))
+	}
+}
+
+func TestQuickPullRequestFailedUnauthorizedWithoutSetting(t *testing.T) {
+	err := fmt.Errorf("%w: %w", quick.ErrPullRequestFailed, hosting.ErrUnauthorized)
+	cs := quickClient(t, &fakeQuick{finishErr: err})
+	res := fails(t, cs, "quick_finish", nil, "pull_request_failed")
+	if !strings.Contains(text(res), "rejected the credentials") || strings.Contains(text(res), "setting") {
 		t.Errorf("text = %q", text(res))
 	}
 }

@@ -120,10 +120,10 @@ func (p *Provider) do(ctx context.Context, method, path string, query url.Values
 func (p *Provider) send(ctx context.Context, method, path string, query url.Values, in, out any) (http.Header, error) {
 	token, err := p.token()
 	if err != nil {
-		return nil, fmt.Errorf("%w: cannot read the token from setting %s: %v", hosting.ErrUnauthorized, tokenSetting, err)
+		return nil, hosting.NewCredentialError(tokenSetting, fmt.Sprintf("cannot read the token from setting %s: %v", tokenSetting, err))
 	}
 	if token == "" {
-		return nil, fmt.Errorf("%w: setting %s resolved to an empty token", hosting.ErrUnauthorized, tokenSetting)
+		return nil, hosting.NewCredentialError(tokenSetting, fmt.Sprintf("setting %s resolved to an empty token", tokenSetting))
 	}
 
 	var body io.Reader
@@ -220,7 +220,7 @@ func statusError(resp *http.Response, raw []byte, token string) error {
 	}
 	switch {
 	case status == http.StatusUnauthorized || status == http.StatusForbidden:
-		return fmt.Errorf("%w: GitHub answered %d: %s; check the token in setting %s", hosting.ErrUnauthorized, status, msg, tokenSetting)
+		return hosting.NewCredentialError(tokenSetting, fmt.Sprintf("GitHub answered %d: %s; check the token in setting %s", status, msg, tokenSetting))
 	case status == http.StatusNotFound:
 		return fmt.Errorf("%w: GitHub answered 404: %s (GitHub also reports a repository the token cannot see as not found)", hosting.ErrNotFound, msg)
 	case status == http.StatusUnprocessableEntity:

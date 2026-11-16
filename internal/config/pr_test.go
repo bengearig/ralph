@@ -1,11 +1,14 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestPRSettings(t *testing.T) {
 	r := DefaultRegistry()
 	defaults := map[string]string{
-		"pr.provider": "github", "pr.remote": "origin", "pr.base_branch": "",
+		"pr.provider": "auto", "pr.remote": "origin", "pr.base_branch": "",
 		"pr.draft": "true", "pr.timeout": "30s",
 	}
 	for path, want := range defaults {
@@ -21,6 +24,7 @@ func TestPRSettings(t *testing.T) {
 			t.Errorf("%s=%q: problem %q, accepted want %v", path, v, p, ok)
 		}
 	}
+	check("pr.provider", "auto", true)
 	check("pr.provider", "github", true)
 	check("pr.provider", "gitlab", false)
 	check("pr.draft", "true", true)
@@ -41,4 +45,14 @@ func TestPRSettings(t *testing.T) {
 	check("pr.remote", "origin", true)
 	check("pr.remote", " ", false)
 	check("pr.remote", "my remote", false)
+}
+
+func TestPRProviderAuto(t *testing.T) {
+	s, _ := DefaultRegistry().Lookup("pr.provider")
+	if p := valueProblem(s, "auto"); p != "" {
+		t.Errorf("auto rejected: %s", p)
+	}
+	if p := valueProblem(s, "gitlab"); !strings.Contains(p, "auto") || !strings.Contains(p, "github") {
+		t.Errorf("problem = %q", p)
+	}
 }

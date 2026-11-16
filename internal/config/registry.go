@@ -164,9 +164,9 @@ func DefaultRegistry() *Registry {
 		},
 		Setting{
 			Path:        "pr.provider",
-			Description: "Which pull request provider to use",
-			Default:     "github",
-			Allowed:     []string{"github"},
+			Description: "Which pull request provider to use; auto picks it from the remote's host",
+			Default:     "auto",
+			Allowed:     []string{"auto", "github"},
 		},
 		Setting{
 			Path:        "pr.remote",
