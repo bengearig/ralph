@@ -7,6 +7,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/bengearig/ralph/internal/documents"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -28,6 +29,9 @@ type Options struct {
 	Quick func(ctx context.Context, svc units.Service) (Quick, error)
 	// Planning is fixed when the server starts.
 	Planning PlanningSettings
+	// Documents supplies the documents service on the first document tool
+	// call; nil leaves the document tools out.
+	Documents func(ctx context.Context) (documents.Service, error)
 }
 
 type server struct {
@@ -40,6 +44,9 @@ type server struct {
 	quickMu     sync.Mutex
 	quick       Quick
 
+	docMu sync.Mutex
+	docs  documents.Service
+
 	noticeMu sync.Mutex
 	seen     map[Notice]struct{}
 }
@@ -51,6 +58,7 @@ func New(opts Options) *mcp.Server {
 	s.addStatusTool(srv)
 	s.addUnitTools(srv)
 	s.addQuickTools(srv)
+	s.addDocTools(srv)
 	s.addPlanningTool(srv)
 	return srv
 }
@@ -97,15 +105,20 @@ func addTool[In any](s *server, srv *mcp.Server, t *mcp.Tool, fn handle[In]) {
 	mcp.AddTool(srv, t, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
 		ctx = units.WithActor(ctx, s.opts.Actor)
 		res, out := callTool(ctx, s, fn, in)
-		fresh := s.collectNotices(ctx)
-		out, err := attachNotices(res, out, fresh)
-		if err != nil {
-			res = errorResult(err)
-			_, _ = attachNotices(res, nil, fresh)
-			out = nil
-		}
-		return res, out, nil
+		return s.deliver(ctx, res, out)
 	})
+}
+
+// deliver attaches the session's fresh notices to a tool's result.
+func (s *server) deliver(ctx context.Context, res *mcp.CallToolResult, out any) (*mcp.CallToolResult, any, error) {
+	fresh := s.collectNotices(ctx)
+	out, err := attachNotices(res, out, fresh)
+	if err != nil {
+		res = errorResult(err)
+		_, _ = attachNotices(res, nil, fresh)
+		out = nil
+	}
+	return res, out, nil
 }
 
 // callTool runs the handler and returns its result and structured output; a

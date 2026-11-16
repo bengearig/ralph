@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/bengearig/ralph/internal/db"
+	"github.com/bengearig/ralph/internal/documents"
 	"github.com/bengearig/ralph/internal/hosting"
 	"github.com/bengearig/ralph/internal/quick"
 	"github.com/bengearig/ralph/internal/units"
@@ -91,6 +92,10 @@ func classify(err error) (code, text string) {
 		if errors.Is(err, db.ErrNotFound) || errors.Is(err, os.ErrNotExist) {
 			return codeNotInitialized, notInitializedText
 		}
+	case isDocumentStale(err):
+		return codeStale, err.Error() + ". Call doc_get to read the document's current fingerprint and state, then retry."
+	case errors.Is(err, documents.ErrInvalid):
+		return codeInvalid, err.Error()
 	case errors.Is(err, workspace.ErrDirty):
 		return codeDirtyTree, dirtyText(err)
 	case errors.Is(err, workspace.ErrNotOnBase):

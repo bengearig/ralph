@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/bengearig/ralph/internal/db"
+	"github.com/bengearig/ralph/internal/documents"
 	"github.com/bengearig/ralph/internal/harness/all"
 	"github.com/bengearig/ralph/internal/identity"
 	"github.com/bengearig/ralph/internal/integration"
@@ -78,6 +79,20 @@ func runMCP(ctx context.Context, a *app, t mcp.Transport) error {
 			_ = opened.Close()
 		}
 	}()
+	// store opens the one database handle on first use; a failure is not kept.
+	store := func(ctx context.Context) (*db.DB, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if opened != nil {
+			return opened, nil
+		}
+		d, err := openStore(ctx, a, db.Options{MustExist: true})
+		if err != nil {
+			return nil, err
+		}
+		opened = d
+		return d, nil
+	}
 
 	srv := mcpserver.New(mcpserver.Options{
 		Name:        "ralph",
@@ -90,14 +105,18 @@ func runMCP(ctx context.Context, a *app, t mcp.Transport) error {
 			return newQuickService(ctx, a, svc)
 		},
 		Open: func(ctx context.Context) (units.Service, error) {
-			d, err := openStore(ctx, a, db.Options{MustExist: true})
+			d, err := store(ctx)
 			if err != nil {
 				return nil, err
 			}
-			mu.Lock()
-			opened = d
-			mu.Unlock()
 			return units.NewService(d), nil
+		},
+		Documents: func(ctx context.Context) (documents.Service, error) {
+			d, err := store(ctx)
+			if err != nil {
+				return nil, err
+			}
+			return newDocumentsService(a, d), nil
 		},
 	})
 	err := srv.Run(ctx, t)
