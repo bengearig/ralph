@@ -16,6 +16,7 @@ import (
 	"github.com/bengearig/ralph/internal/integration"
 	"github.com/bengearig/ralph/internal/project"
 	"github.com/bengearig/ralph/internal/version"
+	"github.com/bengearig/ralph/internal/workflow"
 	"github.com/spf13/cobra"
 )
 
@@ -42,6 +43,11 @@ func newInitCommand() *cobra.Command {
 			}
 
 			named, err := namedAdapters(cmd.Context(), root, harnessNames)
+			if err != nil {
+				return err
+			}
+
+			_, overrides, err := integration.InputsWithOverrides(root)
 			if err != nil {
 				return err
 			}
@@ -88,7 +94,7 @@ func newInitCommand() *cobra.Command {
 			}
 			_, _ = fmt.Fprintf(out, "project id: %s\n", id)
 			_, _ = fmt.Fprintf(out, "database: .ralph/%s (schema version %d)\n", project.StoreFile, res.To)
-			return installIntegration(cmd, root, named)
+			return installIntegration(cmd, root, named, overrides)
 		},
 	}
 	cmd.Flags().StringArrayVar(&harnessNames, "harness", nil, "install the integration for this harness (repeatable); default: each harness detected")
@@ -118,8 +124,15 @@ func namedAdapters(ctx context.Context, root string, names []string) ([]harness.
 
 // installIntegration runs after the project, database and ignore file are in
 // place; a failure here does not undo them.
-func installIntegration(cmd *cobra.Command, root string, named []harness.Adapter) error {
+func installIntegration(cmd *cobra.Command, root string, named []harness.Adapter, overrides []workflow.Override) error {
 	out := cmd.OutOrStdout()
+	for _, o := range overrides {
+		verb := "replaced"
+		if o.Kind == workflow.OverrideAppend {
+			verb = "extended"
+		}
+		_, _ = fmt.Fprintf(out, "workflow: %s %s by .ralph/workflow/%s\n", o.Name, verb, o.File)
+	}
 	detections := map[string]harness.Detection{}
 	selected := named
 	if len(selected) == 0 {

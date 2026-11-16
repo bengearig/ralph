@@ -23,17 +23,24 @@ type Outdated struct {
 }
 
 // InputsFor returns what adapters render their artifacts from for the project
-// at root.
+// at root, with the project's workflow overrides applied.
 func InputsFor(root string) (harness.Inputs, error) {
-	instructions, err := workflow.All()
+	in, _, err := InputsWithOverrides(root)
+	return in, err
+}
+
+// InputsWithOverrides is InputsFor that also returns the workflow overrides
+// it applied.
+func InputsWithOverrides(root string) (harness.Inputs, []workflow.Override, error) {
+	instructions, overrides, err := workflow.Load(filepath.Join(project.RalphDir(root), "workflow"))
 	if err != nil {
-		return harness.Inputs{}, err
+		return harness.Inputs{}, nil, fmt.Errorf("workflow overrides: %w", err)
 	}
 	return harness.Inputs{
 		Instructions: instructions,
 		MCP:          harness.MCPServer{Name: "ralph", Command: "ralph", Args: []string{"mcp"}},
 		Project:      os.DirFS(root),
-	}, nil
+	}, overrides, nil
 }
 
 // Check reports the recorded artifacts of adapters that a newer ralph would
