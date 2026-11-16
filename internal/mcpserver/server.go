@@ -32,6 +32,7 @@ func New(opts Options) *mcp.Server {
 	s := &server{opts: opts}
 	srv := mcp.NewServer(&mcp.Implementation{Name: opts.Name, Version: opts.Version}, nil)
 	s.addStatusTool(srv)
+	s.addUnitTools(srv)
 	return srv
 }
 
