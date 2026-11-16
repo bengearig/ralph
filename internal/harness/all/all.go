@@ -5,11 +5,14 @@ import (
 	"sort"
 
 	"github.com/bengearig/ralph/internal/harness"
+	"github.com/bengearig/ralph/internal/harness/claudecode"
 )
 
 // Adapters returns every adapter; add one line per adapter.
 func Adapters() []harness.Adapter {
-	return []harness.Adapter{}
+	return []harness.Adapter{
+		claudecode.New(),
+	}
 }
 
 // ByName finds an adapter by its name.
