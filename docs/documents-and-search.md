@@ -48,7 +48,27 @@ cover tickets and issues in the first release.
 - The index follows the records. When a document or work record changes, its index entries are updated, and a stale
   entry never outlives its record.
 - How keyword and semantic results are combined in one ranking is open.
-- A project with no embedding provider configured still has keyword search.
+- A project with no embedding provider configured has keyword search only.
+
+Keyword search covers a document's current content and the briefs, slices, tasks and notes of the plan, including a
+task's acceptance criteria.
+
+- Search does not cover earlier versions of a document. They are history, not the current record, and indexing them would
+  fill results with text the document no longer says. They are read with the versions of the document instead.
+- The database keeps the index in the same transaction as each change to a record, so the index cannot be stale and
+  needs no rebuilding for keyword search.
+- A query is plain words, not search syntax: punctuation has no special meaning, and double quotes keep a phrase
+  together. A record must contain every word. Only when no record does, the search retries so that a record matching
+  some of the words is returned, and the result says it was relaxed.
+- Results are ranked best match first. A match in a title ranks above a match in the body, and words match their
+  stemmed forms, so `themes` finds `theme`.
+- Each result gives its kind, its ID, its title and a snippet with the matching words marked. A note is returned with the
+  ID of the unit it is on.
+- Archived and superseded documents, cancelled tasks, and the notes on a cancelled task are inactive. They are left out
+  unless the search asks for them, and then they are marked inactive.
+- `ralph search` runs a search from the command line and the MCP tool `search` runs it for an agent, as in
+  [harness-integration.md](harness-integration.md). Both take the words and can limit the kinds searched and the number
+  of results, and both can include inactive records.
 
 ## Keeping the semantic index valid
 
