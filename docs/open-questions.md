@@ -35,6 +35,15 @@ Status: draft
 | How does a service tolerate an unresolvable reference to a record held by another service? | architecture |
 | How does a client find and authenticate to a remote instance? | architecture |
 | How is the ralph user credited in a pull request description when the shared token is used? | architecture |
-| Which harnesses are supported first, and how is a harness integrated? | architecture |
-| Where does configuration live and how do layers combine? | configuration |
+| Where is the record of written files kept, how is the managed section marked, and how does `ralph init` remove files? | harness-integration |
+| Which actions, if any, must exist as both CLI commands and MCP tools (quick-work finalization is named as both in 0007)? | harness-integration |
+| What can users override in the workflow instructions, and where do overrides live? | harness-integration |
+| What must an adapter declare about a harness's capabilities, and what does ralph do when one is missing? | harness-integration |
+| How does the loop build the prompt for a bottom unit and choose documents as context? | harness-integration |
+| What does each adapter's restricted allowlist contain, and what is the setting's name, given auto mode is already used in 0011? | harness-integration |
+| Which harness versions are supported, and how does ralph detect an incompatible one? | harness-integration |
+| What are the configuration file names, the command that shows the effective configuration, and how is the project-local file kept out of version control? | configuration |
+| Should a remote instance hold settings shared by a team, as a layer between the user file and the project file? | configuration |
+| Which secret sources beyond environment variables are supported, and when? | configuration |
+| Which of the settings in the decisions so far are user-only? | configuration |
 | What is the first release's minimal feature set? | overview |

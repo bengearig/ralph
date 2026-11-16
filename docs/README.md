@@ -19,6 +19,8 @@ text is [the Manifesto](../MANIFESTO.md); these docs do not restate it.
 | [concepts.md](concepts.md) | Vocabulary, work units | draft |
 | [workflow.md](workflow.md) | The method for feature work | draft |
 | [architecture.md](architecture.md) | Service layer, local and remote, API server | draft |
+| [harness-integration.md](harness-integration.md) | Adapters, interactive surfaces, headless loop | draft |
+| [configuration.md](configuration.md) | Layers, setting scope, secrets | draft |
 | [open-questions.md](open-questions.md) | Unresolved design items | draft |
 | [decisions/](decisions/) | One record per decision | draft |
 
@@ -29,4 +31,6 @@ Decisions: [0001](decisions/0001-docs-in-repo.md), [0002](decisions/0002-design-
 [0010](decisions/0010-sequencing-and-merge-detection.md),
 [0011](decisions/0011-after-merge-and-closed-pull-requests.md),
 [0012](decisions/0012-service-layer-and-per-service-backends.md), [0013](decisions/0013-implementation-stack.md),
-[0014](decisions/0014-server-storage-authentication-tenancy.md), [0015](decisions/0015-pull-request-identity.md).
+[0014](decisions/0014-server-storage-authentication-tenancy.md), [0015](decisions/0015-pull-request-identity.md), [0016](decisions/0016-harness-integration.md),
+[0017](decisions/0017-integration-files-and-headless-permissions.md),
+[0018](decisions/0018-configuration-layers-scope-and-secrets.md).
