@@ -130,9 +130,9 @@ func TestPrecedenceAcrossLayers(t *testing.T) {
 		{func() {}, "flag", LayerFlag},
 		{func() { flags = nil }, "env", LayerEnv},
 		{func() { env = nil }, "local", LayerProjectLocal},
-		{func() { os.Remove(f.localFi) }, "project", LayerProject},
-		{func() { os.Remove(f.projFile) }, "user", LayerUser},
-		{func() { os.Remove(f.userFile) }, "info", LayerDefault},
+		{func() { _ = os.Remove(f.localFi) }, "project", LayerProject},
+		{func() { _ = os.Remove(f.projFile) }, "user", LayerUser},
+		{func() { _ = os.Remove(f.userFile) }, "info", LayerDefault},
 	}
 	for _, s := range steps {
 		s.drop()
