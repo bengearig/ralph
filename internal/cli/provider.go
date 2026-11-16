@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bengearig/ralph/internal/hosting"
+	"github.com/bengearig/ralph/internal/hosting/bitbucket"
 	"github.com/bengearig/ralph/internal/hosting/github"
 	"github.com/bengearig/ralph/internal/version"
 )
@@ -19,7 +20,8 @@ const (
 type providerOpener func(ctx context.Context, a *app) (hosting.Provider, error)
 
 var providerOpeners = map[string]providerOpener{
-	"github": openGitHub,
+	"github":    openGitHub,
+	"bitbucket": openBitbucket,
 }
 
 // openProvider builds the pull request provider the configuration selects.
@@ -51,8 +53,15 @@ func resolveProvider(ctx context.Context, a *app) (string, error) {
 			return name, nil
 		}
 	}
-	if a.setting("github.owner") != "" && a.setting("github.repo") != "" {
+	githubPair := a.setting("github.owner") != "" && a.setting("github.repo") != ""
+	bitbucketPair := a.setting("bitbucket.workspace") != "" && a.setting("bitbucket.repo") != ""
+	switch {
+	case githubPair && bitbucketPair:
+		return "", errors.New("github.owner and github.repo and bitbucket.workspace and bitbucket.repo are all set; set pr.provider to github or bitbucket")
+	case githubPair:
 		return "github", nil
+	case bitbucketPair:
+		return "bitbucket", nil
 	}
 	if a.setting("github.api_url") != defaultGitHubAPI {
 		return "github", nil
@@ -87,6 +96,34 @@ func openGitHub(ctx context.Context, a *app) (hosting.Provider, error) {
 		Owner:     owner,
 		Repo:      repo,
 		Token:     func() (string, error) { return a.cfg.Secret("github.token") },
+		Timeout:   timeout,
+		UserAgent: "ralph/" + version.String(),
+	})
+}
+
+func openBitbucket(ctx context.Context, a *app) (hosting.Provider, error) {
+	workspace, repo := a.setting("bitbucket.workspace"), a.setting("bitbucket.repo")
+	if workspace == "" || repo == "" {
+		remote := a.setting("pr.remote")
+		r, err := hosting.DetectRemote(ctx, a.root, remote)
+		if err != nil {
+			return nil, fmt.Errorf("finding the Bitbucket repository: %w; set bitbucket.workspace and bitbucket.repo to name it", err)
+		}
+		if hosting.ProviderForHost(r.Host) != "bitbucket" {
+			return nil, fmt.Errorf("remote %q points at %s, which is not Bitbucket Cloud; set bitbucket.workspace and bitbucket.repo", remote, r.Host)
+		}
+		workspace, repo = r.Owner, r.Repo
+	}
+	timeout, err := time.ParseDuration(a.setting("pr.timeout"))
+	if err != nil {
+		return nil, fmt.Errorf("pr.timeout: %w", err)
+	}
+	return bitbucket.New(bitbucket.Config{
+		APIURL:    a.setting("bitbucket.api_url"),
+		Workspace: workspace,
+		Repo:      repo,
+		User:      a.setting("bitbucket.user"),
+		Token:     func() (string, error) { return a.cfg.Secret("bitbucket.token") },
 		Timeout:   timeout,
 		UserAgent: "ralph/" + version.String(),
 	})

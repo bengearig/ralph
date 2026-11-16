@@ -163,10 +163,45 @@ func DefaultRegistry() *Registry {
 			Kind:        KindSecret,
 		},
 		Setting{
+			Path:        "bitbucket.workspace",
+			Description: "Bitbucket Cloud workspace; empty means detect it from the remote",
+			Validate:    validateGitHubName,
+		},
+		Setting{
+			Path:        "bitbucket.repo",
+			Description: "Bitbucket Cloud repository slug; empty means detect it from the remote",
+			Validate:    validateGitHubName,
+		},
+		Setting{
+			Path:        "bitbucket.api_url",
+			Description: "Base URL of the Bitbucket Cloud API; https, or http on a loopback host",
+			Default:     "https://api.bitbucket.org/2.0",
+			Scope:       ScopeUser,
+			Validate:    validateAPIURL,
+		},
+		Setting{
+			Path:        "bitbucket.token",
+			Description: "Reference to the Bitbucket token, of the form env:NAME",
+			Default:     "env:BITBUCKET_TOKEN",
+			Scope:       ScopeUser,
+			Kind:        KindSecret,
+		},
+		Setting{
+			Path:        "bitbucket.user",
+			Description: "Atlassian account email; when set the token is an API token sent with Basic authentication, otherwise it is sent as a Bearer token",
+			Scope:       ScopeUser,
+			Validate: func(v string) error {
+				if strings.ContainsFunc(v, unicode.IsSpace) {
+					return errors.New("must not contain whitespace")
+				}
+				return nil
+			},
+		},
+		Setting{
 			Path:        "pr.provider",
 			Description: "Which pull request provider to use; auto picks it from the remote's host",
 			Default:     "auto",
-			Allowed:     []string{"auto", "github"},
+			Allowed:     []string{"auto", "github", "bitbucket"},
 		},
 		Setting{
 			Path:        "pr.remote",
@@ -316,7 +351,7 @@ func validateGitHubName(v string) error {
 func validateAPIURL(v string) error {
 	u, err := url.Parse(v)
 	if err != nil || u.Host == "" {
-		return errors.New("must be a URL such as https://api.github.com")
+		return errors.New("must be a URL such as https://api.example.com")
 	}
 	switch u.Scheme {
 	case "https":

@@ -214,12 +214,3 @@ func TestOpenProviderExplicitGitHubUnchanged(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
-
-func TestOpenProviderBitbucketRemoteWithoutOpener(t *testing.T) {
-	e := newProviderEnv(t, "git@bitbucket.org:acme/widgets.git", "", "")
-	_, err := openProvider(context.Background(), e.app)
-	want := `pull request provider "bitbucket" is not supported by this build`
-	if err == nil || err.Error() != want {
-		t.Fatalf("err = %v", err)
-	}
-}
