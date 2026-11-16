@@ -139,6 +139,18 @@ func DefaultRegistry() *Registry {
 			},
 		},
 		Setting{
+			Path:        "documents.versions.keep",
+			Description: "How many earlier versions of each document to keep; 0 keeps every earlier version and a positive number keeps that many of the most recent",
+			Default:     "0",
+			Validate: func(v string) error {
+				n, err := strconv.Atoi(v)
+				if err != nil || n < 0 || strconv.Itoa(n) != v {
+					return errors.New("must be a whole number of 0 or more")
+				}
+				return nil
+			},
+		},
+		Setting{
 			Path:        "github.owner",
 			Description: "Owner of the GitHub repository; empty means detect it from the remote",
 			Validate:    validateGitHubName,

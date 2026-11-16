@@ -90,6 +90,31 @@ type Filter struct {
 	Statuses []Status
 }
 
+// VersionInfo describes one earlier version without its body; Size is the
+// body's length in bytes.
+type VersionInfo struct {
+	Version   int
+	Kind      Kind
+	Title     string
+	Size      int
+	CreatedAt time.Time
+	CreatedBy string
+}
+
+// DocumentVersion is the full content of one version. For the document's
+// current version Current is true and the time and actor are those of its
+// last edit.
+type DocumentVersion struct {
+	ID        string
+	Version   int
+	Current   bool
+	Kind      Kind
+	Title     string
+	Body      string
+	CreatedAt time.Time
+	CreatedBy string
+}
+
 func fingerprint(d Document) string {
 	return db.Fingerprint(d.ID, string(d.Kind), d.BriefID, d.Title, d.Body, string(d.Status), d.SupersededBy)
 }
@@ -112,12 +137,18 @@ type Service interface {
 	// Restore moves an ARCHIVED or SUPERSEDED document to ACTIVE if its
 	// fingerprint is still expected.
 	Restore(ctx context.Context, id, expected string) (Document, error)
+	// Versions lists the earlier versions of a document of any status,
+	// oldest first and without bodies.
+	Versions(ctx context.Context, id string) ([]VersionInfo, error)
+	// Version returns version n of a document of any status: the current
+	// content when n is the current version, otherwise a kept earlier version.
+	Version(ctx context.Context, id string, n int) (DocumentVersion, error)
 }
 
 var _ Service = (*Store)(nil)
 
 // NewService returns the local implementation, for callers that should
 // depend on the interface only.
-func NewService(d *db.DB) Service {
-	return New(d)
+func NewService(d *db.DB, opts ...Option) Service {
+	return New(d, opts...)
 }

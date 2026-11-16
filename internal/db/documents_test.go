@@ -7,8 +7,25 @@ import (
 )
 
 func TestDocumentsMigrationApplies(t *testing.T) {
+	d, err := openWith(t, filepath.Join(t.TempDir(), "docs.db"), Migrations[:6], MigrateAuto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = d.Close() }()
+	if v := version(t, d); v != 6 {
+		t.Errorf("version = %d, want 6", v)
+	}
+	if !hasTable(t, d, "documents") {
+		t.Error("documents table missing")
+	}
+	if Migrations[5].Name != "create documents" {
+		t.Errorf("migration 6 = %q", Migrations[5].Name)
+	}
+}
+
+func TestVersionsMigrationApplies(t *testing.T) {
 	last := Migrations[len(Migrations)-1]
-	if last.Version != 6 || last.Name != "create documents" {
+	if last.Version != 7 || last.Name != "create document versions" {
 		t.Fatalf("last migration = %d %q", last.Version, last.Name)
 	}
 	fresh, err := openWith(t, filepath.Join(t.TempDir(), "fresh.db"), Migrations, MigrateAuto)
@@ -16,17 +33,20 @@ func TestDocumentsMigrationApplies(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = fresh.Close() }()
-	if v := version(t, fresh); v != 6 {
-		t.Errorf("version = %d, want 6", v)
+	if v := version(t, fresh); v != 7 {
+		t.Errorf("version = %d, want 7", v)
+	}
+	if !hasTable(t, fresh, "document_versions") {
+		t.Error("document_versions table missing")
 	}
 
 	path := filepath.Join(t.TempDir(), "old.db")
-	old, err := openWith(t, path, Migrations[:5], MigrateAuto)
+	old, err := openWith(t, path, Migrations[:6], MigrateAuto)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v := version(t, old); v != 5 {
-		t.Fatalf("old version = %d, want 5", v)
+	if v := version(t, old); v != 6 {
+		t.Fatalf("old version = %d, want 6", v)
 	}
 	_ = old.Close()
 	migrated, err := openWith(t, path, Migrations, MigrateAuto)
@@ -34,8 +54,8 @@ func TestDocumentsMigrationApplies(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = migrated.Close() }()
-	if v := version(t, migrated); v != 6 {
-		t.Errorf("migrated version = %d, want 6", v)
+	if v := version(t, migrated); v != 7 {
+		t.Errorf("migrated version = %d, want 7", v)
 	}
 	a, b := schemaOf(t, fresh), schemaOf(t, migrated)
 	if strings.Join(a, "\n") != strings.Join(b, "\n") {

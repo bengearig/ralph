@@ -135,3 +135,16 @@ BEGIN
 	SELECT RAISE(ABORT, 'id, number, brief and creation time of a document never change');
 END;
 `
+
+const createDocumentVersionsSQL = `
+CREATE TABLE document_versions (
+	document_id TEXT NOT NULL REFERENCES documents(id),
+	version INTEGER NOT NULL,
+	kind TEXT NOT NULL,
+	title TEXT NOT NULL,
+	body TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	created_by TEXT NOT NULL DEFAULT '',
+	PRIMARY KEY (document_id, version)
+);
+`

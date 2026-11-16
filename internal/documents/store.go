@@ -22,12 +22,26 @@ const (
 
 type Store struct {
 	// Now supplies the time stamped on writes.
-	Now func() time.Time
-	db  *db.DB
+	Now  func() time.Time
+	db   *db.DB
+	keep int
 }
 
-func New(d *db.DB) *Store {
-	return &Store{Now: time.Now, db: d}
+// Option configures a Store.
+type Option func(*Store)
+
+// WithKeepVersions keeps only the newest n earlier versions of a document,
+// trimming at each real edit. Zero, and a negative number, keep every one.
+func WithKeepVersions(n int) Option {
+	return func(s *Store) { s.keep = max(n, 0) }
+}
+
+func New(d *db.DB, opts ...Option) *Store {
+	s := &Store{Now: time.Now, db: d}
+	for _, o := range opts {
+		o(s)
+	}
+	return s
 }
 
 func (s *Store) stamp() string {
@@ -274,9 +288,21 @@ func (s *Store) Update(ctx context.Context, id, expected string, c Change) (Docu
 			return nil
 		}
 		if _, err := tx.ExecContext(ctx,
+			"INSERT INTO document_versions (document_id, version, kind, title, body, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			id, d.Version, string(d.Kind), d.Title, d.Body, d.UpdatedAt.UTC().Format(time.RFC3339Nano), d.UpdatedBy); err != nil {
+			return fmt.Errorf("documents: keep version %d of %s: %w", d.Version, id, err)
+		}
+		if _, err := tx.ExecContext(ctx,
 			"UPDATE documents SET title = ?, body = ?, kind = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE id = ?",
 			title, body, string(kind), s.stamp(), units.ActorFrom(ctx), id); err != nil {
 			return fmt.Errorf("documents: update %s: %w", id, err)
+		}
+		if s.keep > 0 {
+			if _, err := tx.ExecContext(ctx,
+				"DELETE FROM document_versions WHERE document_id = ? AND version NOT IN (SELECT version FROM document_versions WHERE document_id = ? ORDER BY version DESC LIMIT ?)",
+				id, id, s.keep); err != nil {
+				return fmt.Errorf("documents: trim versions of %s: %w", id, err)
+			}
 		}
 		return nil
 	})
