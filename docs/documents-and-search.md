@@ -9,17 +9,30 @@ Rationale is in [0019](decisions/0019-documents-and-search.md). Terms are in [co
 A document holds architecture, design, decisions or reference material. It is a record in ralph's store, and the store
 is its source. Documents are project-wide or tied to a top-level unit.
 
+- A document has a kind: architecture, design, decision or reference. Its scope, project-wide or tied to one brief, is
+  fixed when it is created. Its ID has the form `D-n`.
+
 - A document is created and edited through ralph, so it has a fingerprint and shared edits are protected as in
   [0006](decisions/0006-shared-state-and-concurrency.md). A write based on a stale read is rejected with a path to
-  reconciliation.
+  reconciliation. Only an active document can be edited.
 - Documents can be exported to files in the repository, so they can be reviewed through a pull request. Export is
   one-way, from the store to files, in the first release. There is no import, so there is no conflict to resolve. The
   exported files are copies; an edit to one does not change the document.
 - A document can be archived or superseded. An archived document is no longer in use. A superseded document has been
-  replaced by another and must point to its replacement.
+  replaced by another and must point to its replacement, which has to be an active document other than itself; there is
+  no superseding without a replacement. An archived or superseded document cannot be edited until it is restored, which
+  makes it active again and clears the pointer. Archiving, superseding and restoring change the status, not the
+  content, so they do not create versions.
 - Archived and superseded documents are left out of search results unless the search asks for them.
-- Earlier versions of a document are kept. How many are kept is configurable, and old versions can be purged when a
-  large database needs cleaning up. The retention and purge rules are open.
+- An edit that changes the title, body or kind keeps the earlier content as an earlier version; an edit that changes
+  nothing leaves the version and the fingerprint as they were. All earlier versions are kept unless the
+  `documents.versions.keep` setting limits them: `0`, the default, keeps every earlier version, and a positive number
+  keeps that many of the most recent for each document.
+- `ralph docs purge` removes earlier versions when a large database needs cleaning up. `--keep N` protects the newest
+  `N` earlier versions of each document, `--older-than DURATION` (such as `720h` or `90d`) removes earlier versions made
+  longer ago than that, and `--document D-n` limits it to one document; at least one of `--keep` and `--older-than` is
+  required. Nothing is removed without `--yes`: without it the command lists what it would remove and exits. A
+  document's current content is never removed.
 
 ## Search
 

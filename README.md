@@ -23,6 +23,9 @@ The project is under construction. The design is in [docs/](docs/README.md).
   [docs/pull-request-providers.md](docs/pull-request-providers.md)). For Bitbucket, set `bitbucket.token` to a reference
   such as `env:BITBUCKET_TOKEN` and, for an Atlassian API token, `bitbucket.user` to the account email; without a user
   the token is sent as an access token. `bitbucket.workspace` and `bitbucket.repo` override what the remote says.
+- `ralph docs purge` removes earlier document versions: give `--keep N`, `--older-than DURATION` or both, and it lists
+  what it would remove unless `--yes` is given. The `documents.versions.keep` setting limits how many earlier versions
+  of each document are kept; the default keeps all.
 - `ralph mcp` serves ralph's records to an agent over the Model Context Protocol on standard input and output.
 
 ## Development

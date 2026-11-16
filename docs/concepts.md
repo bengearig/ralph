@@ -85,6 +85,11 @@ Required for every integrated record, whichever side holds the data. See
 A running ralph backend that clients use: local to one developer, self-hosted with the built-in API server, or the
 hosted commercial service.
 
+## Document
+
+A record of architecture, design, decisions or reference material, project-wide or tied to one brief, kept in ralph's
+store with its earlier versions. See [documents-and-search.md](documents-and-search.md).
+
 ## Fingerprint
 
 A value derived from a record's content at the time a client reads it. A client sends it back when writing, so the
