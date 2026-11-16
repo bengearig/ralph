@@ -18,7 +18,7 @@ func seedStore(t *testing.T, repo *testutil.Repo, migrations []db.Migration) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	for _, s := range []string{"CREATE TABLE t (x)", "INSERT INTO t VALUES (1), (2), (3)"} {
 		if _, err := d.SQL().Exec(s); err != nil {
 			t.Fatal(err)
@@ -32,7 +32,7 @@ func countT(t *testing.T, path string) int {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer raw.Close()
+	defer func() { _ = raw.Close() }()
 	var n int
 	if err := raw.QueryRow("SELECT count(*) FROM t").Scan(&n); err != nil {
 		t.Fatal(err)
@@ -128,7 +128,7 @@ func TestBackupCommandDoesNotMigrate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer raw.Close()
+	defer func() { _ = raw.Close() }()
 	var v int
 	if err := raw.QueryRow("PRAGMA user_version").Scan(&v); err != nil || v != 0 {
 		t.Errorf("version = %d, %v", v, err)

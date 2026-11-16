@@ -145,7 +145,7 @@ func (d *DB) stamp(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("db: open %q: %w", d.path, err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	var id int64
 	if err := conn.QueryRowContext(ctx, "PRAGMA application_id").Scan(&id); err != nil {
@@ -200,7 +200,7 @@ func checkOwnership(ctx context.Context, path string) error {
 	if err != nil {
 		return fmt.Errorf("db: inspect %q: %w", path, err)
 	}
-	defer ro.Close()
+	defer func() { _ = ro.Close() }()
 
 	var id, objects int64
 	if err := ro.QueryRowContext(ctx, "PRAGMA application_id").Scan(&id); err != nil {
@@ -220,7 +220,7 @@ func hasSQLiteHeader(path string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("db: inspect %q: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	head := make([]byte, len(sqliteMagic))
 	if _, err := io.ReadFull(f, head); err != nil {
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {

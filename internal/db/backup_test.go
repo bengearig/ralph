@@ -17,7 +17,11 @@ func openPlain(t *testing.T) *DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { d.Close() })
+	t.Cleanup(func() {
+		if err := d.Close(); err != nil {
+			t.Errorf("close: %v", err)
+		}
+	})
 	return d
 }
 
@@ -42,7 +46,7 @@ func openCopy(t *testing.T, path string) *sql.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { c.Close() })
+	t.Cleanup(func() { _ = c.Close() })
 	return c
 }
 
@@ -210,13 +214,13 @@ func TestMigrationMakesBackupFirst(t *testing.T) {
 		t.Fatal(err)
 	}
 	insertRows(t, d, 0, 3)
-	d.Close()
+	_ = d.Close()
 
 	d, err = Open(context.Background(), path, Options{Migrations: twoMigrations(), Now: fixedNow()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	if v := version(t, d); v != 2 {
 		t.Errorf("live version = %d", v)
 	}
@@ -239,7 +243,7 @@ func TestNoBackupForNewDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.Close()
+	_ = d.Close()
 	if _, err := os.Stat(filepath.Join(dir, "backups")); err == nil {
 		t.Error("backups directory created for a new database")
 	}
@@ -252,7 +256,7 @@ func TestBackupFailureBlocksMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.Close()
+	_ = d.Close()
 	blocker := filepath.Join(dir, "blocker")
 	if err := os.WriteFile(blocker, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
@@ -265,7 +269,7 @@ func TestBackupFailureBlocksMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	if v := version(t, d); v != 1 {
 		t.Errorf("version = %d", v)
 	}
@@ -298,7 +302,7 @@ func TestBackupNameCollisionAddsSuffix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	if err := d.backupBeforeMigrating(context.Background(), 2, Options{Now: fixedNow()}); err != nil {
 		t.Fatal(err)
 	}

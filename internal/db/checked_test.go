@@ -19,7 +19,8 @@ func TestFingerprintShape(t *testing.T) {
 }
 
 func TestFingerprintIsStable(t *testing.T) {
-	if Fingerprint("x", "y") != Fingerprint("x", "y") {
+	a, b := Fingerprint("x", "y"), Fingerprint("x", "y")
+	if a != b {
 		t.Fatal("unstable")
 	}
 }
@@ -82,7 +83,7 @@ func readFP(t *testing.T, d *DB) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	fp, err := recCurrent(tx)
 	if err != nil {
 		t.Fatal(err)

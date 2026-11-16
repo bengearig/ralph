@@ -45,7 +45,7 @@ func TestMigrationsApplyInOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	for _, tb := range []string{"a", "a2", "b", "c"} {
 		if !hasTable(t, d, tb) {
 			t.Errorf("table %s missing", tb)
@@ -62,12 +62,12 @@ func TestMigrationsAreNotReapplied(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.Close()
+	_ = d.Close()
 	d, err = openWith(t, path, three(), MigrateAuto)
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	if v := version(t, d); v != 3 {
 		t.Errorf("version = %d", v)
 	}
@@ -85,7 +85,7 @@ func TestFailedMigrationRollsBackThatMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	if v := version(t, d); v != 1 {
 		t.Errorf("version = %d", v)
 	}
@@ -104,7 +104,7 @@ func newerAt5(t *testing.T) string {
 	if _, err := d.SQL().Exec("PRAGMA user_version = 5"); err != nil {
 		t.Fatal(err)
 	}
-	d.Close()
+	_ = d.Close()
 	return path
 }
 
@@ -130,7 +130,7 @@ func TestNewerDatabaseUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer raw.Close()
+	defer func() { _ = raw.Close() }()
 	var v, tables int
 	if err := raw.QueryRow("PRAGMA user_version").Scan(&v); err != nil {
 		t.Fatal(err)
@@ -165,7 +165,7 @@ func TestManualModeFailsWhenPending(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.Close()
+	_ = d.Close()
 	_, err = openWith(t, path, three(), MigrateManual)
 	if !errors.Is(err, ErrMigrationRequired) || !strings.Contains(err.Error(), "ralph migrate") || !strings.Contains(err.Error(), path) {
 		t.Fatalf("err = %v", err)
@@ -174,7 +174,7 @@ func TestManualModeFailsWhenPending(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	if v := version(t, d); v != 1 {
 		t.Errorf("version = %d", v)
 	}
@@ -186,12 +186,12 @@ func TestManualModeOpensWhenUpToDate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.Close()
+	_ = d.Close()
 	d, err = openWith(t, path, three(), MigrateManual)
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.Close()
+	_ = d.Close()
 }
 
 func TestMigrateIgnoresManualMode(t *testing.T) {
@@ -200,7 +200,7 @@ func TestMigrateIgnoresManualMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.Close()
+	_ = d.Close()
 	res, err := Migrate(context.Background(), path, Options{Migrations: three(), Mode: MigrateManual})
 	if err != nil {
 		t.Fatal(err)
@@ -232,7 +232,7 @@ func TestNilMigrationsUsesProductionList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	if v := version(t, d); v != len(Migrations) {
 		t.Errorf("version = %d", v)
 	}

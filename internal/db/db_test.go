@@ -18,7 +18,11 @@ func openT(t *testing.T, path string) *DB {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	t.Cleanup(func() { d.Close() })
+	t.Cleanup(func() {
+		if err := d.Close(); err != nil {
+			t.Errorf("close: %v", err)
+		}
+	})
 	return d
 }
 
@@ -299,12 +303,12 @@ func TestOpenMustExistMissingFile(t *testing.T) {
 
 func TestOpenMustExistExistingFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "store.db")
-	openT(t, path).Close()
+	_ = openT(t, path).Close()
 	d, err := Open(context.Background(), path, Options{MustExist: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.Close()
+	_ = d.Close()
 }
 
 func TestOpenNoMigrateSkipsPending(t *testing.T) {
@@ -314,12 +318,12 @@ func TestOpenNoMigrateSkipsPending(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.Close()
+	_ = d.Close()
 	d, err = Open(context.Background(), path, Options{Migrations: three(), NoMigrate: true, BackupDir: filepath.Join(dir, "backups")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	if v := version(t, d); v != 1 {
 		t.Errorf("version = %d, want 1", v)
 	}
@@ -334,7 +338,7 @@ func TestOpenNoMigrateAllowsNewerDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	if v := version(t, d); v != 5 {
 		t.Errorf("version = %d, want 5", v)
 	}
