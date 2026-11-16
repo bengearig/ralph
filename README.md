@@ -8,6 +8,9 @@ The project is under construction. The design is in [docs/](docs/README.md).
 ## Usage
 
 - `ralph init` sets ralph up in the current git repository.
+- `ralph init --harness <name>` (repeatable) also installs ralph's integration for that agent harness, such as
+  `claude-code`; without the flag it installs for each harness it detects. When ralph's integration files are out of
+  date, `ralph status` and the MCP server say so; run `ralph init` to update them.
 - `ralph status` shows briefs, slices and tasks with their statuses.
 - `ralph mcp` serves ralph's records to an agent over the Model Context Protocol on standard input and output.
 
@@ -40,6 +43,9 @@ RALPH_GITHUB_LIVE=1 RALPH_GITHUB_LIVE_REPO=owner/repo RALPH_GITHUB_LIVE_BRANCH=m
 If a pull request exists for the branch, the test also reads that pull request and its review feedback.
 
 The binary is built without cgo, so it stays static.
+
+The older tool's files in this repository are never overwritten: `ralph init` keeps any file it did not write and
+puts the new version beside it.
 
 ### Repository layout
 

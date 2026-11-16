@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"regexp"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/bengearig/ralph/internal/db"
+	"github.com/bengearig/ralph/internal/harness/all"
+	"github.com/bengearig/ralph/internal/integration"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/view"
 	"github.com/spf13/cobra"
@@ -47,7 +50,7 @@ func newStatusCommand(a *app) *cobra.Command {
 			if len(args) == 1 {
 				return statusUnit(ctx, cmd.OutOrStdout(), svc, args[0], asJSON)
 			}
-			return statusSummary(ctx, cmd.OutOrStdout(), svc, all, asJSON)
+			return statusSummary(ctx, cmd.OutOrStdout(), svc, all, asJSON, outdatedPaths(ctx, a.root))
 		},
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "include finished (DONE or CANCELLED) work")
@@ -55,15 +58,47 @@ func newStatusCommand(a *app) *cobra.Command {
 	return cmd
 }
 
-func statusSummary(ctx context.Context, out io.Writer, svc units.Service, all, asJSON bool) error {
+const integrationOutdatedLine = `ralph's integration files are out of date: run "ralph init" to update them.`
+
+// outdatedPaths lists the integration files that are out of date. A failed
+// check is logged and reported as none, so it never fails the command.
+func outdatedPaths(ctx context.Context, root string) []string {
+	stale, err := integration.Check(ctx, root, all.Adapters())
+	if err != nil {
+		slog.Warn("cannot check whether the integration files are out of date", "error", err)
+		return nil
+	}
+	var paths []string
+	for _, o := range stale {
+		paths = append(paths, o.Path)
+	}
+	return paths
+}
+
+type statusSummaryJSON struct {
+	view.SummaryView
+	IntegrationOutdated []string `json:"integration_outdated,omitempty"`
+}
+
+func statusSummary(ctx context.Context, out io.Writer, svc units.Service, all, asJSON bool, outdated []string) error {
 	doc, err := view.Summary(ctx, svc, all)
 	if err != nil {
 		return err
 	}
 	if asJSON {
-		return writeJSON(out, doc)
+		return writeJSON(out, statusSummaryJSON{SummaryView: doc, IntegrationOutdated: outdated})
 	}
+	if err := printSummary(out, doc); err != nil {
+		return err
+	}
+	if len(outdated) > 0 {
+		_, err = fmt.Fprintf(out, "\n%s\n", integrationOutdatedLine)
+	}
+	return err
+}
 
+func printSummary(out io.Writer, doc view.SummaryView) error {
+	var err error
 	if len(doc.Briefs) == 0 && len(doc.Tasks) == 0 && doc.Hidden == 0 {
 		_, err = fmt.Fprintln(out, "No work recorded yet.")
 		return err

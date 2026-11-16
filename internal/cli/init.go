@@ -13,7 +13,6 @@ import (
 	"github.com/bengearig/ralph/internal/integration"
 	"github.com/bengearig/ralph/internal/project"
 	"github.com/bengearig/ralph/internal/version"
-	"github.com/bengearig/ralph/internal/workflow"
 	"github.com/spf13/cobra"
 )
 
@@ -132,14 +131,11 @@ func installIntegration(cmd *cobra.Command, root string, named []harness.Adapter
 		}
 		_, _ = fmt.Fprintf(out, "%s: %s\n", a.Name(), detail)
 
-		instructions, err := workflow.All()
+		in, err := integration.InputsFor(root)
 		if err != nil {
 			return err
 		}
-		arts, err := a.Artifacts(harness.Inputs{
-			Instructions: instructions,
-			MCP:          harness.MCPServer{Name: "ralph", Command: "ralph", Args: []string{"mcp"}},
-		})
+		arts, err := a.Artifacts(in)
 		if err != nil {
 			return fmt.Errorf("%s: %w", a.Name(), err)
 		}

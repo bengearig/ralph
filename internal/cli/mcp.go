@@ -9,7 +9,9 @@ import (
 	"syscall"
 
 	"github.com/bengearig/ralph/internal/db"
+	"github.com/bengearig/ralph/internal/harness/all"
 	"github.com/bengearig/ralph/internal/identity"
+	"github.com/bengearig/ralph/internal/integration"
 	"github.com/bengearig/ralph/internal/mcpserver"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/version"
@@ -27,6 +29,19 @@ func newMCPCommand(a *app) *cobra.Command {
 			defer stop()
 			return runMCP(ctx, a, &mcp.StdioTransport{})
 		},
+	}
+}
+
+func integrationNotice(root string) mcpserver.NoticeSource {
+	return func(ctx context.Context) ([]mcpserver.Notice, error) {
+		stale, err := integration.Check(ctx, root, all.Adapters())
+		if err != nil || len(stale) == 0 {
+			return nil, err
+		}
+		return []mcpserver.Notice{{
+			Code:    "integration_outdated",
+			Message: `ralph's integration files are out of date. Run "ralph init" to update them.`,
+		}}, nil
 	}
 }
 
@@ -53,6 +68,7 @@ func runMCP(ctx context.Context, a *app, t mcp.Transport) error {
 		Name:    "ralph",
 		Version: version.String(),
 		Actor:   identity.Resolve(ctx, a.root),
+		Sources: []mcpserver.NoticeSource{integrationNotice(a.root)},
 		Open: func(ctx context.Context) (units.Service, error) {
 			d, err := openStore(ctx, a, db.Options{MustExist: true})
 			if err != nil {
