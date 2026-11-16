@@ -39,7 +39,7 @@ func NewRootCommand() *cobra.Command {
 		},
 	}
 	cmd.PersistentFlags().String(logLevelFlag, "", "minimum log severity: debug, info, warn or error (setting log.level)")
-	cmd.AddCommand(newVersionCommand(), newConfigCommand(a), newMigrateCommand(a), newBackupCommand(a))
+	cmd.AddCommand(newVersionCommand(), newConfigCommand(a), newMigrateCommand(a), newBackupCommand(a), newInitCommand())
 	return cmd
 }
 
@@ -49,7 +49,7 @@ func skipsConfig(cmd *cobra.Command) bool {
 	}
 	for c := cmd; c.HasParent(); c = c.Parent() {
 		switch c.Name() {
-		case "version", "help", "completion", cobra.ShellCompRequestCmd, cobra.ShellCompNoDescRequestCmd:
+		case "version", "init", "help", "completion", cobra.ShellCompRequestCmd, cobra.ShellCompNoDescRequestCmd:
 			return true
 		}
 	}
