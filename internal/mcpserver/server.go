@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/bengearig/ralph/internal/units"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -18,6 +19,7 @@ type Options struct {
 	Version string
 	Open    func(ctx context.Context) (units.Service, error)
 	Actor   string
+	Sources []NoticeSource
 }
 
 type server struct {
@@ -25,6 +27,9 @@ type server struct {
 
 	mu  sync.Mutex
 	svc units.Service
+
+	noticeMu sync.Mutex
+	seen     map[Notice]struct{}
 }
 
 // New builds a server with ralph's tools registered.
@@ -67,16 +72,33 @@ type handle[In any] func(ctx context.Context, svc units.Service, in In) (out any
 // addTool registers a tool whose failures, including a failure to open the
 // service, are error results and never protocol errors.
 func addTool[In any](s *server, srv *mcp.Server, t *mcp.Tool, fn handle[In]) {
+	if sc, ok := t.OutputSchema.(*jsonschema.Schema); ok {
+		withNoticesSchema(sc)
+	}
 	mcp.AddTool(srv, t, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
 		ctx = units.WithActor(ctx, s.opts.Actor)
-		svc, err := s.service(ctx)
+		res, out := callTool(ctx, s, fn, in)
+		fresh := s.collectNotices(ctx)
+		out, err := attachNotices(res, out, fresh)
 		if err != nil {
-			return errorResult(err), nil, nil
+			res = errorResult(err)
+			_, _ = attachNotices(res, nil, fresh)
+			out = nil
 		}
-		out, text, err := fn(ctx, svc, in)
-		if err != nil {
-			return errorResult(err), nil, nil
-		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, out, nil
+		return res, out, nil
 	})
+}
+
+// callTool runs the handler and returns its result and structured output; a
+// failure is an error result with no output.
+func callTool[In any](ctx context.Context, s *server, fn handle[In], in In) (*mcp.CallToolResult, any) {
+	svc, err := s.service(ctx)
+	if err != nil {
+		return errorResult(err), nil
+	}
+	out, text, err := fn(ctx, svc, in)
+	if err != nil {
+		return errorResult(err), nil
+	}
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, out
 }
