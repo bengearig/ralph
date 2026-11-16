@@ -44,7 +44,26 @@ model. Only the local implementations ship.
 ## Delivery
 
 The first release is delivered in stages that each leave a working tool, in the way ralph's own middle units each leave
-a stable result. The order of the stages is open. "Stage" is used because the work model's names are undecided.
+a stable result. "Stage" is used because the work model's names are undecided. The order is below, and the reasons are in
+[0021](decisions/0021-first-release-scope.md).
+
+1. Foundation: project root resolution, layered configuration and its inspection command, SQLite with migrations and
+   backup, the work records, the service interfaces, `ralph init`, and status. By itself it stores and shows work.
+2. Quick work, with Claude Code and GitHub: the quick-work entry point, the MCP server, project instruction entries,
+   finalization (check, commit, pull request), and pull request creation. This is the first usable tool.
+3. The second adapter and second provider, OpenCode and Bitbucket Cloud. The adapter and provider interfaces are
+   corrected here, before later stages build on them.
+4. Feature planning: Receive and Articulate, the unplanned and ready states, and order between middle units.
+5. Documents: documents with kept versions, retention, archive and supersede, export, keyword search, and links between
+   documents and units, which Receive and Articulate then use.
+6. The loop: headless runs with restricted and auto permissions, run records, the Stall Statute, review feedback as new
+   bottom units, `ralph monitor`, handling after a merge or a closure, and linked documents in prompts. From here ralph
+   can build itself with its own method.
+7. Semantic search: Ollama embeddings, detection of a stale index, and the rebuild.
+8. Jira: the task manager role, then the issue source.
+
+Whether semantic search should come before the loop is not decided. Stages are tracked as work in the PoC while ralph is
+being built, so this doc does not record which are done.
 
 ## Open
 

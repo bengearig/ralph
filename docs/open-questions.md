@@ -58,7 +58,8 @@ Status: draft
 | Should a remote instance hold settings shared by a team, as a layer between the user file and the project file? | configuration |
 | Which secret sources beyond environment variables are supported, and when? | configuration |
 | Which of the settings in the decisions so far are user-only? | configuration |
-| What is the order of the first release's stages, and which is the first usable tool? | first-release |
+| Should semantic search come before the loop? | first-release |
+| Does OpenCode's command-line interface support the loop's headless runs, permission control and budget control? To check before the second adapter. | first-release |
 | How many pre-migration backups are kept, and how are old ones removed? | local-state |
 | What are the names of the backup command and the setting that requires explicit migration? | local-state |
 | How long are run records kept by default, how are they purged, and how are secrets that appear in them handled? | local-state |

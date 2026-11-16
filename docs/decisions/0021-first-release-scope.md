@@ -14,7 +14,11 @@ the work model asks for each delivered slice to leave something stable and usabl
 - Every other decided feature stays in the first release, including both harnesses, semantic search, version retention
   and purging, and Jira in both roles.
 - Pull request providers for the first release are GitHub and Bitbucket Cloud, behind one provider interface.
-- The first release is delivered in stages that each leave a working tool.
+- The first release is delivered in stages that each leave a working tool. The order, in
+  [first-release.md](../first-release.md), puts quick work first because it is the smallest complete flow, the second
+  harness and provider right after it so the interfaces are corrected early, feature planning and then documents, the
+  loop after those, then semantic search, then Jira. Planning and documents are separate stages because together they
+  were the largest.
 - Squash and rebase merges are not supported in the first release. Matching units to history after one is a later
   feature.
 
