@@ -59,8 +59,8 @@ Status: draft
 | Which secret sources beyond environment variables are supported, and when? | configuration |
 | Which of the settings in the decisions so far are user-only? | configuration |
 | Should semantic search come before the loop? | first-release |
-| OpenCode was checked from documentation only, not from an installed binary. Does `opencode run` behave as documented for the loop: exit codes, what an unmatched permission does without the auto flag, and the structure of its JSON output? | first-release |
-| OpenCode documents no cost, token, step or turn limit. Does ralph enforce a budget itself for adapters that lack one (a time limit, or counting from the harness's output), or does the adapter declare the capability missing? | harness-integration |
+| The installed OpenCode's `run --help` confirms a non-interactive run with model, agent, `--format json` and `--auto` flags. Still untested: its exit codes, what an unmatched permission does without `--auto`, and the structure of its JSON output. | first-release |
+| The installed OpenCode's `run` has no cost, token, step or turn limit flag. Does ralph enforce a budget itself for adapters that lack one (a time limit, or counting from the harness's output), or does the adapter declare the capability missing? | harness-integration |
 | OpenCode's default permission rule allows most actions, so a restricted allowlist must start from a deny-everything rule. Does the adapter interface let an adapter state that, and how is the allowlist tested against a real run? | harness-integration |
 | OpenCode keeps its MCP servers and commands in a JSON configuration file the user may also edit. How does ralph manage only its own entries there (see 0017)? | harness-integration |
 | A different, older project is also named OpenCode and uses other flags. How does ralph detect which one is installed? | harness-integration |
