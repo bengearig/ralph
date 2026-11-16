@@ -49,6 +49,34 @@ Used by the loop. See [workflow.md](workflow.md).
 overwritten, and in a file the user owns ralph manages only a marked section. Updates are explicit by default. See
 [0017](decisions/0017-integration-files-and-headless-permissions.md).
 
+### OpenCode
+
+The OpenCode adapter writes these files in the project:
+
+- Commands as `.opencode/commands/ralph/<name>.md`, run as `/ralph/<name>`. Claude Code's are `/ralph:<name>`.
+- Ralph's marked section of project notes in the project instruction file. That is `AGENTS.md` if it exists, else
+  `CLAUDE.md` if it exists, else a new `AGENTS.md`. OpenCode reads `CLAUDE.md` only when there is no `AGENTS.md`, so
+  creating an `AGENTS.md` would hide a user's `CLAUDE.md`.
+- The MCP server as `mcp.servers.ralph` in the first of `opencode.json`, `opencode.jsonc`, `.opencode/opencode.json` and
+  `.opencode/opencode.jsonc` that exists, or a new `opencode.json` in the project root. The entry is a local server
+  whose command is `ralph mcp`.
+
+A file ending in `jsonc` is never edited, because rewriting it would drop the user's comments. If the entry is already
+there, ralph adopts it. Otherwise `ralph init` reports the file as kept and prints the snippet to add. Other `json`
+files keep their other keys and numbers.
+
+No permission entry is written. OpenCode does not need one to call ralph's tools, and a committed file never grants
+permission.
+
+Detection looks for the `opencode` command and reads its version. A different, older project is also called OpenCode;
+it does not list a `--format` option for `opencode run`, so ralph treats it as unsupported, as it does a major version
+before the one ralph supports. `ralph init` prints the reason and skips an unsupported harness that it detected, and
+`ralph init --harness opencode` fails before writing anything.
+
+The project notes name tools by their bare names and say how commands are written in each harness, so they are the
+same for every harness. Two harnesses that read one instruction file, such as Claude Code and OpenCode with a
+`CLAUDE.md`, share one section, and the second application is reported as unchanged.
+
 ## Workflow instructions
 
 Ralph ships a canonical version of the instructions for each phase and renders them into each harness's native format.

@@ -48,7 +48,6 @@ Status: draft
 | What must an adapter declare about a harness's capabilities, and what does ralph do when one is missing? | harness-integration |
 | How does the loop build the prompt for a bottom unit, given that linked documents are pushed in (0019)? | harness-integration |
 | What does each adapter's restricted allowlist contain, and what is the setting's name, given auto mode is already used in 0011? | harness-integration |
-| Which harness versions are supported, and how does ralph detect an incompatible one? | harness-integration |
 | What are the configuration file names, the command that shows the effective configuration, and how is the project-local file kept out of version control? | configuration |
 | Should a remote instance hold settings shared by a team, as a layer between the user file and the project file? | configuration |
 | Which secret sources beyond environment variables are supported, and when? | configuration |
@@ -58,8 +57,6 @@ Status: draft
 | OpenCode has no cost limit flag, but each step's JSON event reports cost and tokens. Does ralph enforce the budget itself by counting them, for any adapter whose harness reports them, and what does an adapter without either do? | harness-integration |
 | In OpenCode a rejected edit is worked around through the shell, so a restricted allowlist must constrain shell commands, not only file edits. How does the adapter interface express an allowlist so each adapter can apply it, and how is it tested against a real run? | harness-integration |
 | OpenCode exits with success after denying an action, so denials are found only in its output. How does each adapter report denied actions to the loop for the run record? | harness-integration |
-| OpenCode keeps its MCP servers and commands in a JSON configuration file the user may also edit. How does ralph manage only its own entries there (see 0017)? | harness-integration |
-| A different, older project is also named OpenCode and uses other flags. How does ralph detect which one is installed? | harness-integration |
 | How many pre-migration backups are kept, and how are old ones removed? | local-state |
 | What are the names of the backup command and the setting that requires explicit migration? | local-state |
 | How long are run records kept by default, how are they purged, and how are secrets that appear in them handled? | local-state |

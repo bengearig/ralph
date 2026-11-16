@@ -9,7 +9,8 @@ The project is under construction. The design is in [docs/](docs/README.md).
 
 - `ralph init` sets ralph up in the current git repository.
 - `ralph init --harness <name>` (repeatable) also installs ralph's integration for that agent harness, such as
-  `claude-code`; without the flag it installs for each harness it detects. When ralph's integration files are out of
+  `claude-code` or `opencode`; without the flag it installs for each harness it detects, so it also installs the
+  OpenCode integration when OpenCode is detected. When ralph's integration files are out of
   date, `ralph status` and the MCP server say so; run `ralph init` to update them.
 - `ralph status` shows briefs, slices and tasks with their statuses.
 - `ralph quick start <title>` creates a task and its own branch for a small piece of work; `ralph quick finish` runs the
@@ -33,6 +34,16 @@ The project is under construction. The design is in [docs/](docs/README.md).
 - `make check` runs vet, lint, then test.
 
 `make lint` runs golangci-lint at the version pinned in the `Makefile` and downloads it on first use.
+
+### Live OpenCode test
+
+`TestLiveOpenCode` in `internal/harness/opencode` checks that the real OpenCode reads the files ralph writes. It is
+skipped unless `RALPH_OPENCODE_LIVE=1` and `opencode` is on the path. It uses a temporary home, starts OpenCode with
+`--standalone` and never runs a model. For example:
+
+```sh
+RALPH_OPENCODE_LIVE=1 go test ./internal/harness/opencode -run TestLiveOpenCode -v
+```
 
 ### Live GitHub test
 

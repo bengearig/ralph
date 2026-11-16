@@ -136,7 +136,7 @@ func installIntegration(cmd *cobra.Command, root string, named []harness.Adapter
 		}
 	}
 	if len(selected) == 0 {
-		_, _ = fmt.Fprintln(out, `no harness detected; run "ralph init --harness claude-code" to install the integration`)
+		_, _ = fmt.Fprintf(out, "no harness detected; run \"ralph init --harness <name>\" to install the integration, where <name> is one of: %s\n", strings.Join(all.Names(), ", "))
 		return nil
 	}
 	for _, a := range selected {

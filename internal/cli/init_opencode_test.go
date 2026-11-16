@@ -31,7 +31,7 @@ func withOnlyFakeOpenCode(t *testing.T, help string) {
 }
 
 func TestInitReportsOpenCodeDetection(t *testing.T) {
-	repo := inRepo(t)
+	inRepo(t)
 	withOnlyFakeOpenCode(t, "echo '  --format  output format'")
 	code, stdout, stderr := run(t, "init")
 	if code != 0 {
@@ -39,11 +39,6 @@ func TestInitReportsOpenCodeDetection(t *testing.T) {
 	}
 	if !containsLine(outLines(stdout), "opencode: 2.3.0") {
 		t.Errorf("stdout = %q", stdout)
-	}
-	for _, p := range []string{".opencode", "opencode.json", "AGENTS.md"} {
-		if _, err := os.Stat(filepath.Join(repo.Dir, p)); !os.IsNotExist(err) {
-			t.Errorf("%s exists: %v", p, err)
-		}
 	}
 }
 

@@ -11,25 +11,12 @@ import (
 
 func withFakeClaude(t *testing.T) {
 	t.Helper()
-	dir := t.TempDir()
-	script := "#!/bin/sh\necho '2.0.1 (Claude Code)'\n"
-	if err := os.WriteFile(filepath.Join(dir, "claude"), []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	withFakeTools(t, map[string]string{"claude": "#!/bin/sh\necho '2.0.1 (Claude Code)'\n"})
 }
 
 func withoutClaude(t *testing.T) {
 	t.Helper()
-	git, err := exec.LookPath("git")
-	if err != nil {
-		t.Fatal(err)
-	}
-	dir := t.TempDir()
-	if err := os.Symlink(git, filepath.Join(dir, "git")); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", dir)
+	withFakeTools(t, nil)
 }
 
 func outLines(out string) []string { return strings.Split(strings.TrimSpace(out), "\n") }
@@ -124,7 +111,7 @@ func TestInitNoHarnessDetected(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d, stderr = %q", code, stderr)
 	}
-	if !strings.Contains(stdout, `no harness detected; run "ralph init --harness claude-code" to install the integration`) {
+	if !strings.Contains(stdout, `no harness detected; run "ralph init --harness <name>" to install the integration, where <name> is one of: claude-code, opencode`) {
 		t.Errorf("stdout = %q", stdout)
 	}
 }

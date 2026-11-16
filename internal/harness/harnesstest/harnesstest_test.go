@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"os"
+	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -239,5 +242,54 @@ func TestCheckAllAllowsJSONKindsToSharePath(t *testing.T) {
 	})
 	if len(r.msgs) != 0 {
 		t.Errorf("unexpected failures: %v", r.msgs)
+	}
+}
+
+// rootOf returns the directory behind an os.DirFS view.
+func rootOf(in harness.Inputs) string {
+	if v := reflect.ValueOf(in.Project); v.Kind() == reflect.String {
+		return v.String()
+	}
+	return ""
+}
+
+func TestCheckInstallAcceptsGoodAdapter(t *testing.T) {
+	r := &recorder{}
+	checkInstall(r, []harness.Adapter{&fake{name: "fake", arts: func(in harness.Inputs) []harness.Artifact {
+		return []harness.Artifact{
+			{Kind: harness.KindFile, Scope: harness.ScopeProject, Path: "cmds/a.md", Content: []byte("a")},
+			{Kind: harness.KindSection, Scope: harness.ScopeProject, Path: "NOTES.md", Content: []byte("notes")},
+		}
+	}}})
+	if len(r.msgs) != 0 {
+		t.Errorf("unexpected failures: %v", r.msgs)
+	}
+}
+
+func TestCheckInstallDetectsUserTextDamage(t *testing.T) {
+	r := &recorder{}
+	checkInstall(r, []harness.Adapter{&fake{name: "fake", arts: func(in harness.Inputs) []harness.Artifact {
+		if dir := rootOf(in); dir != "" {
+			if _, err := os.Stat(filepath.Join(dir, "CLAUDE.md")); err == nil {
+				_ = os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("clobbered\n"), 0o644)
+			}
+		}
+		return []harness.Artifact{{Kind: harness.KindFile, Scope: harness.ScopeProject, Path: "cmds/a.md", Content: []byte("a")}}
+	}}})
+	if !r.mentions("user text in CLAUDE.md was changed") {
+		t.Errorf("damage not detected: %v", r.msgs)
+	}
+}
+
+func TestCheckInstallDetectsStrayFiles(t *testing.T) {
+	r := &recorder{}
+	checkInstall(r, []harness.Adapter{&fake{name: "fake", arts: func(in harness.Inputs) []harness.Artifact {
+		if dir := rootOf(in); dir != "" {
+			_ = os.WriteFile(filepath.Join(dir, "stray.txt"), []byte("x"), 0o644)
+		}
+		return []harness.Artifact{{Kind: harness.KindFile, Scope: harness.ScopeProject, Path: "cmds/a.md", Content: []byte("a")}}
+	}}})
+	if !r.mentions("unexpected file stray.txt") {
+		t.Errorf("stray file not detected: %v", r.msgs)
 	}
 }
