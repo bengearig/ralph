@@ -5,3 +5,6 @@
 /.ralph/ralph.db*
 /.ralph/runs/
 /.ralph/loop.lock
+
+# build output
+/bin/
