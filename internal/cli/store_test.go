@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +14,7 @@ import (
 func TestMigrateCommandCreatesStore(t *testing.T) {
 	repo := inRepo(t)
 	code, stdout, stderr := run(t, "migrate")
-	if code != 0 || stdout != "schema version 0\n" {
+	if want := fmt.Sprintf("schema version %d\n", len(db.Migrations)); code != 0 || !strings.HasPrefix(stdout, want) {
 		t.Fatalf("code = %d, stdout = %q, stderr = %q", code, stdout, stderr)
 	}
 	if _, err := os.Stat(filepath.Join(repo.Dir, ".ralph", "store.db")); err != nil {

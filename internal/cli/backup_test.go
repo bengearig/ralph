@@ -14,6 +14,9 @@ import (
 
 func seedStore(t *testing.T, repo *testutil.Repo, migrations []db.Migration) {
 	t.Helper()
+	if migrations == nil {
+		migrations = []db.Migration{}
+	}
 	d, err := db.Open(context.Background(), filepath.Join(repo.Dir, ".ralph", "store.db"), db.Options{Migrations: migrations})
 	if err != nil {
 		t.Fatal(err)

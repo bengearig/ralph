@@ -20,7 +20,9 @@ type Migration struct {
 }
 
 // Migrations is the production list, applied in order.
-var Migrations = []Migration{}
+var Migrations = []Migration{
+	{Version: 1, Name: "create units", SQL: createUnitsSQL},
+}
 
 // MigrateMode says what Open does when migrations are pending.
 type MigrateMode int

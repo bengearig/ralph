@@ -216,8 +216,8 @@ func TestMigrateIgnoresManualMode(t *testing.T) {
 
 func TestSchemaVersion(t *testing.T) {
 	d := openT(t, filepath.Join(t.TempDir(), "s.db"))
-	if v := version(t, d); v != 0 {
-		t.Errorf("version = %d", v)
+	if v := version(t, d); v != len(Migrations) {
+		t.Errorf("version = %d, want %d", v, len(Migrations))
 	}
 	if _, err := d.SQL().Exec("PRAGMA user_version = 7"); err != nil {
 		t.Fatal(err)
