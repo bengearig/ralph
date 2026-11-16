@@ -22,7 +22,11 @@ var ErrForeignDatabase = errors.New("not a ralph database")
 
 var sqliteMagic = []byte("SQLite format 3\x00")
 
-type Options struct{}
+type Options struct {
+	// Migrations nil selects the production list; a non-nil slice is used as given.
+	Migrations []Migration
+	Mode       MigrateMode
+}
 
 type DB struct {
 	sql  *sql.DB
@@ -32,15 +36,25 @@ type DB struct {
 // Open opens the database at path, creating and stamping it when it is new.
 // A file that is not a ralph database is refused without being modified.
 func Open(ctx context.Context, path string, opts Options) (*DB, error) {
+	d, _, err := open(ctx, path, opts)
+	return d, err
+}
+
+// open also returns the schema version found before any migration ran.
+func open(ctx context.Context, path string, opts Options) (*DB, int, error) {
+	list := opts.list()
+	if err := validateMigrations(list); err != nil {
+		return nil, 0, err
+	}
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		return nil, fmt.Errorf("db: resolve %q: %w", path, err)
+		return nil, 0, fmt.Errorf("db: resolve %q: %w", path, err)
 	}
 	if err := checkOwnership(ctx, abs); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
-		return nil, fmt.Errorf("db: create directory for %q: %w", abs, err)
+		return nil, 0, fmt.Errorf("db: create directory for %q: %w", abs, err)
 	}
 
 	sdb, err := sql.Open("sqlite", dsn(abs, url.Values{
@@ -53,14 +67,22 @@ func Open(ctx context.Context, path string, opts Options) (*DB, error) {
 		"_txlock": {"immediate"},
 	}))
 	if err != nil {
-		return nil, fmt.Errorf("db: open %q: %w", abs, err)
+		return nil, 0, fmt.Errorf("db: open %q: %w", abs, err)
 	}
 	d := &DB{sql: sdb, path: abs}
 	if err := d.stamp(ctx); err != nil {
 		_ = sdb.Close()
-		return nil, err
+		return nil, 0, err
 	}
-	return d, nil
+	from, err := d.SchemaVersion(ctx)
+	if err == nil {
+		err = d.migrate(ctx, from, list, opts.Mode)
+	}
+	if err != nil {
+		_ = sdb.Close()
+		return nil, 0, err
+	}
+	return d, from, nil
 }
 
 func (d *DB) SQL() *sql.DB { return d.sql }

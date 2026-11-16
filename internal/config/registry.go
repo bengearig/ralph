@@ -105,6 +105,12 @@ func DefaultRegistry() *Registry {
 			Allowed:     []string{"debug", "info", "warn", "error"},
 		},
 		Setting{
+			Path:        "storage.migrate",
+			Description: "Whether pending database migrations run automatically or wait for `ralph migrate`",
+			Default:     "auto",
+			Allowed:     []string{"auto", "manual"},
+		},
+		Setting{
 			Path:        "project.id",
 			Description: "Identifier of the ralph project",
 			Validate: func(v string) error {

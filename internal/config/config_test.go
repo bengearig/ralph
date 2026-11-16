@@ -88,8 +88,12 @@ func TestDefaultRegistry(t *testing.T) {
 	if !ok || p.Default != "" || p.Flag != "" || p.Description == "" {
 		t.Fatalf("project.id = %+v, %v", p, ok)
 	}
+	m, ok := r.Lookup("storage.migrate")
+	if !ok || m.Default != "auto" || len(m.Allowed) != 2 || m.Allowed[0] != "auto" || m.Allowed[1] != "manual" || m.Description == "" {
+		t.Fatalf("storage.migrate = %+v, %v", m, ok)
+	}
 	got := r.Settings()
-	if len(got) != 2 || got[0].Path != "log.level" || got[1].Path != "project.id" {
+	if len(got) != 3 || got[0].Path != "log.level" || got[1].Path != "project.id" || got[2].Path != "storage.migrate" {
 		t.Fatalf("settings = %+v", got)
 	}
 }
