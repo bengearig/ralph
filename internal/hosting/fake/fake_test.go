@@ -126,7 +126,63 @@ func TestFakeFeedbackSinceAndOrder(t *testing.T) {
 		t.Fatalf("all = %q, %v", ids(all), err)
 	}
 	since, _ := p.ReviewFeedback(ctx, 1, hosting.FeedbackOptions{Since: t0.Add(time.Hour)})
-	if ids(since) != "abc" {
+	if ids(since) != "c" {
 		t.Fatalf("since = %q", ids(since))
+	}
+}
+
+func TestFakeRejectCredentials(t *testing.T) {
+	p := New()
+	create(t, p, "a")
+	p.AddFeedback(1, hosting.Feedback{ID: "x"})
+	p.RejectCredentials()
+	checkAll(t, p, hosting.ErrUnauthorized)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.prs) != 1 || len(p.feedback[1]) != 1 {
+		t.Fatalf("state changed: %+v %+v", p.prs, p.feedback)
+	}
+}
+
+func TestFakeRateLimit(t *testing.T) {
+	p := New()
+	create(t, p, "a")
+	reset := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	p.RateLimit(reset)
+	checkAll(t, p, hosting.ErrRateLimited)
+	_, err := p.GetPullRequest(ctx, 1)
+	var rl *hosting.RateLimitError
+	if !errors.As(err, &rl) || !rl.ResetAt.Equal(reset) {
+		t.Fatalf("err = %v", err)
+	}
+	p.Merge(1)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.prs[0].State != hosting.StateMerged {
+		t.Fatal("controls must still change state")
+	}
+}
+
+func TestFakeBringDown(t *testing.T) {
+	p := New()
+	create(t, p, "a")
+	p.BringDown()
+	checkAll(t, p, hosting.ErrUnavailable)
+	if got := len(p.Calls()); got != 5 {
+		t.Fatalf("calls = %d, want failed calls recorded", got)
+	}
+}
+
+func checkAll(t *testing.T, p *Provider, want error) {
+	t.Helper()
+	_, err := p.CreatePullRequest(ctx, hosting.NewPullRequest{Head: "b"})
+	checks := map[string]error{"create": err}
+	_, _, checks["find"] = p.FindPullRequest(ctx, "a")
+	_, checks["get"] = p.GetPullRequest(ctx, 1)
+	_, checks["feedback"] = p.ReviewFeedback(ctx, 1, hosting.FeedbackOptions{})
+	for op, err := range checks {
+		if !errors.Is(err, want) {
+			t.Errorf("%s err = %v, want %v", op, err, want)
+		}
 	}
 }

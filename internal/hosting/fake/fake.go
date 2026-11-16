@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/bengearig/ralph/internal/hosting"
 )
@@ -23,6 +24,7 @@ type Provider struct {
 	prs      []hosting.PullRequest
 	feedback map[int][]hosting.Feedback
 	calls    []Call
+	failure  func() error
 }
 
 // New returns an empty provider.
@@ -31,6 +33,37 @@ func New() *Provider {
 }
 
 func (p *Provider) record(c Call) { p.calls = append(p.calls, c) }
+
+// RejectCredentials makes every later provider call fail as unauthorized.
+func (p *Provider) RejectCredentials() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.failure = func() error {
+		return hosting.NewCredentialError("fake.token", "credentials rejected")
+	}
+}
+
+// RateLimit makes every later provider call fail as rate limited until resetAt.
+func (p *Provider) RateLimit(resetAt time.Time) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.failure = func() error { return &hosting.RateLimitError{ResetAt: resetAt} }
+}
+
+// BringDown makes every later provider call fail as unavailable.
+func (p *Provider) BringDown() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.failure = func() error { return fmt.Errorf("fake provider is down: %w", hosting.ErrUnavailable) }
+}
+
+// fail returns the configured failure, if any. The caller holds the lock.
+func (p *Provider) fail() error {
+	if p.failure == nil {
+		return nil
+	}
+	return p.failure()
+}
 
 func (p *Provider) index(number int) int {
 	if number < 1 || number > len(p.prs) {
@@ -44,6 +77,9 @@ func (p *Provider) CreatePullRequest(_ context.Context, n hosting.NewPullRequest
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.record(Call{Op: "create", Head: n.Head})
+	if err := p.fail(); err != nil {
+		return hosting.PullRequest{}, err
+	}
 	for _, pr := range p.prs {
 		if pr.Head == n.Head && pr.State == hosting.StateOpen {
 			return hosting.PullRequest{}, fmt.Errorf("pull request #%d is already open for %q: %w", pr.Number, n.Head, hosting.ErrConflict)
@@ -69,6 +105,9 @@ func (p *Provider) FindPullRequest(_ context.Context, head string) (hosting.Pull
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.record(Call{Op: "find", Head: head})
+	if err := p.fail(); err != nil {
+		return hosting.PullRequest{}, false, err
+	}
 	var found hosting.PullRequest
 	ok := false
 	for _, pr := range p.prs {
@@ -88,6 +127,9 @@ func (p *Provider) GetPullRequest(_ context.Context, number int) (hosting.PullRe
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.record(Call{Op: "get", Number: number})
+	if err := p.fail(); err != nil {
+		return hosting.PullRequest{}, err
+	}
 	i := p.index(number)
 	if i < 0 {
 		return hosting.PullRequest{}, fmt.Errorf("pull request #%d: %w", number, hosting.ErrNotFound)
@@ -95,17 +137,20 @@ func (p *Provider) GetPullRequest(_ context.Context, number int) (hosting.PullRe
 	return p.prs[i], nil
 }
 
-// ReviewFeedback returns feedback at or after opts.Since, ordered by time then ID.
+// ReviewFeedback returns feedback after opts.Since, ordered by time then ID.
 func (p *Provider) ReviewFeedback(_ context.Context, number int, opts hosting.FeedbackOptions) ([]hosting.Feedback, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.record(Call{Op: "feedback", Number: number})
+	if err := p.fail(); err != nil {
+		return nil, err
+	}
 	if p.index(number) < 0 {
 		return nil, fmt.Errorf("pull request #%d: %w", number, hosting.ErrNotFound)
 	}
-	var out []hosting.Feedback
+	out := []hosting.Feedback{}
 	for _, f := range p.feedback[number] {
-		if !opts.Since.IsZero() && f.CreatedAt.Before(opts.Since) {
+		if !opts.Since.IsZero() && !f.CreatedAt.After(opts.Since) {
 			continue
 		}
 		out = append(out, f)
