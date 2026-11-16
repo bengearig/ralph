@@ -28,6 +28,7 @@ var Migrations = []Migration{
 	{Version: 5, Name: "create dependencies", SQL: createDependenciesSQL},
 	{Version: 6, Name: "create documents", SQL: createDocumentsSQL},
 	{Version: 7, Name: "create document versions", SQL: createDocumentVersionsSQL},
+	{Version: 8, Name: "create search index", SQL: createSearchIndexSQL},
 }
 
 // MigrateMode says what Open does when migrations are pending.

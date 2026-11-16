@@ -148,3 +148,10 @@ CREATE TABLE document_versions (
 	PRIMARY KEY (document_id, version)
 );
 `
+
+const createSearchIndexSQL = `
+CREATE VIRTUAL TABLE search_fts USING fts5(
+	title, body, kind UNINDEXED, ref UNINDEXED, unit UNINDEXED,
+	tokenize = 'porter unicode61 remove_diacritics 2'
+);
+`

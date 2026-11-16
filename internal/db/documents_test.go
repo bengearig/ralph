@@ -24,7 +24,7 @@ func TestDocumentsMigrationApplies(t *testing.T) {
 }
 
 func TestVersionsMigrationApplies(t *testing.T) {
-	last := Migrations[len(Migrations)-1]
+	last := Migrations[6]
 	if last.Version != 7 || last.Name != "create document versions" {
 		t.Fatalf("last migration = %d %q", last.Version, last.Name)
 	}
@@ -33,8 +33,8 @@ func TestVersionsMigrationApplies(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = fresh.Close() }()
-	if v := version(t, fresh); v != 7 {
-		t.Errorf("version = %d, want 7", v)
+	if v := version(t, fresh); v != len(Migrations) {
+		t.Errorf("version = %d, want %d", v, len(Migrations))
 	}
 	if !hasTable(t, fresh, "document_versions") {
 		t.Error("document_versions table missing")
@@ -54,8 +54,8 @@ func TestVersionsMigrationApplies(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = migrated.Close() }()
-	if v := version(t, migrated); v != 7 {
-		t.Errorf("migrated version = %d, want 7", v)
+	if v := version(t, migrated); v != len(Migrations) {
+		t.Errorf("migrated version = %d, want %d", v, len(Migrations))
 	}
 	a, b := schemaOf(t, fresh), schemaOf(t, migrated)
 	if strings.Join(a, "\n") != strings.Join(b, "\n") {
