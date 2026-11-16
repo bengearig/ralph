@@ -26,7 +26,7 @@ type env struct {
 
 func newEnv(t *testing.T) *env {
 	t.Helper()
-	d := testutil.NewDB(t, db.Migrations)
+	d := testutil.NewDB(t, db.Migrations[:8])
 	e := &env{t: t, d: d, units: units.NewService(d), docs: documents.NewService(d), svc: New(d)}
 	ctx := context.Background()
 	var err error

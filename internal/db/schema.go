@@ -155,3 +155,79 @@ CREATE VIRTUAL TABLE search_fts USING fts5(
 	tokenize = 'porter unicode61 remove_diacritics 2'
 );
 `
+
+const indexRecordsForSearchSQL = `
+INSERT INTO search_fts (rowid, title, body, kind, ref, unit)
+SELECT number * 5 + CASE level WHEN 'brief' THEN 0 WHEN 'slice' THEN 1 ELSE 2 END,
+	title,
+	body || CASE WHEN acceptance_criteria <> '' THEN char(10) || acceptance_criteria ELSE '' END,
+	level, id, ''
+FROM units;
+
+INSERT INTO search_fts (rowid, title, body, kind, ref, unit)
+SELECT number * 5 + 3, title, body, 'document', id, ''
+FROM documents;
+
+INSERT INTO search_fts (rowid, title, body, kind, ref, unit)
+SELECT id * 5 + 4, '', body, 'note', CAST(id AS TEXT), unit_id
+FROM notes;
+
+CREATE TRIGGER units_search_insert AFTER INSERT ON units
+BEGIN
+	INSERT INTO search_fts (rowid, title, body, kind, ref, unit)
+	VALUES (
+		NEW.number * 5 + CASE NEW.level WHEN 'brief' THEN 0 WHEN 'slice' THEN 1 ELSE 2 END,
+		NEW.title,
+		NEW.body || CASE WHEN NEW.acceptance_criteria <> '' THEN char(10) || NEW.acceptance_criteria ELSE '' END,
+		NEW.level, NEW.id, ''
+	);
+END;
+
+CREATE TRIGGER units_search_update AFTER UPDATE OF title, body, acceptance_criteria ON units
+BEGIN
+	DELETE FROM search_fts
+	WHERE rowid = OLD.number * 5 + CASE OLD.level WHEN 'brief' THEN 0 WHEN 'slice' THEN 1 ELSE 2 END;
+	INSERT INTO search_fts (rowid, title, body, kind, ref, unit)
+	VALUES (
+		NEW.number * 5 + CASE NEW.level WHEN 'brief' THEN 0 WHEN 'slice' THEN 1 ELSE 2 END,
+		NEW.title,
+		NEW.body || CASE WHEN NEW.acceptance_criteria <> '' THEN char(10) || NEW.acceptance_criteria ELSE '' END,
+		NEW.level, NEW.id, ''
+	);
+END;
+
+CREATE TRIGGER units_search_delete AFTER DELETE ON units
+BEGIN
+	DELETE FROM search_fts
+	WHERE rowid = OLD.number * 5 + CASE OLD.level WHEN 'brief' THEN 0 WHEN 'slice' THEN 1 ELSE 2 END;
+END;
+
+CREATE TRIGGER documents_search_insert AFTER INSERT ON documents
+BEGIN
+	INSERT INTO search_fts (rowid, title, body, kind, ref, unit)
+	VALUES (NEW.number * 5 + 3, NEW.title, NEW.body, 'document', NEW.id, '');
+END;
+
+CREATE TRIGGER documents_search_update AFTER UPDATE OF title, body ON documents
+BEGIN
+	DELETE FROM search_fts WHERE rowid = OLD.number * 5 + 3;
+	INSERT INTO search_fts (rowid, title, body, kind, ref, unit)
+	VALUES (NEW.number * 5 + 3, NEW.title, NEW.body, 'document', NEW.id, '');
+END;
+
+CREATE TRIGGER documents_search_delete AFTER DELETE ON documents
+BEGIN
+	DELETE FROM search_fts WHERE rowid = OLD.number * 5 + 3;
+END;
+
+CREATE TRIGGER notes_search_insert AFTER INSERT ON notes
+BEGIN
+	INSERT INTO search_fts (rowid, title, body, kind, ref, unit)
+	VALUES (NEW.id * 5 + 4, '', NEW.body, 'note', CAST(NEW.id AS TEXT), NEW.unit_id);
+END;
+
+CREATE TRIGGER notes_search_delete AFTER DELETE ON notes
+BEGIN
+	DELETE FROM search_fts WHERE rowid = OLD.id * 5 + 4;
+END;
+`
