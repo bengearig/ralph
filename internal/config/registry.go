@@ -6,6 +6,16 @@ import (
 	"strings"
 )
 
+// Scope says which files may set a setting.
+type Scope int
+
+const (
+	// ScopeProject settings may appear in any layer.
+	ScopeProject Scope = iota
+	// ScopeUser settings are ignored in the committed project file.
+	ScopeUser
+)
+
 // Setting declares one configuration setting. Flag is the command-line flag
 // name without dashes, empty if the setting has none.
 type Setting struct {
@@ -13,6 +23,7 @@ type Setting struct {
 	Description string
 	Default     string
 	Flag        string
+	Scope       Scope
 }
 
 // Registry is the set of settings a configuration may contain.

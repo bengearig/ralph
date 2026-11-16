@@ -62,9 +62,21 @@ type Options struct {
 	Flags       map[string]string
 }
 
+// Warning reports a user-only setting ignored in the project file.
+type Warning struct {
+	File string
+	Line int
+	Path string
+}
+
+func (w Warning) String() string {
+	return fmt.Sprintf("%s:%d: %q is user-only and was ignored in the project file", w.File, w.Line, w.Path)
+}
+
 // Config is the merged configuration.
 type Config struct {
-	values map[string]Value
+	values   map[string]Value
+	warnings []Warning
 }
 
 // DefaultUserFile returns the user configuration file, or empty if the user
@@ -90,6 +102,7 @@ func Load(opts Options) (*Config, error) {
 	}
 
 	values := map[string]Value{}
+	var warnings []Warning
 	for _, s := range reg.Settings() {
 		if s.Default != "" {
 			values[s.Path] = Value{Path: s.Path, Value: s.Default, Layer: LayerDefault}
@@ -122,6 +135,10 @@ func Load(opts Options) (*Config, error) {
 			return nil, err
 		}
 		for _, v := range found {
+			if f.layer == LayerProject && reg.settings[v.Path].Scope == ScopeUser {
+				warnings = append(warnings, Warning{File: v.Source.File, Line: v.Source.Line, Path: v.Path})
+				continue
+			}
 			values[v.Path] = v
 		}
 	}
@@ -152,13 +169,18 @@ func Load(opts Options) (*Config, error) {
 		values[s.Path] = Value{Path: s.Path, Value: opts.Flags[name], Layer: LayerFlag, Source: Source{Name: "--" + name}}
 	}
 
-	return &Config{values: values}, nil
+	return &Config{values: values, warnings: warnings}, nil
 }
 
 // Get returns the value of the setting at path, if it is set.
 func (c *Config) Get(path string) (Value, bool) {
 	v, ok := c.values[path]
 	return v, ok
+}
+
+// Warnings returns the warnings raised by Load, in file order.
+func (c *Config) Warnings() []Warning {
+	return c.warnings
 }
 
 // Values returns every set value sorted by path.
