@@ -31,7 +31,8 @@ A bottom unit that belongs to no middle or top-level unit. Used for work that ne
 "change the accent color to a given value". It is not limited to bugfixes.
 
 By default an orphan task gets its own branch and pull request. This must be implemented so it can become configurable
-later. How orphan tasks are received and completed is open. See [0007](decisions/0007-orphan-task-delivery.md).
+later. It is received and completed in the user's own session through a dedicated entry point. See
+[0007](decisions/0007-orphan-task-delivery.md).
 
 ### Ordering
 
@@ -47,7 +48,7 @@ Feedback received on a pull request becomes a new bottom unit appended to that p
 
 The method is Receive, Articulate, Loop, Pull request, Human review, as in [the Manifesto](../MANIFESTO.md). Feature
 work passes through Receive and Articulate to produce top-level, middle and bottom units. An orphan task skips the
-breakdown; its flow is open.
+breakdown and follows [0007](decisions/0007-orphan-task-delivery.md).
 
 ## Task manager
 

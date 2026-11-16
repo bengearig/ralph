@@ -20,5 +20,5 @@ self-hosted with that server or provided as a commercial hosted service.
 ## Consequences
 
 - The CLI and the API must share one service contract, so local and remote modes behave the same.
-- Which services are swappable, and the contract itself, are open. See [open-questions.md](../open-questions.md).
 - The choice is made per service. See [0012](0012-service-layer-and-per-service-backends.md).
+- The contract itself, and the full list of services, are open. See [open-questions.md](../open-questions.md).

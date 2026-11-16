@@ -6,6 +6,9 @@ How ralph is built so one CLI serves a solo developer and a shared instance alik
 [concepts.md](concepts.md). Rationale is in [0012](decisions/0012-service-layer-and-per-service-backends.md) and
 [0013](decisions/0013-implementation-stack.md).
 
+This describes the target architecture. The first release ships the local implementations only, with the API server and
+the remote implementations later. See [first-release.md](first-release.md).
+
 ## Shape
 
 - One program, delivered as a single static binary, contains the CLI, the service layer and the API server.

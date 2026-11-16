@@ -17,6 +17,9 @@ Input: an instruction from the user.
 - Whether the outline needs the user's approval before it is created is configurable. Without a required approval, the
   outline is created and then shown. Revisions to an existing outline always ask.
 - Receive records the dependencies between middle units when one needs another merged first. Open.
+- Receive can start from an issue in an issue source, which becomes its input and is linked to the resulting units. See
+  [task-manager-and-issues.md](task-manager-and-issues.md).
+- Receive links the documents the work relies on to its units. See [documents-and-search.md](documents-and-search.md).
 
 ## Articulate
 
@@ -24,6 +27,7 @@ Input: a top-level unit with unplanned bottom units.
 
 - Each bottom unit's details are worked out with the user: a description and acceptance criteria that let an agent with
   no other context implement and verify it (Article II).
+- Articulate links further documents to a unit where its details need them.
 - Promoting a unit makes it ready. Only ready units are worked by the loop.
 - A unit that cannot be made ready is kicked back instead of guessed at (Kickback Clause). Where it goes back to is
   open.
@@ -34,7 +38,8 @@ Input: a middle unit whose bottom units are ready.
 
 - The loop runs headless, outside the user's session, as a ralph command that drives the harness non-interactively. See
   [0008](decisions/0008-feature-flow.md).
-- Each iteration works one ready bottom unit, in order, producing one commit.
+- Each iteration works one ready bottom unit, in order, producing one commit. The prompt includes the unit and the
+  documents linked to it, and the agent can search for more through the MCP server.
 - A failing iteration is retried. After a configured number of consecutive failures on a unit, the loop stops and asks
   for help (Stall Statute).
 - Verification is dictated by project configuration, by the unit's acceptance criteria, or both. Whether it runs after
@@ -65,5 +70,5 @@ Input: a middle unit whose bottom units are ready.
 ## Documents
 
 Documents hold architecture, design, decisions and reference material, project-wide or tied to a top-level unit. They
-are stored records that agents in the loop retrieve as context, and search covers them. They can mirror files in the
-repository. Details are open.
+are stored records, and the store is their source. Agents in the loop retrieve them as context, and search covers them.
+They can be exported to files in the repository. See [documents-and-search.md](documents-and-search.md).

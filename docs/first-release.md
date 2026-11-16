@@ -31,16 +31,16 @@ A solo developer working fully locally. Everything runs on one machine with loca
   [0014](decisions/0014-server-storage-authentication-tenancy.md).
 - The hosted commercial service.
 - Webhooks, which need a server.
-- Stacked branches, tracker-owned and read-through arrangements, GitHub Issues, and credentials for individual users
-  stored on a server.
+- Stacked branches, the arrangements in which an outside system owns the data or ralph reads through to it, GitHub
+  Issues, and credentials for individual users stored on a server.
 
 The service interfaces are built in the first release so that remote implementations can be added without changing the
 model. Only the local implementations ship.
 
 ## Delivery
 
-The first release is delivered as milestones that each leave a working tool, in the way ralph's own middle units each
-leave a stable result. The order of the milestones is open.
+The first release is delivered in stages that each leave a working tool, in the way ralph's own middle units each leave
+a stable result. The order of the stages is open. "Stage" is used because the work model's names are undecided.
 
 ## Open
 

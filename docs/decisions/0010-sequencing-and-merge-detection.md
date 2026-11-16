@@ -30,6 +30,7 @@ to learn about merges, and about other changes to pull requests, without being a
 ## Consequences
 
 - The pull request provider integration supports reading state, feedback and merges, and optionally receiving webhooks.
-- Webhooks apply only to instances that run the API server.
+- Webhooks apply only to instances that run the API server, so they are not in the first release. See
+  [0021](0021-first-release-scope.md).
 - The monitor and the other detection paths share one handler for changes, which is the unit to specify and test.
 - Review latency stalls a feature under the default. Users who need more throughput opt into stacking later.

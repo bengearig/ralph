@@ -26,10 +26,12 @@ Listed from the most general to the more specific. See [0002](decisions/0002-des
 
 ## Goals
 
-- The CLI works fully with local services and no network dependency beyond the harness.
-- The same CLI works against a shared API, self-hosted or hosted, selected by configuration.
-- Work that is small, such as a quick bugfix, does not require ceremony designed for large work. How the work model
-  achieves this is open.
+- The CLI works fully with local services and needs no ralph server. Systems the user chooses to connect, such as the
+  hosting provider and Jira, are still reached over the network.
+- The same CLI works against a shared API, self-hosted or hosted, selected by configuration. This is not in the first
+  release. See [first-release.md](first-release.md).
+- Work that is small, such as a quick bugfix, does not require ceremony designed for large work. Orphan tasks and the
+  quick-work entry point provide this. See [0007](decisions/0007-orphan-task-delivery.md).
 
 ## Non-goals
 
@@ -40,5 +42,4 @@ Listed from the most general to the more specific. See [0002](decisions/0002-des
 
 - The work model is drafted in [concepts.md](concepts.md) and [0004](decisions/0004-work-model.md); its names are
   undecided. See [open-questions.md](open-questions.md).
-- Which functionality belongs to the API server versus the local CLI.
 - Monetization specifics are deliberately out of scope until the author raises them.

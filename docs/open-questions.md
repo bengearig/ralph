@@ -58,6 +58,12 @@ Status: draft
 | Should a remote instance hold settings shared by a team, as a layer between the user file and the project file? | configuration |
 | Which secret sources beyond environment variables are supported, and when? | configuration |
 | Which of the settings in the decisions so far are user-only? | configuration |
-| What is the order of the first release's milestones, and which is the first usable tool? | first-release |
+| What is the order of the first release's stages, and which is the first usable tool? | first-release |
+| What is a project, how is it identified, and where does the local database live relative to the repository, clones and worktrees? | architecture |
+| Where does the loop do its work: in the user's checkout or a separate working tree, and what happens to uncommitted changes there? | workflow |
+| After a squash or rebase merge, the bottom units' commits no longer exist on the base branch. How does ralph match units to history? | workflow |
+| How is the local database's structure upgraded when ralph is upgraded, and how is it backed up? | architecture |
+| What does ralph log and report for diagnosing a failed iteration, and where does it go? | workflow |
+| Principle 3 (configurable) and principle 4 (minimalist) are listed in that order, but 0002 says minimalism bounds configurability. Which order is intended? | overview |
 | What is the pull request provider interface, and how do GitHub and Bitbucket Cloud differ in review feedback and closing references? | first-release |
 | Which later release adds the API server, and what is its first slice? | first-release |

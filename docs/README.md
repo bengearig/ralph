@@ -9,7 +9,7 @@ text is [the Manifesto](../MANIFESTO.md); these docs do not restate it.
 - Requirements are worded so they can be verified.
 - Rationale and rejected alternatives live in [decisions](decisions/), not in the specs.
 - Unresolved items are tracked in [open-questions.md](open-questions.md).
-- These files are the source of truth. The PoC store, while in use, holds a mirror for search.
+- These files are the source of truth. While the PoC is in use, they can be mirrored into its store for search.
 
 ## Index
 
