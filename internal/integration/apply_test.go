@@ -350,3 +350,107 @@ func TestApplyReadErrorStillSavesEarlierRecords(t *testing.T) {
 		t.Fatal("earlier record lost")
 	}
 }
+
+const jsoncRalph = `{"command":["ralph","mcp"],"type":"local"}`
+
+func jsoncEntry(path string) harness.Artifact {
+	return harness.Artifact{Kind: harness.KindJSONEntry, Scope: harness.ScopeProject, Path: path, KeyPath: []string{"mcp", "servers", "ralph"}, Content: []byte(jsoncRalph)}
+}
+
+const jsoncSnippet = ` may contain comments, so ralph does not edit it; set mcp.servers.ralph to ` + jsoncRalph
+
+func TestApplyJSONCNeverRewrittenWhenEntryAbsent(t *testing.T) {
+	root := t.TempDir()
+	doc := "{\n  // mine\n  \"theme\": \"dark\", /* c */\n}\n"
+	write1(t, root, "opencode.jsonc", doc)
+	r := want(t, apply(t, root, jsoncEntry("opencode.jsonc")), 0, ActionKept)
+	if r.Detail != "opencode.jsonc"+jsoncSnippet {
+		t.Fatalf("detail = %q", r.Detail)
+	}
+	if read(t, root, "opencode.jsonc") != doc {
+		t.Fatal("file changed")
+	}
+}
+
+func TestApplyJSONCAdoptsIdenticalEntryBehindComments(t *testing.T) {
+	root := t.TempDir()
+	doc := "{\n  // mine\n  \"mcp\": {\"servers\": {\"ralph\": {\"type\": \"local\", \"command\": [\"ralph\", \"mcp\",],},},},\n}\n"
+	write1(t, root, "opencode.JSONC", doc)
+	want(t, apply(t, root, jsoncEntry("opencode.JSONC")), 0, ActionAdopted)
+	if m := manifest(t, root, project.IntegrationFile); len(m.Entries) != 1 {
+		t.Fatalf("manifest = %+v", m)
+	}
+	want(t, apply(t, root, jsoncEntry("opencode.JSONC")), 0, ActionUnchanged)
+	if read(t, root, "opencode.JSONC") != doc {
+		t.Fatal("file changed")
+	}
+}
+
+func TestApplyJSONCDifferentEntryKept(t *testing.T) {
+	root := t.TempDir()
+	doc := `{"mcp":{"servers":{"ralph":{"type":"local","command":["other"]}}}} // x`
+	write1(t, root, "o.jsonc", doc)
+	r := want(t, apply(t, root, jsoncEntry("o.jsonc")), 0, ActionKept)
+	if r.Detail != "o.jsonc"+jsoncSnippet || read(t, root, "o.jsonc") != doc {
+		t.Fatalf("detail = %q", r.Detail)
+	}
+}
+
+func TestApplyJSONCInvalidKeptWithProblem(t *testing.T) {
+	root := t.TempDir()
+	doc := "{\n/* never closed"
+	write1(t, root, "o.jsonc", doc)
+	r := want(t, apply(t, root, jsoncEntry("o.jsonc")), 0, ActionKept)
+	if !strings.Contains(r.Detail, "line 2, column 1") || read(t, root, "o.jsonc") != doc {
+		t.Fatalf("detail = %q", r.Detail)
+	}
+}
+
+func TestApplyJSONCAbsentFileIsCreated(t *testing.T) {
+	root := t.TempDir()
+	want(t, apply(t, root, jsoncEntry("o.jsonc")), 0, ActionInstalled)
+	v, ok, err := GetPath([]byte(read(t, root, "o.jsonc")), []string{"mcp", "servers", "ralph"})
+	if err != nil || !ok || string(v) != jsoncRalph {
+		t.Fatalf("v=%s ok=%v err=%v", v, ok, err)
+	}
+}
+
+func TestApplyJSONCRecordedAndUnchangedStillNotEdited(t *testing.T) {
+	root := t.TempDir()
+	doc := `{"mcp":{"servers":{"ralph":{"type":"local","command":["ralph","mcp"]}}}} // x`
+	write1(t, root, "o.jsonc", doc)
+	apply(t, root, jsoncEntry("o.jsonc"))
+	changed := jsoncEntry("o.jsonc")
+	changed.Content = []byte(`{"command":["ralph","serve"],"type":"local"}`)
+	r := want(t, apply(t, root, changed), 0, ActionKept)
+	if r.Detail != `o.jsonc may contain comments, so ralph does not edit it; set mcp.servers.ralph to {"command":["ralph","serve"],"type":"local"}` {
+		t.Fatalf("detail = %q", r.Detail)
+	}
+	if read(t, root, "o.jsonc") != doc {
+		t.Fatal("file changed")
+	}
+}
+
+func TestApplyJSONCArrayItem(t *testing.T) {
+	root := t.TempDir()
+	doc := "{ // c\n \"permissions\": {\"allow\": [\"a\"]}}"
+	write1(t, root, "s.jsonc", doc)
+	r := want(t, apply(t, root, item("s.jsonc", `"b"`, harness.ScopeProject)), 0, ActionKept)
+	if r.Detail != `s.jsonc may contain comments, so ralph does not edit it; add "b" to permissions.allow` {
+		t.Fatalf("detail = %q", r.Detail)
+	}
+	want(t, apply(t, root, item("s.jsonc", `"a"`, harness.ScopeProject)), 0, ActionAdopted)
+	if read(t, root, "s.jsonc") != doc {
+		t.Fatal("file changed")
+	}
+}
+
+func TestApplyJSONStillRewritesPlainFiles(t *testing.T) {
+	root := t.TempDir()
+	write1(t, root, "o.json", `{"theme":"dark"}`)
+	want(t, apply(t, root, jsoncEntry("o.json")), 0, ActionInstalled)
+	got := read(t, root, "o.json")
+	if !strings.Contains(got, `"theme"`) || !strings.Contains(got, `"servers"`) {
+		t.Fatalf("got %q", got)
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/bengearig/ralph/internal/harness"
 	"github.com/bengearig/ralph/internal/project"
@@ -132,6 +133,10 @@ func applyOne(root, adapterName, ralphVersion string, a harness.Artifact, sm *sc
 		data = b
 	case !errors.Is(statErr, os.ErrNotExist):
 		return res, fmt.Errorf("integration: stat %s: %w", a.Path, statErr)
+	}
+
+	if exists && isJSONC(a) {
+		return applyJSONC(a, data, sm, adapterName, ralphVersion, res)
 	}
 
 	st := inspect(a, data, exists)
@@ -264,4 +269,68 @@ func inspect(a harness.Artifact, data []byte, exists bool) state {
 		st.build = func() ([]byte, error) { return a.Content, nil }
 	}
 	return st
+}
+
+func isJSONC(a harness.Artifact) bool {
+	return (a.Kind == harness.KindJSONEntry || a.Kind == harness.KindJSONArrayItem) &&
+		strings.HasSuffix(strings.ToLower(a.Path), ".jsonc")
+}
+
+// applyJSONC never writes: a JSONC file may hold comments an edit would lose.
+func applyJSONC(a harness.Artifact, data []byte, sm *scopeManifest, adapterName, ralphVersion string, res Result) (Result, error) {
+	doc := data
+	if len(bytes.TrimSpace(doc)) == 0 {
+		doc = []byte("{}")
+	}
+	desired := CanonicalHash(a.Content)
+	var present bool
+	var current string
+	if a.Kind == harness.KindJSONEntry {
+		v, ok, err := GetPathJSONC(doc, a.KeyPath)
+		if err != nil {
+			res.Action = ActionKept
+			res.Detail = fmt.Sprintf("%s cannot be read: %v; left unchanged", a.Path, err)
+			return res, nil
+		}
+		present = ok
+		if ok {
+			current = CanonicalHash(v)
+		}
+	} else {
+		has, err := HasArrayItemJSONC(doc, a.KeyPath, a.Content)
+		if err != nil {
+			res.Action = ActionKept
+			res.Detail = fmt.Sprintf("%s cannot be read: %v; left unchanged", a.Path, err)
+			return res, nil
+		}
+		present = has
+		if has {
+			current = desired
+		}
+	}
+	if present && current == desired {
+		entry, recorded := sm.manifest.find(a.ID())
+		if recorded && entry.SHA256 == current {
+			res.Action = ActionUnchanged
+			return res, nil
+		}
+		sm.manifest.record(Entry{
+			ID: a.ID(), Kind: string(a.Kind), Path: a.Path, KeyPath: a.KeyPath,
+			SHA256: desired, Adapter: adapterName, Ralph: ralphVersion,
+		})
+		sm.dirty = true
+		res.Action = ActionAdopted
+		return res, nil
+	}
+	value := a.Content
+	if v, err := canonicalBytes(a.Content); err == nil {
+		value = v
+	}
+	verb := fmt.Sprintf("set %s to %s", pathName(a.KeyPath), value)
+	if a.Kind == harness.KindJSONArrayItem {
+		verb = fmt.Sprintf("add %s to %s", value, pathName(a.KeyPath))
+	}
+	res.Action = ActionKept
+	res.Detail = fmt.Sprintf("%s may contain comments, so ralph does not edit it; %s", a.Path, verb)
+	return res, nil
 }

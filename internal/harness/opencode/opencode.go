@@ -13,7 +13,7 @@ func New() harness.Adapter { return adapter{} }
 func (adapter) Name() string { return name }
 
 func (adapter) Artifacts(in harness.Inputs) ([]harness.Artifact, error) {
-	arts := make([]harness.Artifact, 0, len(in.Instructions)+1)
+	arts := make([]harness.Artifact, 0, len(in.Instructions)+2)
 	for _, ins := range in.Instructions {
 		a, err := commandArtifact(ins, in.MCP.Name)
 		if err != nil {
@@ -25,5 +25,9 @@ func (adapter) Artifacts(in harness.Inputs) ([]harness.Artifact, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append(arts, sec), nil
+	mcp, err := mcpArtifact(in)
+	if err != nil {
+		return nil, err
+	}
+	return append(arts, sec, mcp), nil
 }
