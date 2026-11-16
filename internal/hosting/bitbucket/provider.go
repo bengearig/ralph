@@ -2,7 +2,6 @@ package bitbucket
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -128,9 +127,4 @@ func (p *Provider) GetPullRequest(ctx context.Context, number int) (hosting.Pull
 		return hosting.PullRequest{}, err
 	}
 	return out.toPullRequest(), nil
-}
-
-// ReviewFeedback is not implemented yet.
-func (p *Provider) ReviewFeedback(context.Context, int, hosting.FeedbackOptions) ([]hosting.Feedback, error) {
-	return nil, errors.New("bitbucket: reading review feedback is not implemented yet")
 }

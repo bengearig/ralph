@@ -561,11 +561,3 @@ func TestBitbucketNextLinkPageLimit(t *testing.T) {
 		t.Fatalf("err = %v calls = %d", err, calls.Load())
 	}
 }
-
-func TestBitbucketReviewFeedbackNotImplementedYet(t *testing.T) {
-	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {})
-	_, err := p.ReviewFeedback(context.Background(), 1, hosting.FeedbackOptions{})
-	if err == nil || !strings.Contains(err.Error(), "not implemented") {
-		t.Fatalf("err = %v", err)
-	}
-}
