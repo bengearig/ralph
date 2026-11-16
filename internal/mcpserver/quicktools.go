@@ -40,7 +40,7 @@ type quickFinishInput struct {
 	Summary string `json:"summary,omitempty" jsonschema:"short account of what changed, for the pull request description"`
 }
 
-type quickTask struct {
+type QuickTask struct {
 	ID                 string `json:"id"`
 	Title              string `json:"title"`
 	Body               string `json:"body"`
@@ -49,34 +49,34 @@ type quickTask struct {
 	Fingerprint        string `json:"fingerprint"`
 }
 
-type quickSettings struct {
+type QuickSettings struct {
 	Commands []string `json:"commands"`
 	Timeout  string   `json:"timeout"`
 	Source   string   `json:"source"`
 }
 
-type quickStartResult struct {
-	Task         quickTask     `json:"task"`
+type QuickStartResult struct {
+	Task         QuickTask     `json:"task"`
 	Branch       string        `json:"branch"`
 	Base         string        `json:"base"`
 	StartedFrom  string        `json:"started_from"`
-	Verification quickSettings `json:"verification"`
+	Verification QuickSettings `json:"verification"`
 }
 
-type quickFinishedTask struct {
+type QuickFinishedTask struct {
 	ID          string `json:"id"`
 	State       string `json:"state"`
 	Fingerprint string `json:"fingerprint"`
 }
 
-type quickPullRequest struct {
+type QuickPullRequest struct {
 	Number int    `json:"number"`
 	URL    string `json:"url"`
 	Draft  bool   `json:"draft"`
 	State  string `json:"state"`
 }
 
-type quickCheck struct {
+type QuickCheck struct {
 	Command    string `json:"command"`
 	Passed     bool   `json:"passed"`
 	ExitCode   int    `json:"exit_code"`
@@ -84,31 +84,61 @@ type quickCheck struct {
 	TimedOut   bool   `json:"timed_out"`
 }
 
-type quickVerification struct {
+type QuickVerification struct {
 	Configured bool         `json:"configured"`
-	Results    []quickCheck `json:"results"`
+	Results    []QuickCheck `json:"results"`
 }
 
-type quickFinishResult struct {
-	Task              quickFinishedTask `json:"task"`
+type QuickFinishResult struct {
+	Task              QuickFinishedTask `json:"task"`
 	Branch            string            `json:"branch"`
 	Base              string            `json:"base"`
 	Commit            string            `json:"commit"`
 	Committed         bool              `json:"committed"`
-	PullRequest       quickPullRequest  `json:"pull_request"`
+	PullRequest       QuickPullRequest  `json:"pull_request"`
 	PullRequestReused bool              `json:"pull_request_reused"`
-	Verification      quickVerification `json:"verification"`
+	Verification      QuickVerification `json:"verification"`
 }
 
-func verificationOf(configured bool, report verify.Report) quickVerification {
-	out := quickVerification{Configured: configured, Results: make([]quickCheck, len(report.Results))}
+func verificationOf(configured bool, report verify.Report) QuickVerification {
+	out := QuickVerification{Configured: configured, Results: make([]QuickCheck, len(report.Results))}
 	for i, r := range report.Results {
-		out.Results[i] = quickCheck{
+		out.Results[i] = QuickCheck{
 			Command: r.Command, Passed: r.Passed(), ExitCode: r.ExitCode,
 			DurationMS: r.Duration.Milliseconds(), TimedOut: r.TimedOut,
 		}
 	}
 	return out
+}
+
+// NewQuickStartResult builds the quick_start result from what the service returned.
+func NewQuickStartResult(st quick.Started) QuickStartResult {
+	return QuickStartResult{
+		Task: QuickTask{
+			ID: st.Task.ID, Title: st.Task.Title, Body: st.Task.Body,
+			AcceptanceCriteria: st.Task.AcceptanceCriteria, State: string(st.Task.State),
+			Fingerprint: st.Task.Fingerprint,
+		},
+		Branch: st.Branch, Base: st.Base, StartedFrom: st.StartedFrom,
+		Verification: QuickSettings{
+			Commands: append([]string{}, st.Verify.Commands...),
+			Timeout:  st.Verify.Timeout.String(), Source: st.Verify.Source,
+		},
+	}
+}
+
+// NewQuickFinishResult builds the quick_finish result from what the service returned.
+func NewQuickFinishResult(fin quick.Finished) QuickFinishResult {
+	return QuickFinishResult{
+		Task:   QuickFinishedTask{ID: fin.Task.ID, State: string(fin.Task.State), Fingerprint: fin.Task.Fingerprint},
+		Branch: fin.Branch, Base: fin.Base, Commit: fin.Commit, Committed: fin.Committed,
+		PullRequest: QuickPullRequest{
+			Number: fin.PullRequest.Number, URL: fin.PullRequest.URL,
+			Draft: fin.PullRequest.Draft, State: string(fin.PullRequest.State),
+		},
+		PullRequestReused: fin.PullRequestReused,
+		Verification:      verificationOf(fin.VerificationConfigured, fin.Verification),
+	}
 }
 
 // quickService returns the kept quick work service, building it on the first
@@ -139,7 +169,7 @@ func (s *server) addQuickTools(srv *mcp.Server) {
 		Description:  quickStartDescription,
 		Annotations:  writes,
 		InputSchema:  schemaFor[quickStartInput](nil),
-		OutputSchema: outputFor[quickStartResult](),
+		OutputSchema: outputFor[QuickStartResult](),
 	}, func(ctx context.Context, svc units.Service, in quickStartInput) (any, string, error) {
 		q, err := s.quickService(ctx, svc)
 		if err != nil {
@@ -149,18 +179,7 @@ func (s *server) addQuickTools(srv *mcp.Server) {
 		if err != nil {
 			return nil, "", err
 		}
-		out := quickStartResult{
-			Task: quickTask{
-				ID: st.Task.ID, Title: st.Task.Title, Body: st.Task.Body,
-				AcceptanceCriteria: st.Task.AcceptanceCriteria, State: string(st.Task.State),
-				Fingerprint: st.Task.Fingerprint,
-			},
-			Branch: st.Branch, Base: st.Base, StartedFrom: st.StartedFrom,
-			Verification: quickSettings{
-				Commands: append([]string{}, st.Verify.Commands...),
-				Timeout:  st.Verify.Timeout.String(), Source: st.Verify.Source,
-			},
-		}
+		out := NewQuickStartResult(st)
 		return out, startText(out), nil
 	})
 
@@ -169,7 +188,7 @@ func (s *server) addQuickTools(srv *mcp.Server) {
 		Description:  quickFinishDescription,
 		Annotations:  writes,
 		InputSchema:  schemaFor[quickFinishInput](nil),
-		OutputSchema: outputFor[quickFinishResult](),
+		OutputSchema: outputFor[QuickFinishResult](),
 	}, func(ctx context.Context, svc units.Service, in quickFinishInput) (any, string, error) {
 		q, err := s.quickService(ctx, svc)
 		if err != nil {
@@ -179,21 +198,12 @@ func (s *server) addQuickTools(srv *mcp.Server) {
 		if err != nil {
 			return nil, "", err
 		}
-		out := quickFinishResult{
-			Task:   quickFinishedTask{ID: fin.Task.ID, State: string(fin.Task.State), Fingerprint: fin.Task.Fingerprint},
-			Branch: fin.Branch, Base: fin.Base, Commit: fin.Commit, Committed: fin.Committed,
-			PullRequest: quickPullRequest{
-				Number: fin.PullRequest.Number, URL: fin.PullRequest.URL,
-				Draft: fin.PullRequest.Draft, State: string(fin.PullRequest.State),
-			},
-			PullRequestReused: fin.PullRequestReused,
-			Verification:      verificationOf(fin.VerificationConfigured, fin.Verification),
-		}
+		out := NewQuickFinishResult(fin)
 		return out, finishText(out), nil
 	})
 }
 
-func startText(r quickStartResult) string {
+func startText(r QuickStartResult) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Started %s %q on branch %s, created from %s at %s.\n", r.Task.ID, r.Task.Title, r.Branch, r.Base, shortHash(r.StartedFrom))
 	if len(r.Verification.Commands) == 0 {
@@ -208,7 +218,7 @@ func startText(r quickStartResult) string {
 	return b.String()
 }
 
-func finishText(r quickFinishResult) string {
+func finishText(r QuickFinishResult) string {
 	var b strings.Builder
 	switch {
 	case r.PullRequestReused:

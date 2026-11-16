@@ -126,14 +126,14 @@ func TestQuickStartResult(t *testing.T) {
 		t.Fatalf("fake saw %+v", f.startIn)
 	}
 	raw, _ := json.Marshal(res.StructuredContent)
-	var got quickStartResult
+	var got QuickStartResult
 	if err := json.Unmarshal(raw, &got); err != nil {
 		t.Fatal(err)
 	}
-	want := quickStartResult{
-		Task:   quickTask{ID: "T-7", Title: "Fix it", Body: "the body", AcceptanceCriteria: "it works", State: "IN_PROGRESS", Fingerprint: "fp1"},
+	want := QuickStartResult{
+		Task:   QuickTask{ID: "T-7", Title: "Fix it", Body: "the body", AcceptanceCriteria: "it works", State: "IN_PROGRESS", Fingerprint: "fp1"},
 		Branch: "ralph/t-7-fix-it", Base: "main", StartedFrom: "0123456789abcdef",
-		Verification: quickSettings{Commands: []string{"make test", "make lint"}, Timeout: "1m30s", Source: "project (.ralph/config.yaml)"},
+		Verification: QuickSettings{Commands: []string{"make test", "make lint"}, Timeout: "1m30s", Source: "project (.ralph/config.yaml)"},
 	}
 	if fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Errorf("structured = %+v, want %+v", got, want)
@@ -169,15 +169,15 @@ func TestQuickFinishResult(t *testing.T) {
 		t.Fatalf("error result: %s", text(res))
 	}
 	raw, _ := json.Marshal(res.StructuredContent)
-	var got quickFinishResult
+	var got QuickFinishResult
 	if err := json.Unmarshal(raw, &got); err != nil {
 		t.Fatal(err)
 	}
-	want := quickFinishResult{
-		Task:   quickFinishedTask{ID: "T-7", State: "DONE", Fingerprint: "fp2"},
+	want := QuickFinishResult{
+		Task:   QuickFinishedTask{ID: "T-7", State: "DONE", Fingerprint: "fp2"},
 		Branch: "ralph/t-7-fix-it", Base: "develop", Commit: "fedcba9876543210", Committed: true,
-		PullRequest:  quickPullRequest{Number: 12, URL: "https://example.com/o/r/pull/12", Draft: true, State: "open"},
-		Verification: quickVerification{Configured: true, Results: []quickCheck{{Command: "make test", Passed: true, DurationMS: 1500}}},
+		PullRequest:  QuickPullRequest{Number: 12, URL: "https://example.com/o/r/pull/12", Draft: true, State: "open"},
+		Verification: QuickVerification{Configured: true, Results: []QuickCheck{{Command: "make test", Passed: true, DurationMS: 1500}}},
 	}
 	if fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Errorf("structured = %+v, want %+v", got, want)
@@ -301,7 +301,7 @@ func TestQuickVerificationFailedCarriesOutput(t *testing.T) {
 	}
 	raw, _ := json.Marshal(res.StructuredContent)
 	var sc struct {
-		Verification quickVerification `json:"verification"`
+		Verification QuickVerification `json:"verification"`
 	}
 	if err := json.Unmarshal(raw, &sc); err != nil {
 		t.Fatal(err)
