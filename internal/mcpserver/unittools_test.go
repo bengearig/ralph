@@ -272,7 +272,7 @@ func TestUnitListFilters(t *testing.T) {
 	create(t, cs, map[string]any{"level": "brief", "title": "B", "body": "goal"})
 	create(t, cs, map[string]any{"level": "slice", "title": "S", "parent_id": "B-1"})
 	create(t, cs, map[string]any{"level": "task", "title": "in", "parent_id": "S-1", "acceptance_criteria": "c"})
-	o := create(t, cs, map[string]any{"level": "task", "title": "orphan", "acceptance_criteria": "c"})
+	o := create(t, cs, map[string]any{"level": "task", "title": "orphan", "body": "b", "acceptance_criteria": "c"})
 	ok(t, cs, "task_set_state", map[string]any{"id": "T-2", "fingerprint": o["fingerprint"], "state": "TODO"})
 
 	cases := []struct {
@@ -346,7 +346,7 @@ func (c *countingService) SetState(ctx context.Context, id, fp string, to units.
 func TestUnitUpdateMissingFingerprintRejected(t *testing.T) {
 	svc := &countingService{Service: newSvc(t)}
 	cs := connect(t, Options{Name: "ralph", Open: staticOpen(svc)})
-	create(t, cs, map[string]any{"level": "task", "title": "T", "acceptance_criteria": "c"})
+	create(t, cs, map[string]any{"level": "task", "title": "T", "body": "b", "acceptance_criteria": "c"})
 	for name, args := range map[string]map[string]any{
 		"unit_update":    {"id": "T-1", "title": "x"},
 		"task_set_state": {"id": "T-1", "state": "TODO"},
@@ -363,7 +363,7 @@ func TestUnitUpdateMissingFingerprintRejected(t *testing.T) {
 
 func TestUnitUpdateStale(t *testing.T) {
 	cs, svc := newClient(t)
-	tk := create(t, cs, map[string]any{"level": "task", "title": "T", "acceptance_criteria": "c"})
+	tk := create(t, cs, map[string]any{"level": "task", "title": "T", "body": "b", "acceptance_criteria": "c"})
 	title := "second writer"
 	if _, err := svc.Update(context.Background(), "T-1", tk["fingerprint"].(string), units.Change{Title: &title}); err != nil {
 		t.Fatal(err)
@@ -385,7 +385,7 @@ func TestUnitUpdateBriefBodyRejected(t *testing.T) {
 
 func TestTaskSetStateTransition(t *testing.T) {
 	cs, _ := newClient(t)
-	tk := create(t, cs, map[string]any{"level": "task", "title": "T", "acceptance_criteria": "c"})
+	tk := create(t, cs, map[string]any{"level": "task", "title": "T", "body": "b", "acceptance_criteria": "c"})
 	got := ok(t, cs, "task_set_state", map[string]any{"id": "T-1", "fingerprint": tk["fingerprint"], "state": "TODO", "reason": "ready"})
 	if got["status"] != "TODO" || got["fingerprint"] == tk["fingerprint"] {
 		t.Errorf("got = %v", got)
@@ -397,7 +397,7 @@ func TestTaskSetStateTransition(t *testing.T) {
 
 func TestTaskSetStateInvalidTransition(t *testing.T) {
 	cs, _ := newClient(t)
-	tk := create(t, cs, map[string]any{"level": "task", "title": "T", "acceptance_criteria": "c"})
+	tk := create(t, cs, map[string]any{"level": "task", "title": "T", "body": "b", "acceptance_criteria": "c"})
 	res := fails(t, cs, "task_set_state", map[string]any{"id": "T-1", "fingerprint": tk["fingerprint"], "state": "DONE"}, "invalid_transition")
 	want := units.AllowedNext(units.StateProposed)
 	sc := res.StructuredContent.(map[string]any)
@@ -414,7 +414,7 @@ func TestTaskSetStateInvalidTransition(t *testing.T) {
 
 func TestTaskSetStateStale(t *testing.T) {
 	cs, _ := newClient(t)
-	tk := create(t, cs, map[string]any{"level": "task", "title": "T", "acceptance_criteria": "c"})
+	tk := create(t, cs, map[string]any{"level": "task", "title": "T", "body": "b", "acceptance_criteria": "c"})
 	ok(t, cs, "task_set_state", map[string]any{"id": "T-1", "fingerprint": tk["fingerprint"], "state": "TODO"})
 	res := fails(t, cs, "task_set_state", map[string]any{"id": "T-1", "fingerprint": tk["fingerprint"], "state": "IN_PROGRESS"}, "stale")
 	if !strings.Contains(text(res), "unit_get") {
@@ -458,7 +458,7 @@ func TestLinkAddRemove(t *testing.T) {
 
 func TestWritesRecordActor(t *testing.T) {
 	cs, svc := newClient(t)
-	tk := create(t, cs, map[string]any{"level": "task", "title": "T", "acceptance_criteria": "c"})
+	tk := create(t, cs, map[string]any{"level": "task", "title": "T", "body": "b", "acceptance_criteria": "c"})
 	ok(t, cs, "unit_update", map[string]any{"id": "T-1", "fingerprint": tk["fingerprint"], "title": "U"})
 	ok(t, cs, "note_add", map[string]any{"id": "T-1", "body": "n"})
 	u, err := svc.Get(context.Background(), "T-1")
@@ -481,7 +481,7 @@ func TestResultsAlwaysIncludeFingerprint(t *testing.T) {
 	}
 	b := create(t, cs, map[string]any{"level": "brief", "title": "B", "body": "goal"})
 	check("unit_create", b)
-	tk := create(t, cs, map[string]any{"level": "task", "title": "T", "acceptance_criteria": "c"})
+	tk := create(t, cs, map[string]any{"level": "task", "title": "T", "body": "b", "acceptance_criteria": "c"})
 	check("unit_create", tk)
 	check("unit_get", ok(t, cs, "unit_get", map[string]any{"id": "T-1"}))
 	check("unit_update", ok(t, cs, "unit_update", map[string]any{"id": "T-1", "fingerprint": tk["fingerprint"], "title": "U"}))
@@ -489,5 +489,44 @@ func TestResultsAlwaysIncludeFingerprint(t *testing.T) {
 	check("task_set_state", ok(t, cs, "task_set_state", map[string]any{"id": "T-1", "fingerprint": cur["fingerprint"], "state": "TODO"}))
 	for _, u := range ok(t, cs, "unit_list", nil)["units"].([]any) {
 		check("unit_list", u.(map[string]any))
+	}
+}
+
+func TestTaskSetStateNotReadyCode(t *testing.T) {
+	cs, _ := newClient(t)
+	create(t, cs, map[string]any{"level": "brief", "title": "B", "body": "goal"})
+	create(t, cs, map[string]any{"level": "slice", "title": "S", "parent_id": "B-1"})
+	tk := create(t, cs, map[string]any{"level": "task", "title": "T", "parent_id": "S-1"})
+	res := fails(t, cs, "task_set_state", map[string]any{"id": "T-1", "fingerprint": tk["fingerprint"], "state": "TODO"}, "not_ready")
+	missing, _ := res.StructuredContent.(map[string]any)["missing"].([]any)
+	if len(missing) != 2 || missing[0] != "description" || missing[1] != "acceptance criteria" {
+		t.Errorf("missing = %v", missing)
+	}
+	if !strings.Contains(text(res), "unit_update") || !strings.Contains(text(res), "not ready: T-1 needs") {
+		t.Errorf("text = %q", text(res))
+	}
+}
+
+func TestUnitUpdateNotReadyCode(t *testing.T) {
+	cs, _ := newClient(t)
+	tk := create(t, cs, map[string]any{"level": "task", "title": "T", "body": "b"})
+	todo := ok(t, cs, "task_set_state", map[string]any{"id": "T-1", "fingerprint": tk["fingerprint"], "state": "TODO"})
+	res := fails(t, cs, "unit_update", map[string]any{"id": "T-1", "fingerprint": todo["fingerprint"], "body": ""}, "not_ready")
+	missing, _ := res.StructuredContent.(map[string]any)["missing"].([]any)
+	if len(missing) != 1 || missing[0] != "description" {
+		t.Errorf("missing = %v", missing)
+	}
+}
+
+func TestTaskSetStateDescriptionMentionsReadiness(t *testing.T) {
+	cs, _ := newClient(t)
+	got := tools(t, cs)
+	for _, want := range []string{"description", "acceptance criteria", "not_ready"} {
+		if !strings.Contains(got["task_set_state"].Description, want) {
+			t.Errorf("task_set_state description lacks %q", want)
+		}
+	}
+	if d := got["unit_update"].Description; !strings.Contains(d, "TODO or IN_PROGRESS") {
+		t.Errorf("unit_update description = %q", d)
 	}
 }

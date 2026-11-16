@@ -22,6 +22,7 @@ const (
 	codeInvalidParent  = "invalid_parent"
 	codeTransition     = "invalid_transition"
 	codeStale          = "stale"
+	codeNotReady       = "not_ready"
 	codeInternal       = "internal"
 
 	codeDirtyTree          = "dirty_tree"
@@ -57,6 +58,10 @@ func errorResult(err error) *mcp.CallToolResult {
 			allowed[i] = string(st)
 		}
 		structured["allowed"] = allowed
+	}
+	var nre *units.NotReadyError
+	if errors.As(err, &nre) {
+		structured["missing"] = nre.Missing
 	}
 	var ve *quick.VerificationError
 	if errors.As(err, &ve) {
@@ -112,6 +117,8 @@ func classify(err error) (code, text string) {
 		return codeInvalid, err.Error()
 	case errors.Is(err, units.ErrInvalidTransition):
 		return codeTransition, err.Error()
+	case errors.Is(err, units.ErrNotReady):
+		return codeNotReady, err.Error() + ". Fill in what is missing with unit_update (using the task's latest fingerprint from unit_get), then retry."
 	case errors.Is(err, db.ErrStale):
 		return codeStale, err.Error() + ". Call unit_get to read the unit's current fingerprint and state, then retry."
 	}

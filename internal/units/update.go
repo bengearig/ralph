@@ -79,6 +79,18 @@ func (s *Store) Update(ctx context.Context, id, expected string, c Change) (Unit
 		if err := validateChange(u, c); err != nil {
 			return err
 		}
+		if u.Level == LevelTask && (u.State == StateTodo || u.State == StateInProgress) {
+			edited := u
+			if c.Body != nil {
+				edited.Body = *c.Body
+			}
+			if c.AcceptanceCriteria != nil {
+				edited.AcceptanceCriteria = *c.AcceptanceCriteria
+			}
+			if missing := Readiness(edited); len(missing) > 0 {
+				return &NotReadyError{ID: id, Missing: missing, Editing: true}
+			}
+		}
 		now := s.stamp()
 		if c.Position != nil && u.ParentID != "" {
 			if err := move(ctx, tx, u, *c.Position, now); err != nil {

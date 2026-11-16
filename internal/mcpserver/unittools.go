@@ -192,7 +192,7 @@ Parents: a slice's parent_id is a brief; a task's parent_id is a slice, or omitt
 
 	addTool(s, srv, &mcp.Tool{
 		Name: "unit_update",
-		Description: `Change a unit's title, body, acceptance criteria or position; only the fields you give change. Returns the unit with its new fingerprint. A brief's body cannot be edited, acceptance criteria exist only on tasks, and a finished task (DONE or CANCELLED) cannot be edited. To change a task's state use task_set_state.
+		Description: `Change a unit's title, body, acceptance criteria or position; only the fields you give change. Returns the unit with its new fingerprint. A brief's body cannot be edited, acceptance criteria exist only on tasks, and a finished task (DONE or CANCELLED) cannot be edited. A task in TODO or IN_PROGRESS cannot be edited into an unready shape (no description, or, for a task in a slice, no acceptance criteria); move it back to PROPOSED first. To change a task's state use task_set_state.
 
 ` + fingerprintText,
 		Annotations:  writes(true),
@@ -214,7 +214,7 @@ Parents: a slice's parent_id is a brief; a task's parent_id is a slice, or omitt
 
 	addTool(s, srv, &mcp.Tool{
 		Name: "task_set_state",
-		Description: `Move a task to another state: PROPOSED, TODO, IN_PROGRESS, BLOCKED, DONE or CANCELLED. Only tasks have a state; a brief's or slice's status is derived. If the move is not allowed the call fails with error_code "invalid_transition" and lists the states the task may move to. An optional reason is recorded as a note. Returns the task with its new fingerprint.
+		Description: `Move a task to another state: PROPOSED, TODO, IN_PROGRESS, BLOCKED, DONE or CANCELLED. Only tasks have a state; a brief's or slice's status is derived. If the move is not allowed the call fails with error_code "invalid_transition" and lists the states the task may move to. Moving a task to TODO needs a description and, for a task in a slice, acceptance criteria; otherwise the call fails with error_code "not_ready" and lists what is missing. An optional reason is recorded as a note. Returns the task with its new fingerprint.
 
 ` + fingerprintText,
 		Annotations: writes(false),

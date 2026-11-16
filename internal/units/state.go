@@ -64,6 +64,11 @@ func (s *Store) SetState(ctx context.Context, id, expected string, to State, rea
 		if !ok {
 			return &TransitionError{ID: id, From: u.State, To: to, Allowed: allowed}
 		}
+		if to == StateTodo {
+			if missing := Readiness(u); len(missing) > 0 {
+				return &NotReadyError{ID: id, Missing: missing}
+			}
+		}
 		now := s.stamp()
 		if _, err := tx.ExecContext(ctx, "UPDATE units SET state = ?, updated_at = ?, updated_by = ? WHERE id = ?", string(to), now, ActorFrom(ctx), id); err != nil {
 			return fmt.Errorf("units: set state of %s: %w", id, err)

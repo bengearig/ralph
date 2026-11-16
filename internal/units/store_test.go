@@ -36,7 +36,7 @@ func slice(t *testing.T, s *units.Store, parent string) units.Unit {
 }
 
 func task(t *testing.T, s *units.Store, parent string, title string) units.Unit {
-	return create(t, s, units.NewUnit{Level: units.LevelTask, ParentID: parent, Title: title})
+	return create(t, s, units.NewUnit{Level: units.LevelTask, ParentID: parent, Title: title, Body: "do the work", AcceptanceCriteria: "it works"})
 }
 
 func TestCreateBriefSliceTask(t *testing.T) {

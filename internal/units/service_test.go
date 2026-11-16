@@ -101,11 +101,11 @@ func TestScenarioEndToEnd(t *testing.T) {
 		{s1.ID, "t1"}, {s1.ID, "t2"}, {s2.ID, "t3"}, {s2.ID, "t4"},
 	} {
 		tasks = append(tasks, mustCreate(t, svc, units.NewUnit{
-			Level: units.LevelTask, ParentID: p.parent, Title: p.title, AcceptanceCriteria: "works",
+			Level: units.LevelTask, ParentID: p.parent, Title: p.title, Body: "do it", AcceptanceCriteria: "works",
 		}))
 	}
 	t1, t2, t3, t4 := tasks[0], tasks[1], tasks[2], tasks[3]
-	orphan := mustCreate(t, svc, units.NewUnit{Level: units.LevelTask, Title: "orphan"})
+	orphan := mustCreate(t, svc, units.NewUnit{Level: units.LevelTask, Title: "orphan", Body: "do it"})
 	wantStatuses(t, svc, "tasks created", map[string]units.Status{
 		b.ID: units.StatusArticulating, s1.ID: units.StatusArticulating, s2.ID: units.StatusArticulating,
 		t1.ID: units.StatusProposed, t4.ID: units.StatusProposed, orphan.ID: units.StatusProposed,

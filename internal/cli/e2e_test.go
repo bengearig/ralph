@@ -194,7 +194,7 @@ func TestE2EFullSession(t *testing.T) {
 	e2eOK(t, cs, "unit_create", map[string]any{"level": "brief", "title": "Ship it", "body": "Please ship it."})
 	e2eOK(t, cs, "unit_create", map[string]any{"level": "slice", "parent_id": "B-1", "title": "First slice"})
 	e2eOK(t, cs, "unit_create", map[string]any{"level": "slice", "parent_id": "B-1", "title": "Second slice"})
-	t1 := e2eOK(t, cs, "unit_create", map[string]any{"level": "task", "parent_id": "S-1", "title": "First task", "acceptance_criteria": "it works"})
+	t1 := e2eOK(t, cs, "unit_create", map[string]any{"level": "task", "parent_id": "S-1", "title": "First task", "body": "do it", "acceptance_criteria": "it works"})
 	e2eOK(t, cs, "unit_create", map[string]any{"level": "task", "parent_id": "S-2", "title": "Second task", "acceptance_criteria": "it also works"})
 
 	got := e2eOK(t, cs, "unit_get", map[string]any{"id": "T-1"})

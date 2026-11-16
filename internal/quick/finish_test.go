@@ -348,7 +348,7 @@ func TestFinishNotQuickWork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	todo, err := f.units.Create(ctx, units.NewUnit{Level: units.LevelTask, Title: "todo"})
+	todo, err := f.units.Create(ctx, units.NewUnit{Level: units.LevelTask, Title: "todo", Body: "b"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,7 +397,7 @@ func TestFinishAmbiguousTask(t *testing.T) {
 	f := newFinishFixture(t)
 	st := f.started(t, "Add a file")
 	ctx := context.Background()
-	other, err := f.units.Create(ctx, units.NewUnit{Level: units.LevelTask, Title: "twin"})
+	other, err := f.units.Create(ctx, units.NewUnit{Level: units.LevelTask, Title: "twin", Body: "b"})
 	if err != nil {
 		t.Fatal(err)
 	}
