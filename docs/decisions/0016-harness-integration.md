@@ -15,8 +15,8 @@ developer already uses, and run headlessly for the loop.
 - The MCP server covers only what agents need, and the CLI covers what people run. There is no goal of parity between
   them.
 - The loop spawns the harness's CLI per iteration as a fresh process for one bottom unit, then checks the result itself.
-- Ralph ships canonical workflow instructions, renders them per harness, and lets users override them by
-  configuration.
+- Ralph ships canonical workflow instructions, renders them per harness, and lets users override them with
+  files in `.ralph/workflow/`.
 
 ## Alternatives rejected
 

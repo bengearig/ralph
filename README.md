@@ -12,6 +12,9 @@ The project is under construction. The design is in [docs/](docs/README.md).
   `claude-code` or `opencode`; without the flag it installs for each harness it detects, so it also installs the
   OpenCode integration when OpenCode is detected. When ralph's integration files are out of
   date, `ralph status` and the MCP server say so; run `ralph init` to update them.
+- In an agent session, `/ralph:receive <instructions>` captures and plans work, and `/ralph:articulate <ID>` works out
+  its tasks with you; OpenCode runs them as `/ralph/receive` and `/ralph/articulate`. A project can replace or extend any
+  instruction with files in `.ralph/workflow/`, which `ralph init` applies.
 - `ralph status` shows briefs, slices and tasks with their statuses.
 - `ralph quick start <title>` creates a task and its own branch for a small piece of work; `ralph quick finish` runs the
   commands in the `verify.commands` setting, then commits, pushes and opens a draft pull request. In an agent session,

@@ -11,11 +11,16 @@ are defined in [concepts.md](concepts.md).
 Input: an instruction from the user.
 
 - The instruction is stored verbatim as the brief of a top-level unit.
-- Ambiguity is resolved by asking the user, before anything is planned (Article I).
+- Ambiguity is resolved by asking the user, before anything is planned (Article I). Each answer is recorded as a note
+  on the brief, so the clarifications stay with the instruction.
+- The command creates the outline with the same tools an agent uses elsewhere: it reads related briefs, reports how
+  planning is configured, creates the units, records dependencies, and finishes by showing the status.
 - Receive proposes an outline: the top-level unit, its middle units, and rough bottom units. Rough bottom units are
   unplanned: a title and perhaps a summary.
-- Whether the outline needs the user's approval before it is created is configurable. Without a required approval, the
-  outline is created and then shown. Revisions to an existing outline always ask.
+- The setting `plan.confirm_outline`, off by default, says whether a new outline needs the user's approval before it is
+  created. Without a required approval, the outline is created and then shown. Revisions to an existing outline always
+  ask, whatever the setting says. Where the harness has a plan mode, as Claude Code does, the approval uses it; other
+  harnesses show the outline in the conversation and wait.
 - Receive records the dependencies between middle units when one needs another finished first. A middle unit waits for
   another, in the same top-level unit or another, and a dependency is satisfied when the unit it waits on is done. A
   cycle is rejected. See [0010](decisions/0010-sequencing-and-merge-detection.md).
@@ -27,14 +32,17 @@ Input: an instruction from the user.
 
 Input: a top-level unit with unplanned bottom units.
 
-- Each bottom unit's details are worked out with the user: a description and acceptance criteria that let an agent with
+- The command reads the unit and its notes, then each bottom unit's details are worked out with the user: a description and acceptance criteria that let an agent with
   no other context implement and verify it (Article II).
 - Articulate links further documents to a unit where its details need them.
+- Details are written to the unit and the unit is then promoted, with a reason. A promotion that lacks a description or
+  acceptance criteria is refused and says what is missing.
 - Promoting a unit makes it ready. Only ready units are worked by the loop.
 - A bottom unit can be made ready only when it has a description and, if it belongs to a middle unit, acceptance
   criteria. Blocking, kicking back and cancelling a unit each need a reason, which is recorded as a note.
 - A unit that cannot be made ready is kicked back instead of guessed at (Kickback Clause): it is moved back to unplanned
-  with a reason, and when the plan around it is wrong, the plan is made again.
+  with a reason, and when the plan around it is wrong, the plan is made again. The kickback is also noted on the unit,
+  and Receive revises the plan, always asking first, leaving the history intact.
 
 ## Loop
 

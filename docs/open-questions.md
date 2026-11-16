@@ -42,7 +42,6 @@ Status: draft
 | How is the ralph user credited in a pull request description when the shared token is used? | architecture |
 | Where is the record of written files kept, how is the managed section marked, and how does `ralph init` remove files? | harness-integration |
 | Which other actions, if any, must exist as both CLI commands and MCP tools? | harness-integration |
-| What can users override in the workflow instructions, and where do overrides live? | harness-integration |
 | What must an adapter declare about a harness's capabilities, and what does ralph do when one is missing? | harness-integration |
 | How does the loop build the prompt for a bottom unit, given that linked documents are pushed in (0019)? | harness-integration |
 | What does each adapter's restricted allowlist contain, and what is the setting's name, given auto mode is already used in 0011? | harness-integration |

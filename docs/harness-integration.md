@@ -80,7 +80,16 @@ same for every harness. Two harnesses that read one instruction file, such as Cl
 ## Workflow instructions
 
 Ralph ships a canonical version of the instructions for each phase and renders them into each harness's native format.
-Users and projects can override parts by configuration. What can be overridden, and how, is open.
+Where a harness needs different wording for the same step, such as how the user approves an outline, the instruction
+asks for harness-specific text by key and each adapter supplies its own; a harness without text for a key gets neutral
+wording.
+
+A project can override an instruction with files in `.ralph/workflow/`. `<name>.md` replaces the instruction called
+`<name>`, and `<name>.append.md` adds its text at the end of it. The files are project-level so that they are committed
+and shared by everyone working in the repository, and the integration files rendered from them stay the same for all.
+`ralph init` applies the overrides when it renders the instructions and reports each one with a `workflow:` line, and
+`ralph status` reports the integration files as out of date when an override has changed since they were written. A file
+named for an instruction that does not exist makes `ralph init` fail, naming the file, before it writes anything.
 
 ## Open
 
