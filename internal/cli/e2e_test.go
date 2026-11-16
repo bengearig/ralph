@@ -499,3 +499,108 @@ func TestE2ENoticeLineNeedsASourceTheBinaryLacks(t *testing.T) {
 	ralphBinary(t)
 	t.Skip("no production notice source exists yet, so the `Notice for the user:` line is covered in-process in internal/mcpserver")
 }
+
+func TestE2EPlanningRules(t *testing.T) {
+	e := newE2EEnv(t)
+	e.init(t)
+	cs := e.connect(t, io.Discard)
+
+	fp := func(id string) string {
+		t.Helper()
+		got, _ := e2eOK(t, cs, "unit_get", map[string]any{"id": id})["fingerprint"].(string)
+		return got
+	}
+	setState := func(id, state, reason string) *mcp.CallToolResult {
+		t.Helper()
+		args := map[string]any{"id": id, "fingerprint": fp(id), "state": state}
+		if reason != "" {
+			args["reason"] = reason
+		}
+		return e2eCall(t, cs, "task_set_state", args)
+	}
+	mustMove := func(id, state, reason string) {
+		t.Helper()
+		if res := setState(id, state, reason); res.IsError {
+			t.Fatalf("%s to %s: %s", id, state, e2eText(res))
+		}
+	}
+	mustFail := func(id, state, reason, code string) *mcp.CallToolResult {
+		t.Helper()
+		res := setState(id, state, reason)
+		if got := e2eErrorCode(t, res); got != code {
+			t.Fatalf("%s to %s: error_code = %q (%s), want %q", id, state, got, e2eText(res), code)
+		}
+		return res
+	}
+	statusText := func() string {
+		t.Helper()
+		out, err := e.command(context.Background(), "status").CombinedOutput()
+		if err != nil {
+			t.Fatalf("ralph status: %v\n%s", err, out)
+		}
+		return string(out)
+	}
+
+	e2eOK(t, cs, "unit_create", map[string]any{"level": "brief", "title": "Plan", "body": "Plan the work."})
+	e2eOK(t, cs, "unit_create", map[string]any{"level": "slice", "parent_id": "B-1", "title": "First slice"})
+	e2eOK(t, cs, "unit_create", map[string]any{"level": "slice", "parent_id": "B-1", "title": "Second slice"})
+	e2eOK(t, cs, "unit_create", map[string]any{"level": "task", "parent_id": "S-1", "title": "First task", "body": "do the first"})
+	e2eOK(t, cs, "unit_create", map[string]any{"level": "task", "parent_id": "S-2", "title": "Second task", "body": "do the second", "acceptance_criteria": "it works"})
+
+	res := mustFail("T-1", "TODO", "", "not_ready")
+	if missing, _ := res.StructuredContent.(map[string]any)["missing"].([]any); len(missing) == 0 {
+		t.Errorf("not_ready lists nothing missing: %v", res.StructuredContent)
+	}
+	e2eOK(t, cs, "unit_update", map[string]any{"id": "T-1", "fingerprint": fp("T-1"), "acceptance_criteria": "the first works"})
+	mustMove("T-1", "TODO", "")
+
+	mustFail("T-1", "BLOCKED", "", "reason_required")
+	mustMove("T-1", "BLOCKED", "waiting for an answer")
+	mustMove("T-1", "TODO", "")
+
+	mustFail("T-1", "PROPOSED", "", "reason_required")
+	mustMove("T-1", "PROPOSED", "the plan around it is wrong")
+	var kickback bool
+	notes, _ := e2eOK(t, cs, "unit_get", map[string]any{"id": "T-1"})["notes"].([]any)
+	for _, n := range notes {
+		if m, _ := n.(map[string]any); m["kind"] == "KICKBACK" && strings.Contains(m["body"].(string), "the plan around it is wrong") {
+			kickback = true
+		}
+	}
+	if !kickback {
+		t.Errorf("no KICKBACK note in %v", notes)
+	}
+	mustMove("T-1", "TODO", "")
+
+	dep := e2eOK(t, cs, "dependency_add", map[string]any{"id": "S-2", "depends_on": "S-1"})
+	if w, _ := dep["waiting_on"].([]any); len(w) != 1 || w[0] != "S-1" {
+		t.Errorf("dependency_add = %v", dep)
+	}
+	if out := statusText(); !strings.Contains(out, "waiting on S-1") {
+		t.Errorf("status while waiting:\n%s", out)
+	}
+
+	mustMove("T-2", "TODO", "")
+	res = mustFail("T-2", "IN_PROGRESS", "", "waiting")
+	waiting, _ := res.StructuredContent.(map[string]any)["waiting_on"].([]any)
+	if len(waiting) != 1 || waiting[0].(map[string]any)["id"] != "S-1" {
+		t.Errorf("waiting_on = %v", waiting)
+	}
+
+	cycle := e2eCall(t, cs, "dependency_add", map[string]any{"id": "S-1", "depends_on": "S-2"})
+	if got := e2eErrorCode(t, cycle); got != "invalid" || !strings.Contains(e2eText(cycle), "cycle") {
+		t.Errorf("cycle: %q %s", got, e2eText(cycle))
+	}
+
+	mustMove("T-1", "IN_PROGRESS", "")
+	mustMove("T-1", "DONE", "")
+	s2 := e2eOK(t, cs, "unit_get", map[string]any{"id": "S-2"})
+	deps, _ := s2["depends_on"].([]any)
+	if len(deps) != 1 || deps[0].(map[string]any)["satisfied"] != true || s2["waiting_on"] != nil {
+		t.Errorf("S-2 after S-1 is done = %v", s2)
+	}
+	mustMove("T-2", "IN_PROGRESS", "")
+	if out := statusText(); strings.Contains(out, "waiting on") {
+		t.Errorf("status after the dependency is satisfied:\n%s", out)
+	}
+}

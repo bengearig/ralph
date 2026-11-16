@@ -107,7 +107,7 @@ func printSummary(out io.Writer, doc view.SummaryView) error {
 	for _, b := range doc.Briefs {
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\n", b.ID, b.Status, b.Title)
 		for _, s := range b.Slices {
-			_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\n", s.ID, s.Status, s.Title, countsText(s.Tasks))
+			_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\t%s%s\n", s.ID, s.Status, s.Title, countsText(s.Tasks), waitingSuffix(s.WaitingOn))
 		}
 	}
 	if err := tw.Flush(); err != nil {
@@ -142,6 +142,13 @@ func printSummary(out io.Writer, doc view.SummaryView) error {
 
 func newTabWriter(w io.Writer) *tabwriter.Writer {
 	return tabwriter.NewWriter(w, 0, 8, 2, ' ', 0)
+}
+
+func waitingSuffix(ids []string) string {
+	if len(ids) == 0 {
+		return ""
+	}
+	return "  waiting on " + strings.Join(ids, ", ")
 }
 
 func countsText(c map[string]int) string {
@@ -217,6 +224,16 @@ func printUnit(out io.Writer, v view.UnitView) error {
 		}
 		if err := tw.Flush(); err != nil {
 			return err
+		}
+	}
+	if len(v.DependsOn) > 0 {
+		w("\nDepends on:\n")
+		for _, d := range v.DependsOn {
+			waiting := ""
+			if !d.Satisfied {
+				waiting = " (waiting)"
+			}
+			w("%s  %s  %s%s\n", d.ID, d.Status, d.Title, waiting)
 		}
 	}
 	if len(v.Links) > 0 {

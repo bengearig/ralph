@@ -16,7 +16,9 @@ Input: an instruction from the user.
   unplanned: a title and perhaps a summary.
 - Whether the outline needs the user's approval before it is created is configurable. Without a required approval, the
   outline is created and then shown. Revisions to an existing outline always ask.
-- Receive records the dependencies between middle units when one needs another merged first. Open.
+- Receive records the dependencies between middle units when one needs another finished first. A middle unit waits for
+  another, in the same top-level unit or another, and a dependency is satisfied when the unit it waits on is done. A
+  cycle is rejected. See [0010](decisions/0010-sequencing-and-merge-detection.md).
 - Receive can start from an issue in an issue source, which becomes its input and is linked to the resulting units. See
   [task-manager-and-issues.md](task-manager-and-issues.md).
 - Receive links the documents the work relies on to its units. See [documents-and-search.md](documents-and-search.md).
@@ -29,8 +31,10 @@ Input: a top-level unit with unplanned bottom units.
   no other context implement and verify it (Article II).
 - Articulate links further documents to a unit where its details need them.
 - Promoting a unit makes it ready. Only ready units are worked by the loop.
-- A unit that cannot be made ready is kicked back instead of guessed at (Kickback Clause). Where it goes back to is
-  open.
+- A bottom unit can be made ready only when it has a description and, if it belongs to a middle unit, acceptance
+  criteria. Blocking, kicking back and cancelling a unit each need a reason, which is recorded as a note.
+- A unit that cannot be made ready is kicked back instead of guessed at (Kickback Clause): it is moved back to unplanned
+  with a reason, and when the plan around it is wrong, the plan is made again.
 
 ## Loop
 
@@ -38,7 +42,8 @@ Input: a middle unit whose bottom units are ready.
 
 - The loop runs headless, outside the user's session, as a ralph command that drives the harness non-interactively. See
   [0008](decisions/0008-feature-flow.md).
-- Each iteration works one ready bottom unit, in order, producing one commit. The prompt includes the unit and the
+- Each iteration works one ready bottom unit, in order, producing one commit. A middle unit that waits for another
+  that is not done is not started, and its bottom units are not worked. The prompt includes the unit and the
   documents linked to it, and the agent can search for more through the MCP server.
 - The loop works in the user's checkout, on the middle unit's branch, and refuses to start when the working tree has
   uncommitted changes. See [0023](decisions/0023-loop-workspace.md).

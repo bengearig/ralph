@@ -4,13 +4,11 @@ Status: draft
 
 | Question | Blocks |
 | --- | --- |
-| How is order between middle units recorded when it matters? | workflow |
 | What is auto mode: what does it start, how is it enabled, and what stops it? | workflow |
 | How much of the follow-up to a detected change can be applied automatically, and how is that configured? | workflow |
 | Is the monitor's final name `ralph monitor`, and what is the acting command called? | workflow |
 | Does branch deletion after merge cover the local branch, the remote branch, or both? | workflow |
 | How does ralph read feedback from a pull request, and which feedback becomes a bottom unit? | workflow |
-| Where does a unit that cannot be made ready go back to? | workflow |
 | Does verification run after each bottom unit, after each middle unit, or both? | workflow |
 | How is a failed iteration retried, and what is the stall threshold's default? | workflow |
 | Where do exported document files go, how are they named, and how does a file say it is generated? | documents |

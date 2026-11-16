@@ -41,7 +41,10 @@ later. It is received and completed in the user's own session through a dedicate
 
 ### Ordering
 
-Middle units under one top-level unit are worked sequentially where order matters. It does not always matter. Parallel
+Middle units under one top-level unit are worked sequentially where order matters. It does not always matter. Where
+it does, the order is recorded as a dependency: a middle unit waits for another, and the dependency is satisfied when
+that unit is done. Any two middle units may be tied, including ones under different top-level units, and a cycle is
+rejected. A middle unit that waits is not started. Parallel
 work is avoided because of the complexity it adds. See [0004](decisions/0004-work-model.md).
 
 ### Review feedback

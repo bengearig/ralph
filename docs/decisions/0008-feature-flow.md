@@ -27,3 +27,10 @@ Feature work needs the full method. The PoC's flow was shaped by one workplace; 
 - The model has distinct unplanned and ready states, and the loop must refuse unready units.
 - Documents need storage, search and chunking suited to retrieval, and a defined relationship to repo files.
 - A headless loop needs its own permission, budget and logging settings per harness.
+- A bottom unit becomes ready only with a description and, in a middle unit, acceptance criteria; the refusal says what
+  is missing.
+- Blocking, kicking back and cancelling a bottom unit need a reason, kept as a note, so a human can see why work
+  stopped.
+- A bottom unit that cannot be made ready goes back to unplanned with a reason, and the plan is made again when the plan
+  around it is wrong.
+- The loop does not work a middle unit that waits for another; see [0010](0010-sequencing-and-merge-detection.md).

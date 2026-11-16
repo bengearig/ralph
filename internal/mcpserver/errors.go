@@ -24,6 +24,7 @@ const (
 	codeStale          = "stale"
 	codeNotReady       = "not_ready"
 	codeReasonRequired = "reason_required"
+	codeWaiting        = "waiting"
 	codeInternal       = "internal"
 
 	codeDirtyTree          = "dirty_tree"
@@ -63,6 +64,14 @@ func errorResult(err error) *mcp.CallToolResult {
 	var nre *units.NotReadyError
 	if errors.As(err, &nre) {
 		structured["missing"] = nre.Missing
+	}
+	var we *units.WaitingError
+	if errors.As(err, &we) {
+		waiting := make([]map[string]any, len(we.Waiting))
+		for i, d := range we.Waiting {
+			waiting[i] = map[string]any{"id": d.ID, "title": d.Title, "status": string(d.Status)}
+		}
+		structured["waiting_on"] = waiting
 	}
 	var ve *quick.VerificationError
 	if errors.As(err, &ve) {
@@ -122,6 +131,8 @@ func classify(err error) (code, text string) {
 		return codeNotReady, err.Error() + ". Fill in what is missing with unit_update (using the task's latest fingerprint from unit_get), then retry."
 	case errors.Is(err, units.ErrReasonRequired):
 		return codeReasonRequired, err.Error() + ". Call task_set_state again with a reason."
+	case errors.Is(err, units.ErrWaiting):
+		return codeWaiting, err.Error() + ". Finishing those slices, or removing the dependency with dependency_remove, lets the task start."
 	case errors.Is(err, db.ErrStale):
 		return codeStale, err.Error() + ". Call unit_get to read the unit's current fingerprint and state, then retry."
 	}

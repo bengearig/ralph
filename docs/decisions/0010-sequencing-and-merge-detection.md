@@ -12,6 +12,12 @@ to learn about merges, and about other changes to pull requests, without being a
 - Whether a dependent middle unit waits for the previous merge or stacks on the previous branch is configurable. The
   default is to wait: the next middle unit starts after the previous one merges, branching from the updated base.
   Stacking is an option, not required in the first release.
+- Order between middle units is recorded as a dependency: one middle unit waits for another. Any two middle units may
+  be tied, including ones under different top-level units, and a cycle is rejected. Dependencies are plain records
+  with no versioning of their own.
+- A middle unit that waits for another cannot have a bottom unit started until the unit it waits on is satisfied. Until
+  merges are detected, a dependency is satisfied when the unit it waits on is done; once merges are detected, it is
+  satisfied when that unit's work is merged. Removing the dependency lets the waiting unit start.
 - Ralph can learn about pull request changes in three ways, and all are planned: polling the hosting provider, a
   webhook into the API server, and a command the user runs. Each feeds the same handling, so behavior does not depend
   on how a change was detected.
@@ -33,4 +39,5 @@ to learn about merges, and about other changes to pull requests, without being a
 - Webhooks apply only to instances that run the API server, so they are not in the first release. See
   [0021](0021-first-release-scope.md).
 - The monitor and the other detection paths share one handler for changes, which is the unit to specify and test.
+- Views show what a middle unit waits for, and starting its work names the unfinished dependencies.
 - Review latency stalls a feature under the default. Users who need more throughput opt into stacking later.

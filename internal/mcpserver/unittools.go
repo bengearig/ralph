@@ -93,6 +93,11 @@ type noteInput struct {
 	Kind string `json:"kind,omitempty" jsonschema:"NOTE (the default) or KICKBACK"`
 }
 
+type dependencyInput struct {
+	ID        string `json:"id" jsonschema:"the slice that waits, a slice ID such as S-2"`
+	DependsOn string `json:"depends_on" jsonschema:"the slice it waits for, a slice ID such as S-1"`
+}
+
 type linkInput struct {
 	ID     string `json:"id" jsonschema:"unit ID such as B-1, S-2 or T-3"`
 	Kind   string `json:"kind" jsonschema:"document for a project document, external for an item in an outside system"`
@@ -132,7 +137,7 @@ func (s *server) addUnitTools(srv *mcp.Server) {
 
 	addTool(s, srv, &mcp.Tool{
 		Name: "unit_get",
-		Description: `Read one unit: its title, body, acceptance criteria, derived status, parent, children (id, level, title, status), links, notes (oldest first) and its fingerprint. Call this before updating a unit, and again after a "stale" error.
+		Description: `Read one unit: its title, body, acceptance criteria, derived status, parent, children (id, level, title, status), links, notes (oldest first) and its fingerprint. A slice also shows its dependencies: depends_on (id, title, status and whether each is satisfied) and waiting_on (the IDs not yet satisfied), both left out when it has none. Call this before updating a unit, and again after a "stale" error.
 
 ` + levelsText + `
 
@@ -217,7 +222,7 @@ Parents: a slice's parent_id is a brief; a task's parent_id is a slice, or omitt
 
 	addTool(s, srv, &mcp.Tool{
 		Name: "task_set_state",
-		Description: `Move a task to another state: PROPOSED, TODO, IN_PROGRESS, BLOCKED, DONE or CANCELLED. Only tasks have a state; a brief's or slice's status is derived. If the move is not allowed the call fails with error_code "invalid_transition" and lists the states the task may move to. Moving a task to TODO needs a description and, for a task in a slice, acceptance criteria; otherwise the call fails with error_code "not_ready" and lists what is missing. Moving a task to BLOCKED, to PROPOSED or to CANCELLED needs a reason; without one the call fails with error_code "reason_required". Moving a task to PROPOSED is a kickback: it says the task, or the plan around it, needs to be planned again, and the reason is recorded as a KICKBACK note. For any other move the reason is optional. A reason is recorded as a note. Returns the task with its new fingerprint.
+		Description: `Move a task to another state: PROPOSED, TODO, IN_PROGRESS, BLOCKED, DONE or CANCELLED. Only tasks have a state; a brief's or slice's status is derived. If the move is not allowed the call fails with error_code "invalid_transition" and lists the states the task may move to. Moving a task to TODO needs a description and, for a task in a slice, acceptance criteria; otherwise the call fails with error_code "not_ready" and lists what is missing. Moving a task to BLOCKED, to PROPOSED or to CANCELLED needs a reason; without one the call fails with error_code "reason_required". Moving a task to PROPOSED is a kickback: it says the task, or the plan around it, needs to be planned again, and the reason is recorded as a KICKBACK note. For any other move the reason is optional. Moving a slice's task to IN_PROGRESS is refused with error_code "waiting" while the slice waits for other slices that are not DONE; the error lists them in waiting_on, and finishing them, or removing the dependency with dependency_remove, lets the task start. A reason is recorded as a note. Returns the task with its new fingerprint.
 
 ` + fingerprintText,
 		Annotations: writes(false),
@@ -259,6 +264,26 @@ Parents: a slice's parent_id is a brief; a task's parent_id is a slice, or omitt
 			return nil, "", err
 		}
 		return noteView(n), fmt.Sprintf("Added a note to %s.", id), nil
+	})
+
+	const dependencyText = `Order between slices is recorded as a dependency: a slice waits for another slice. A dependency is satisfied when the slice it waits on is DONE. Any two slices may be tied, even in different briefs. A dependency that would make a cycle is rejected with error_code "invalid". Dependencies need no fingerprint. While a slice waits, its tasks cannot be moved to IN_PROGRESS. Returns the slice, with its dependencies in depends_on and waiting_on, as unit_get does.`
+	addTool(s, srv, &mcp.Tool{
+		Name:         "dependency_add",
+		Description:  `Make a slice wait for another slice (id waits for depends_on). Adding one that exists changes nothing. ` + dependencyText,
+		Annotations:  writes(true),
+		InputSchema:  schemaFor[dependencyInput](nil),
+		OutputSchema: outputFor[unitResult](),
+	}, func(ctx context.Context, svc units.Service, in dependencyInput) (any, string, error) {
+		return changeDependency(ctx, svc, in, svc.AddDependency)
+	})
+	addTool(s, srv, &mcp.Tool{
+		Name:         "dependency_remove",
+		Description:  `Remove the dependency of a slice (id) on another slice (depends_on); removing one that does not exist changes nothing. ` + dependencyText,
+		Annotations:  writes(true),
+		InputSchema:  schemaFor[dependencyInput](nil),
+		OutputSchema: outputFor[unitResult](),
+	}, func(ctx context.Context, svc units.Service, in dependencyInput) (any, string, error) {
+		return changeDependency(ctx, svc, in, svc.RemoveDependency)
 	})
 
 	linkSchema := func(p map[string]*jsonschema.Schema) { p["kind"] = enum(kindEnum) }
@@ -321,6 +346,13 @@ func unitText(d view.UnitView, fingerprint string) string {
 	for _, c := range d.Children {
 		fmt.Fprintf(&b, "child: %s %s %s\n", c.ID, c.Status, c.Title)
 	}
+	for _, dep := range d.DependsOn {
+		waiting := ""
+		if !dep.Satisfied {
+			waiting = " (waiting)"
+		}
+		fmt.Fprintf(&b, "depends on: %s %s %s%s\n", dep.ID, dep.Status, dep.Title, waiting)
+	}
 	for _, l := range d.Links {
 		fmt.Fprintf(&b, "link: %s %s\n", l.Kind, l.Target)
 	}
@@ -379,6 +411,21 @@ func listUnits(ctx context.Context, svc units.Service, in listInput) (any, strin
 		return out, "No units match.", nil
 	}
 	return out, strings.TrimRight(b.String(), "\n"), nil
+}
+
+func changeDependency(ctx context.Context, svc units.Service, in dependencyInput, op func(context.Context, string, string) error) (any, string, error) {
+	id, err := parseID(in.ID)
+	if err != nil {
+		return nil, "", err
+	}
+	on, err := parseID(in.DependsOn)
+	if err != nil {
+		return nil, "", err
+	}
+	if err := op(ctx, id, on); err != nil {
+		return nil, "", err
+	}
+	return unitOut(ctx, svc, id)
 }
 
 func changeLink(ctx context.Context, svc units.Service, in linkInput, op func(context.Context, string, units.LinkKind, string) error) (any, string, error) {

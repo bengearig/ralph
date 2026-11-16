@@ -465,3 +465,105 @@ func stepReason(st units.State) string {
 	}
 	return ""
 }
+
+func seedWaiting(e *statusEnv) {
+	e.with(func(s units.Service) {
+		b := e.create(s, units.LevelBrief, "", "B", "")
+		s1 := e.create(s, units.LevelSlice, b, "One", "")
+		s2 := e.create(s, units.LevelSlice, b, "Two", "")
+		s3 := e.create(s, units.LevelSlice, b, "Three", "")
+		e.create(s, units.LevelTask, s1, "a", units.StateDone)
+		for _, dep := range []string{s2, s1} {
+			if err := s.AddDependency(e.ctx, s3, dep); err != nil {
+				e.t.Fatal(err)
+			}
+		}
+	})
+}
+
+func TestStatusWaitingSuffix(t *testing.T) {
+	e := newStatusEnv(t)
+	e.with(func(s units.Service) {
+		b := e.create(s, units.LevelBrief, "", "B", "")
+		s1 := e.create(s, units.LevelSlice, b, "One", "")
+		s2 := e.create(s, units.LevelSlice, b, "Two", "")
+		s3 := e.create(s, units.LevelSlice, b, "Three", "")
+		for _, dep := range []string{s2, s1} {
+			if err := s.AddDependency(e.ctx, s3, dep); err != nil {
+				e.t.Fatal(err)
+			}
+		}
+	})
+	_, out, _ := e.status()
+	if !strings.Contains(out, "no tasks  waiting on S-1, S-2\n") {
+		t.Errorf("no suffix in:\n%s", out)
+	}
+	requireLine(t, out, "S-3 EMPTY Three no tasks waiting on S-1, S-2")
+	requireLine(t, out, "S-1 EMPTY One no tasks")
+}
+
+func TestStatusDependsOnBlock(t *testing.T) {
+	e := newStatusEnv(t)
+	seedWaiting(e)
+	_, out, _ := e.status("S-3")
+	want := "\nDepends on:\nS-1  DONE  One\nS-2  EMPTY  Two (waiting)\n"
+	if !strings.Contains(out, want) {
+		t.Errorf("missing %q in:\n%s", want, out)
+	}
+	_, out, _ = e.status()
+	requireLine(t, out, "S-3 EMPTY Three no tasks waiting on S-2")
+}
+
+func TestStatusNoDependenciesUnchanged(t *testing.T) {
+	e := newStatusEnv(t)
+	seedTask(e)
+	_, out, _ := e.status()
+	if strings.Contains(out, "waiting") {
+		t.Errorf("summary:\n%s", out)
+	}
+	for _, id := range []string{"B-1", "S-1", "T-1"} {
+		_, out, _ = e.status(id)
+		if strings.Contains(out, "waiting") || strings.Contains(out, "Depends on") {
+			t.Errorf("%s:\n%s", id, out)
+		}
+	}
+	_, out, _ = e.status("--json")
+	if strings.Contains(out, "waiting_on") {
+		t.Errorf("json:\n%s", out)
+	}
+}
+
+func TestStatusJSONWaitingOn(t *testing.T) {
+	e := newStatusEnv(t)
+	seedWaiting(e)
+	_, out, _ := e.status("--json", "--all")
+	var got struct {
+		Briefs []struct {
+			Slices []struct {
+				ID        string   `json:"id"`
+				WaitingOn []string `json:"waiting_on"`
+			} `json:"slices"`
+		} `json:"briefs"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatal(err)
+	}
+	sl := got.Briefs[0].Slices
+	if len(sl) != 3 || len(sl[0].WaitingOn) != 0 || len(sl[2].WaitingOn) != 1 || sl[2].WaitingOn[0] != "S-2" {
+		t.Errorf("slices = %+v", sl)
+	}
+	_, out, _ = e.status("S-3", "--json")
+	var unit struct {
+		DependsOn []struct {
+			ID        string `json:"id"`
+			Satisfied bool   `json:"satisfied"`
+		} `json:"depends_on"`
+		WaitingOn []string `json:"waiting_on"`
+	}
+	if err := json.Unmarshal([]byte(out), &unit); err != nil {
+		t.Fatal(err)
+	}
+	if len(unit.DependsOn) != 2 || !unit.DependsOn[0].Satisfied || unit.DependsOn[1].Satisfied || len(unit.WaitingOn) != 1 || unit.WaitingOn[0] != "S-2" {
+		t.Errorf("unit = %+v", unit)
+	}
+}

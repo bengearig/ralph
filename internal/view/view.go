@@ -22,6 +22,8 @@ type Slice struct {
 	Title  string         `json:"title"`
 	Status string         `json:"status"`
 	Tasks  map[string]int `json:"tasks"`
+	// WaitingOn lists the slices this one waits for that are not DONE.
+	WaitingOn []string `json:"waiting_on,omitempty"`
 }
 
 type Brief struct {
@@ -64,6 +66,14 @@ type Note struct {
 	CreatedAt string `json:"created_at"`
 }
 
+// Dependency is a slice another slice waits for; Satisfied is true once it is DONE.
+type Dependency struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Status    string `json:"status"`
+	Satisfied bool   `json:"satisfied"`
+}
+
 type UnitView struct {
 	ID                 string  `json:"id"`
 	Level              string  `json:"level"`
@@ -79,6 +89,9 @@ type UnitView struct {
 	Children           []Item  `json:"children"`
 	Links              []Link  `json:"links"`
 	Notes              []Note  `json:"notes"`
+
+	DependsOn []Dependency `json:"depends_on,omitempty"`
+	WaitingOn []string     `json:"waiting_on,omitempty"`
 }
 
 // NotFoundError reports a unit ID with no unit; it unwraps to units.ErrNotFound.
@@ -154,7 +167,15 @@ func Summary(ctx context.Context, svc units.Service, all bool) (SummaryView, err
 			if tc == nil {
 				tc = map[string]int{}
 			}
-			bv.Slices = append(bv.Slices, Slice{ID: s.ID, Title: s.Title, Status: string(statuses[s.ID]), Tasks: tc})
+			waiting, err := svc.Waiting(ctx, s.ID)
+			if err != nil {
+				return SummaryView{}, err
+			}
+			sv := Slice{ID: s.ID, Title: s.Title, Status: string(statuses[s.ID]), Tasks: tc}
+			for _, d := range waiting {
+				sv.WaitingOn = append(sv.WaitingOn, d.ID)
+			}
+			bv.Slices = append(bv.Slices, sv)
 		}
 		doc.Briefs = append(doc.Briefs, bv)
 	}
@@ -243,6 +264,18 @@ func UnitDetail(ctx context.Context, svc units.Service, id string) (UnitView, er
 	}
 	for _, n := range notes {
 		v.Notes = append(v.Notes, Note{Kind: string(n.Kind), Author: n.Author, Body: n.Body, CreatedAt: stamp(n.CreatedAt)})
+	}
+	if u.Level == units.LevelSlice {
+		deps, err := svc.Dependencies(ctx, id)
+		if err != nil {
+			return UnitView{}, err
+		}
+		for _, d := range deps {
+			v.DependsOn = append(v.DependsOn, Dependency{ID: d.ID, Title: d.Title, Status: string(d.Status), Satisfied: d.Satisfied})
+			if !d.Satisfied {
+				v.WaitingOn = append(v.WaitingOn, d.ID)
+			}
+		}
 	}
 	return v, nil
 }
