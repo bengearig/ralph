@@ -1,0 +1,157 @@
+[
+  {
+    "id": 80,
+    "node_id": "PRR_kwDOAB80",
+    "user": {
+      "login": "bob",
+      "id": 1002,
+      "node_id": "MDQ6VXNlcjE=",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1002?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/bob",
+      "html_url": "https://github.com/bob",
+      "followers_url": "https://api.github.com/users/bob/followers",
+      "following_url": "https://api.github.com/users/bob/following{/other_user}",
+      "gists_url": "https://api.github.com/users/bob/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/bob/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/bob/subscriptions",
+      "organizations_url": "https://api.github.com/users/bob/orgs",
+      "repos_url": "https://api.github.com/users/bob/repos",
+      "events_url": "https://api.github.com/users/bob/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/bob/received_events",
+      "type": "User",
+      "site_admin": false
+    },
+    "body": "Looks good to me.",
+    "state": "APPROVED",
+    "html_url": "https://github.com/octo-org/hello-world/pull/1347#pullrequestreview-80",
+    "pull_request_url": "https://api.github.com/repos/octo-org/hello-world/pulls/1347",
+    "_links": {
+      "html": {
+        "href": "https://github.com/octo-org/hello-world/pull/1347#pullrequestreview-80"
+      },
+      "pull_request": {
+        "href": "https://api.github.com/repos/octo-org/hello-world/pulls/1347"
+      }
+    },
+    "commit_id": "ecdd80bb57125d7ba9641ffaa4d7d2c19d3f3091",
+    "author_association": "COLLABORATOR",
+    "submitted_at": "2026-11-13T09:00:00Z"
+  },
+  {
+    "id": 81,
+    "node_id": "PRR_kwDOAB81",
+    "user": {
+      "login": "alice",
+      "id": 1001,
+      "node_id": "MDQ6VXNlcjE=",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1001?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/alice",
+      "html_url": "https://github.com/alice",
+      "followers_url": "https://api.github.com/users/alice/followers",
+      "following_url": "https://api.github.com/users/alice/following{/other_user}",
+      "gists_url": "https://api.github.com/users/alice/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/alice/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/alice/subscriptions",
+      "organizations_url": "https://api.github.com/users/alice/orgs",
+      "repos_url": "https://api.github.com/users/alice/repos",
+      "events_url": "https://api.github.com/users/alice/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/alice/received_events",
+      "type": "User",
+      "site_admin": false
+    },
+    "body": "Please add a test for the empty case.",
+    "state": "CHANGES_REQUESTED",
+    "html_url": "https://github.com/octo-org/hello-world/pull/1347#pullrequestreview-81",
+    "pull_request_url": "https://api.github.com/repos/octo-org/hello-world/pulls/1347",
+    "_links": {
+      "html": {
+        "href": "https://github.com/octo-org/hello-world/pull/1347#pullrequestreview-81"
+      },
+      "pull_request": {
+        "href": "https://api.github.com/repos/octo-org/hello-world/pulls/1347"
+      }
+    },
+    "commit_id": "ecdd80bb57125d7ba9641ffaa4d7d2c19d3f3091",
+    "author_association": "COLLABORATOR",
+    "submitted_at": "2026-11-13T11:00:00Z"
+  },
+  {
+    "id": 82,
+    "node_id": "PRR_kwDOAB82",
+    "user": {
+      "login": "bob",
+      "id": 1002,
+      "node_id": "MDQ6VXNlcjE=",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1002?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/bob",
+      "html_url": "https://github.com/bob",
+      "followers_url": "https://api.github.com/users/bob/followers",
+      "following_url": "https://api.github.com/users/bob/following{/other_user}",
+      "gists_url": "https://api.github.com/users/bob/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/bob/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/bob/subscriptions",
+      "organizations_url": "https://api.github.com/users/bob/orgs",
+      "repos_url": "https://api.github.com/users/bob/repos",
+      "events_url": "https://api.github.com/users/bob/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/bob/received_events",
+      "type": "User",
+      "site_admin": false
+    },
+    "body": "",
+    "state": "COMMENTED",
+    "html_url": "https://github.com/octo-org/hello-world/pull/1347#pullrequestreview-82",
+    "pull_request_url": "https://api.github.com/repos/octo-org/hello-world/pulls/1347",
+    "_links": {
+      "html": {
+        "href": "https://github.com/octo-org/hello-world/pull/1347#pullrequestreview-82"
+      },
+      "pull_request": {
+        "href": "https://api.github.com/repos/octo-org/hello-world/pulls/1347"
+      }
+    },
+    "commit_id": "ecdd80bb57125d7ba9641ffaa4d7d2c19d3f3091",
+    "author_association": "COLLABORATOR",
+    "submitted_at": "2026-11-13T12:00:00Z"
+  },
+  {
+    "id": 83,
+    "node_id": "PRR_kwDOAB83",
+    "user": {
+      "login": "octo-org",
+      "id": 1,
+      "node_id": "MDQ6VXNlcjE=",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/octo-org",
+      "html_url": "https://github.com/octo-org",
+      "followers_url": "https://api.github.com/users/octo-org/followers",
+      "following_url": "https://api.github.com/users/octo-org/following{/other_user}",
+      "gists_url": "https://api.github.com/users/octo-org/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/octo-org/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/octo-org/subscriptions",
+      "organizations_url": "https://api.github.com/users/octo-org/orgs",
+      "repos_url": "https://api.github.com/users/octo-org/repos",
+      "events_url": "https://api.github.com/users/octo-org/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/octo-org/received_events",
+      "type": "User",
+      "site_admin": false
+    },
+    "body": "Draft thoughts, not yet submitted.",
+    "state": "PENDING",
+    "html_url": "https://github.com/octo-org/hello-world/pull/1347#pullrequestreview-83",
+    "pull_request_url": "https://api.github.com/repos/octo-org/hello-world/pulls/1347",
+    "_links": {
+      "html": {
+        "href": "https://github.com/octo-org/hello-world/pull/1347#pullrequestreview-83"
+      },
+      "pull_request": {
+        "href": "https://api.github.com/repos/octo-org/hello-world/pulls/1347"
+      }
+    },
+    "commit_id": "ecdd80bb57125d7ba9641ffaa4d7d2c19d3f3091",
+    "author_association": "COLLABORATOR"
+  }
+]

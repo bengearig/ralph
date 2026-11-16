@@ -27,6 +27,17 @@ The project is under construction. The design is in [docs/](docs/README.md).
 
 `make lint` runs golangci-lint at the version pinned in the `Makefile` and downloads it on first use.
 
+### Live GitHub test
+
+`TestLiveGitHub` in `internal/hosting/github` checks the GitHub provider against real GitHub. It is skipped unless `RALPH_GITHUB_LIVE=1`, and it only reads. Set `RALPH_GITHUB_LIVE_REPO` to `owner/repo`, `RALPH_GITHUB_LIVE_BRANCH` to a branch to look up, and put a token in the variable named by `RALPH_GITHUB_LIVE_TOKEN_ENV` (default `GITHUB_TOKEN`). For example:
+
+```sh
+RALPH_GITHUB_LIVE=1 RALPH_GITHUB_LIVE_REPO=owner/repo RALPH_GITHUB_LIVE_BRANCH=main \
+  go test ./internal/hosting/github -run TestLiveGitHub -v
+```
+
+If a pull request exists for the branch, the test also reads that pull request and its review feedback.
+
 The binary is built without cgo, so it stays static.
 
 ### Repository layout
