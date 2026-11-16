@@ -29,5 +29,7 @@ The binary is built without cgo, so it stays static.
 - `cmd/` holds the program entry points.
 - `internal/` holds the packages the program is built from, including the command-line interface and shared test
   helpers.
+- `internal/units` holds the work records (briefs, slices and tasks) and the service interface that reads and
+  changes them.
 - `docs/` holds the design documents, indexed by `docs/README.md`.
 - `Makefile` holds the build, test and lint commands.

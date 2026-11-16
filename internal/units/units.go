@@ -1,4 +1,9 @@
 // Package units stores the work records: briefs, slices and tasks.
+//
+// Service is the interface callers depend on. Every implementation, local or
+// remote, must return the package's sentinel errors (ErrNotFound, ErrInvalid,
+// ErrInvalidParent and ErrInvalidTransition) and db.ErrStale unchanged, so that
+// errors.Is gives the same answer either way.
 package units
 
 import (
