@@ -9,6 +9,7 @@ import (
 	"github.com/bengearig/ralph/internal/harness"
 	"github.com/bengearig/ralph/internal/harness/harnesstest"
 	"github.com/bengearig/ralph/internal/mcpserver"
+	"github.com/bengearig/ralph/internal/quick"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/workflow"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -127,12 +128,45 @@ func TestCommandEndsWithNewline(t *testing.T) {
 	}
 }
 
+type stubQuick struct{}
+
+func (stubQuick) Start(context.Context, quick.StartInput) (quick.Started, error) {
+	return quick.Started{}, nil
+}
+
+func (stubQuick) Finish(context.Context, quick.FinishInput) (quick.Finished, error) {
+	return quick.Finished{}, nil
+}
+
+func TestArtifactsIncludeQuickCommand(t *testing.T) {
+	a := artifactAt(t, inputs(t), ".claude/commands/ralph/quick.md")
+	if a.Kind != harness.KindFile || a.Label != "command /ralph:quick" {
+		t.Errorf("artifact = %+v", a)
+	}
+	c := string(a.Content)
+	for _, want := range []string{"mcp__ralph__quick_start", "mcp__ralph__quick_finish", "$ARGUMENTS"} {
+		if !strings.Contains(c, want) {
+			t.Errorf("content lacks %q", want)
+		}
+	}
+	if strings.Contains(c, "{{") {
+		t.Errorf("content has an unrendered template action:\n%s", c)
+	}
+}
+
+func TestSectionListsQuickCommand(t *testing.T) {
+	if c := string(sectionArtifact(t, inputs(t)).Content); !strings.Contains(c, "/ralph:quick") {
+		t.Errorf("section lacks /ralph:quick:\n%s", c)
+	}
+}
+
 func TestToolNamesExistOnTheServer(t *testing.T) {
 	ctx := context.Background()
 	srv := mcpserver.New(mcpserver.Options{
 		Name:    "ralph",
 		Version: "test",
 		Open:    func(context.Context) (units.Service, error) { return nil, nil },
+		Quick:   func(context.Context, units.Service) (mcpserver.Quick, error) { return stubQuick{}, nil },
 	})
 	st, ct := mcp.NewInMemoryTransports()
 	ss, err := srv.Connect(ctx, st, nil)

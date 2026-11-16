@@ -71,8 +71,23 @@ func TestInitInstallsClaudeCode(t *testing.T) {
 	if !strings.Contains(stdout, "claude-code: 2.0.1") {
 		t.Errorf("stdout = %q", stdout)
 	}
-	if n := countPrefix(stdout, "installed "); n != 4 {
+	if n := countPrefix(stdout, "installed "); n != 5 {
 		t.Errorf("installed lines = %d in %q", n, stdout)
+	}
+}
+
+func TestInitInstallsQuickCommand(t *testing.T) {
+	repo := inRepo(t)
+	withFakeClaude(t)
+	code, stdout, stderr := run(t, "init")
+	if code != 0 {
+		t.Fatalf("code = %d, stderr = %q", code, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(repo.Dir, ".claude/commands/ralph/quick.md")); err != nil {
+		t.Error(err)
+	}
+	if !strings.Contains(stdout, "installed .claude/commands/ralph/quick.md") {
+		t.Errorf("stdout = %q", stdout)
 	}
 }
 
@@ -122,7 +137,7 @@ func TestInitIntegrationIdempotent(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d, stderr = %q", code, stderr)
 	}
-	if n := countPrefix(stdout, "unchanged "); n != 4 {
+	if n := countPrefix(stdout, "unchanged "); n != 5 {
 		t.Errorf("unchanged lines = %d in %q", n, stdout)
 	}
 	for _, a := range []string{"installed ", "updated ", "adopted ", "kept "} {

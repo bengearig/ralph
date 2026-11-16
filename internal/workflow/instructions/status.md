@@ -9,7 +9,8 @@ Summarize where the work stands in ralph and suggest what to do next.
    - blocked tasks, with the reason from their notes;
    - tasks still PROPOSED that need articulation;
    - slices whose tasks are all ready.
-3. If any tool result contains a line starting `Notice for the user:`, mention it to the user.
-4. Suggest the single most useful next step.
+3. Report any unfinalized quick work (the `unfinalized` entries of the status result) with its branch, and suggest finishing it or cancelling it.
+4. If any tool result contains a line starting `Notice for the user:`, mention it to the user.
+5. Suggest the single most useful next step.
 
 Change nothing: do not create, update or delete anything, and do not edit files.
