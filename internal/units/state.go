@@ -88,6 +88,15 @@ func (s *Store) SetState(ctx context.Context, id, expected string, to State, rea
 		if blank && reasonRequired(to) {
 			return &ReasonRequiredError{ID: id, From: u.State, To: to}
 		}
+		if to == StateInProgress && u.ParentID != "" {
+			waiting, err := waitingIn(ctx, tx, u.ParentID)
+			if err != nil {
+				return err
+			}
+			if len(waiting) > 0 {
+				return &WaitingError{ID: id, Slice: u.ParentID, Waiting: waiting}
+			}
+		}
 		now := s.stamp()
 		if _, err := tx.ExecContext(ctx, "UPDATE units SET state = ?, updated_at = ?, updated_by = ? WHERE id = ?", string(to), now, ActorFrom(ctx), id); err != nil {
 			return fmt.Errorf("units: set state of %s: %w", id, err)

@@ -3,6 +3,7 @@ package units
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/bengearig/ralph/internal/db"
 )
@@ -28,3 +29,23 @@ func (e *ReasonRequiredError) Error() string {
 }
 
 func (e *ReasonRequiredError) Is(target error) bool { return target == ErrReasonRequired }
+
+var ErrWaiting = errors.New("slice waiting")
+
+// WaitingError reports a task that cannot start because its slice waits for
+// other slices that are not DONE.
+type WaitingError struct {
+	ID      string
+	Slice   string
+	Waiting []Dependency
+}
+
+func (e *WaitingError) Error() string {
+	names := make([]string, len(e.Waiting))
+	for i, d := range e.Waiting {
+		names[i] = fmt.Sprintf("%s (%s)", d.ID, d.Status)
+	}
+	return fmt.Sprintf("%s cannot start: slice %s waits for %s; finish them or remove the dependency", e.ID, e.Slice, strings.Join(names, ", "))
+}
+
+func (e *WaitingError) Is(target error) bool { return target == ErrWaiting }

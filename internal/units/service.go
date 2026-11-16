@@ -29,6 +29,14 @@ type Service interface {
 	AddNote(ctx context.Context, unitID string, kind NoteKind, body string) (Note, error)
 	// Notes returns a unit's notes.
 	Notes(ctx context.Context, unitID string) ([]Note, error)
+	// AddDependency makes a slice wait for another; adding one that exists changes nothing.
+	AddDependency(ctx context.Context, sliceID, dependsOnID string) error
+	// RemoveDependency removes a dependency; removing a missing one is not an error.
+	RemoveDependency(ctx context.Context, sliceID, dependsOnID string) error
+	// Dependencies returns the slices a slice waits for, ordered by ID number.
+	Dependencies(ctx context.Context, sliceID string) ([]Dependency, error)
+	// Waiting returns the dependencies of a slice that are not DONE.
+	Waiting(ctx context.Context, sliceID string) ([]Dependency, error)
 	// Status returns a task's state, or the status derived from a slice's or brief's children.
 	Status(ctx context.Context, id string) (Status, error)
 	// Statuses returns the status of each given unit in one read.

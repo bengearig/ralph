@@ -25,6 +25,7 @@ var Migrations = []Migration{
 	{Version: 2, Name: "create links", SQL: createLinksSQL},
 	{Version: 3, Name: "create notes", SQL: createNotesSQL},
 	{Version: 4, Name: "record actors", SQL: recordActorsSQL},
+	{Version: 5, Name: "create dependencies", SQL: createDependenciesSQL},
 }
 
 // MigrateMode says what Open does when migrations are pending.

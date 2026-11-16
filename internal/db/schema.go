@@ -78,3 +78,22 @@ ALTER TABLE units ADD COLUMN created_by TEXT NOT NULL DEFAULT '';
 ALTER TABLE units ADD COLUMN updated_by TEXT NOT NULL DEFAULT '';
 ALTER TABLE notes ADD COLUMN author TEXT NOT NULL DEFAULT '';
 `
+
+const createDependenciesSQL = `
+CREATE TABLE dependencies (
+	slice_id TEXT NOT NULL REFERENCES units(id),
+	depends_on_id TEXT NOT NULL REFERENCES units(id),
+	created_at TEXT NOT NULL,
+	PRIMARY KEY (slice_id, depends_on_id),
+	CHECK (slice_id <> depends_on_id)
+);
+
+CREATE INDEX dependencies_depends_on ON dependencies (depends_on_id);
+
+CREATE TRIGGER dependencies_join_slices BEFORE INSERT ON dependencies
+BEGIN
+	SELECT RAISE(ABORT, 'a dependency joins two slices')
+	WHERE (SELECT level FROM units WHERE id = NEW.slice_id) IS NOT 'slice'
+		OR (SELECT level FROM units WHERE id = NEW.depends_on_id) IS NOT 'slice';
+END;
+`
