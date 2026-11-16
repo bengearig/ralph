@@ -26,6 +26,8 @@ type Options struct {
 	// Quick builds the quick work service on the first quick tool call; nil
 	// leaves the quick tools out.
 	Quick func(ctx context.Context, svc units.Service) (Quick, error)
+	// Planning is fixed when the server starts.
+	Planning PlanningSettings
 }
 
 type server struct {
@@ -49,6 +51,7 @@ func New(opts Options) *mcp.Server {
 	s.addStatusTool(srv)
 	s.addUnitTools(srv)
 	s.addQuickTools(srv)
+	s.addPlanningTool(srv)
 	return srv
 }
 

@@ -218,6 +218,12 @@ func DefaultRegistry() *Registry {
 			},
 		},
 		Setting{
+			Path:        "plan.confirm_outline",
+			Description: "Whether a new outline is shown and approved before anything is created; a revision of an existing outline always asks, whatever this says",
+			Default:     "false",
+			Allowed:     []string{"true", "false"},
+		},
+		Setting{
 			Path:        "pr.base_branch",
 			Description: "The branch pull requests target; empty means the remote's default branch, else main",
 			Validate:    validateBranchName,

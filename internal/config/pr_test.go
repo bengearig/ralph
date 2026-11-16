@@ -56,3 +56,34 @@ func TestPRProviderAuto(t *testing.T) {
 		t.Errorf("problem = %q", p)
 	}
 }
+
+func TestPlanSettings(t *testing.T) {
+	r := DefaultRegistry()
+	s, ok := r.Lookup("plan.confirm_outline")
+	if !ok || s.Default != "false" || s.Description == "" || s.Scope != ScopeProject {
+		t.Fatalf("plan.confirm_outline = %+v, %v", s, ok)
+	}
+	for _, v := range []string{"true", "false"} {
+		if p := valueProblem(s, v); p != "" {
+			t.Errorf("%q: %s", v, p)
+		}
+	}
+	p := valueProblem(s, "yes")
+	if p == "" || !strings.Contains(p, "true") || !strings.Contains(p, "false") {
+		t.Errorf("yes: problem %q lacks the allowed values", p)
+	}
+	f := newFixture(t)
+	f.reg = r
+	write(t, f.projFile, "plan:\n  confirm_outline: true\n")
+	c := mustLoad(t, f.opts(nil, nil))
+	if v, _ := c.Get("plan.confirm_outline"); v.Value != "true" || v.Layer != LayerProject {
+		t.Errorf("from project file: %+v", v)
+	}
+	found := false
+	for _, st := range r.Settings() {
+		found = found || st.Path == "plan.confirm_outline"
+	}
+	if !found {
+		t.Error("not in the settings list")
+	}
+}

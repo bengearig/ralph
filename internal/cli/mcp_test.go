@@ -99,3 +99,51 @@ func TestMCPOutsideRepository(t *testing.T) {
 		t.Errorf("stderr = %q, want %q", stderr, want)
 	}
 }
+
+func planningConfirm(t *testing.T) bool {
+	t.Helper()
+	a := loadedApp(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	st, ct := mcp.NewInMemoryTransports()
+	done := make(chan error, 1)
+	go func() { done <- runMCP(ctx, a, st) }()
+	cs, err := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0"}, nil).Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "planning_settings"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError {
+		t.Fatalf("error result: %v", res.Content)
+	}
+	m, _ := res.StructuredContent.(map[string]any)
+	got, _ := m["confirm_outline"].(bool)
+	_ = cs.Close()
+	if err := <-done; err != nil {
+		t.Errorf("runMCP: %v", err)
+	}
+	return got
+}
+
+func TestMCPPlanningFromProjectFile(t *testing.T) {
+	repo := newStatusEnv(t).repo
+	if planningConfirm(t) {
+		t.Error("confirm_outline true without the setting")
+	}
+	repo.WriteFile(".ralph/project.yaml", "plan:\n  confirm_outline: true\n")
+	if !planningConfirm(t) {
+		t.Error("confirm_outline false with the setting in the project file")
+	}
+}
+
+func TestMCPPlanningFromEnvironment(t *testing.T) {
+	repo := newStatusEnv(t).repo
+	repo.WriteFile(".ralph/project.yaml", "plan:\n  confirm_outline: false\n")
+	t.Setenv("RALPH_PLAN_CONFIRM_OUTLINE", "true")
+	if !planningConfirm(t) {
+		t.Error("environment did not win over the project file")
+	}
+}
