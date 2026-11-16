@@ -102,7 +102,7 @@ func TestDefaultRegistry(t *testing.T) {
 	for _, s := range got {
 		paths = append(paths, s.Path)
 	}
-	want := []string{"log.level", "pr.base_branch", "pr.draft", "pr.provider", "pr.remote", "pr.timeout", "project.id", "storage.backups.keep", "storage.migrate"}
+	want := []string{"github.api_url", "github.owner", "github.repo", "github.token", "log.level", "pr.base_branch", "pr.draft", "pr.provider", "pr.remote", "pr.timeout", "project.id", "storage.backups.keep", "storage.migrate"}
 	if !slices.Equal(paths, want) {
 		t.Fatalf("settings = %v, want %v", paths, want)
 	}

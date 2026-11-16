@@ -3,6 +3,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -126,6 +128,30 @@ func DefaultRegistry() *Registry {
 			},
 		},
 		Setting{
+			Path:        "github.owner",
+			Description: "Owner of the GitHub repository; empty means detect it from the remote",
+			Validate:    validateGitHubName,
+		},
+		Setting{
+			Path:        "github.repo",
+			Description: "Name of the GitHub repository; empty means detect it from the remote",
+			Validate:    validateGitHubName,
+		},
+		Setting{
+			Path:        "github.api_url",
+			Description: "Base URL of the GitHub API, for GitHub Enterprise; https, or http on a loopback host",
+			Default:     "https://api.github.com",
+			Scope:       ScopeUser,
+			Validate:    validateAPIURL,
+		},
+		Setting{
+			Path:        "github.token",
+			Description: "Reference to the GitHub token, of the form env:NAME",
+			Default:     "env:GITHUB_TOKEN",
+			Scope:       ScopeUser,
+			Kind:        KindSecret,
+		},
+		Setting{
 			Path:        "pr.provider",
 			Description: "Which pull request provider to use",
 			Default:     "github",
@@ -218,4 +244,32 @@ func validateBranchName(v string) error {
 		}
 	}
 	return nil
+}
+
+// validateGitHubName accepts an empty value or a name GitHub allows for an owner or repository.
+func validateGitHubName(v string) error {
+	for _, r := range v {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_', r == '.':
+		default:
+			return errors.New("must contain only letters, digits, hyphens, underscores and dots")
+		}
+	}
+	return nil
+}
+
+func validateAPIURL(v string) error {
+	u, err := url.Parse(v)
+	if err != nil || u.Host == "" {
+		return errors.New("must be a URL such as https://api.github.com")
+	}
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		if ip := net.ParseIP(u.Hostname()); u.Hostname() == "localhost" || (ip != nil && ip.IsLoopback()) {
+			return nil
+		}
+	}
+	return errors.New("must use https unless the host is a loopback address")
 }
