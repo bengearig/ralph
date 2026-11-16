@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -109,6 +110,18 @@ func DefaultRegistry() *Registry {
 			Description: "Whether pending database migrations run automatically or wait for `ralph migrate`",
 			Default:     "auto",
 			Allowed:     []string{"auto", "manual"},
+		},
+		Setting{
+			Path:        "storage.backups.keep",
+			Description: "How many pre-migration database backups to keep",
+			Default:     "5",
+			Validate: func(v string) error {
+				n, err := strconv.Atoi(v)
+				if err != nil || n < 1 || strconv.Itoa(n) != v {
+					return errors.New("must be a whole number of at least 1")
+				}
+				return nil
+			},
 		},
 		Setting{
 			Path:        "project.id",

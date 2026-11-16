@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -26,6 +27,12 @@ type Options struct {
 	// Migrations nil selects the production list; a non-nil slice is used as given.
 	Migrations []Migration
 	Mode       MigrateMode
+	// BackupDir defaults to a backups directory next to the database file.
+	BackupDir string
+	// BackupKeep is how many pre-migration backups to retain; zero or less means 5.
+	BackupKeep int
+	// Now defaults to time.Now.
+	Now func() time.Time
 }
 
 type DB struct {
@@ -53,6 +60,7 @@ func open(ctx context.Context, path string, opts Options) (*DB, int, error) {
 	if err := checkOwnership(ctx, abs); err != nil {
 		return nil, 0, err
 	}
+	fresh := isFreshFile(abs)
 	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
 		return nil, 0, fmt.Errorf("db: create directory for %q: %w", abs, err)
 	}
@@ -76,13 +84,19 @@ func open(ctx context.Context, path string, opts Options) (*DB, int, error) {
 	}
 	from, err := d.SchemaVersion(ctx)
 	if err == nil {
-		err = d.migrate(ctx, from, list, opts.Mode)
+		err = d.migrate(ctx, from, list, opts, fresh)
 	}
 	if err != nil {
 		_ = sdb.Close()
 		return nil, 0, err
 	}
 	return d, from, nil
+}
+
+// isFreshFile reports whether opening path will create it or find it empty.
+func isFreshFile(path string) bool {
+	info, err := os.Stat(path)
+	return errors.Is(err, os.ErrNotExist) || (err == nil && info.Size() == 0)
 }
 
 func (d *DB) SQL() *sql.DB { return d.sql }

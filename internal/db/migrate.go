@@ -84,7 +84,7 @@ func validateMigrations(list []Migration) error {
 	return nil
 }
 
-func (d *DB) migrate(ctx context.Context, current int, list []Migration, mode MigrateMode) error {
+func (d *DB) migrate(ctx context.Context, current int, list []Migration, opts Options, fresh bool) error {
 	newest := len(list)
 	if current > newest {
 		return fmt.Errorf("db: %q is at schema version %d but this ralph knows up to version %d; upgrade ralph: %w", d.path, current, newest, ErrNewerDatabase)
@@ -92,8 +92,13 @@ func (d *DB) migrate(ctx context.Context, current int, list []Migration, mode Mi
 	if current == newest {
 		return nil
 	}
-	if mode == MigrateManual {
+	if opts.Mode == MigrateManual {
 		return fmt.Errorf("db: %q is at schema version %d and version %d is available; run `ralph migrate`: %w", d.path, current, newest, ErrMigrationRequired)
+	}
+	if !fresh {
+		if err := d.backupBeforeMigrating(ctx, current, opts); err != nil {
+			return fmt.Errorf("back up before migrating: %w", err)
+		}
 	}
 	for _, m := range list[current:] {
 		err := d.WriteTx(ctx, func(tx *sql.Tx) error {
@@ -107,5 +112,6 @@ func (d *DB) migrate(ctx context.Context, current int, list []Migration, mode Mi
 			return fmt.Errorf("db: migration %d (%s) failed: %w", m.Version, m.Name, err)
 		}
 	}
+	d.prune(opts)
 	return nil
 }

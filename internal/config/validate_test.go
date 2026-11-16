@@ -204,3 +204,21 @@ func TestDefaultsAreValidated(t *testing.T) {
 		t.Fatalf("problems = %v", ce.Problems)
 	}
 }
+
+func TestStorageBackupsKeepValidation(t *testing.T) {
+	s, ok := DefaultRegistry().Lookup("storage.backups.keep")
+	if !ok || s.Validate == nil {
+		t.Fatal("storage.backups.keep is not registered with a validator")
+	}
+	for _, v := range []string{"0", "-1", "abc", "2.5", "", "+3", " 3"} {
+		err := s.Validate(v)
+		if err == nil || err.Error() != "must be a whole number of at least 1" {
+			t.Errorf("Validate(%q) = %v", v, err)
+		}
+	}
+	for _, v := range []string{"1", "5", "20"} {
+		if err := s.Validate(v); err != nil {
+			t.Errorf("Validate(%q) = %v", v, err)
+		}
+	}
+}

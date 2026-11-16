@@ -92,8 +92,12 @@ func TestDefaultRegistry(t *testing.T) {
 	if !ok || m.Default != "auto" || len(m.Allowed) != 2 || m.Allowed[0] != "auto" || m.Allowed[1] != "manual" || m.Description == "" {
 		t.Fatalf("storage.migrate = %+v, %v", m, ok)
 	}
+	k, ok := r.Lookup("storage.backups.keep")
+	if !ok || k.Default != "5" || k.Description == "" {
+		t.Fatalf("storage.backups.keep = %+v, %v", k, ok)
+	}
 	got := r.Settings()
-	if len(got) != 3 || got[0].Path != "log.level" || got[1].Path != "project.id" || got[2].Path != "storage.migrate" {
+	if len(got) != 4 || got[0].Path != "log.level" || got[1].Path != "project.id" || got[2].Path != "storage.backups.keep" || got[3].Path != "storage.migrate" {
 		t.Fatalf("settings = %+v", got)
 	}
 }

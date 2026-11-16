@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/bengearig/ralph/internal/db"
@@ -18,6 +19,12 @@ func storeOptions(a *app, opts db.Options) (string, db.Options, error) {
 	opts.Mode = db.MigrateAuto
 	if v, ok := a.cfg.Get("storage.migrate"); ok && v.Value == "manual" {
 		opts.Mode = db.MigrateManual
+	}
+	opts.BackupDir = project.BackupsDir(a.root)
+	if v, ok := a.cfg.Get("storage.backups.keep"); ok {
+		if n, err := strconv.Atoi(v.Value); err == nil {
+			opts.BackupKeep = n
+		}
 	}
 	return project.StorePath(a.root), opts, nil
 }
