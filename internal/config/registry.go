@@ -209,6 +209,32 @@ func DefaultRegistry() *Registry {
 			},
 		},
 		Setting{
+			Path:        "verify.commands",
+			Description: "Shell command lines run in order from the project root before quick work is committed",
+			Kind:        KindList,
+			ValidateItem: func(v string) error {
+				if strings.TrimSpace(v) == "" {
+					return errors.New("must not be blank")
+				}
+				return nil
+			},
+		},
+		Setting{
+			Path:        "verify.timeout",
+			Description: "How long each verification command may run, from 1s to 2h",
+			Default:     "10m",
+			Validate: func(v string) error {
+				d, err := time.ParseDuration(v)
+				if err != nil {
+					return errors.New("must be a duration such as 10m")
+				}
+				if d < time.Second || d > 2*time.Hour {
+					return errors.New("must be between 1s and 2h")
+				}
+				return nil
+			},
+		},
+		Setting{
 			Path:        "git.branch_template",
 			Description: "Template for branch names; fields ID, Level, Number, Title, Slug, ParentID; functions lower, upper, trunc",
 			Default:     "ralph/{{lower .ID}}-{{.Slug}}",

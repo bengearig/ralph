@@ -24,7 +24,7 @@ func WriteText(w io.Writer, cfg *Config, displayRoot string) error {
 	for _, s := range cfg.registry.Settings() {
 		value, layer, source := unsetText, noneText, noneText
 		if v, ok := cfg.values[s.Path]; ok {
-			value, layer, source = v.Value, v.Layer.String(), sourceText(v, displayRoot)
+			value, layer, source = v.Value, v.Layer.String(), v.SourceText(displayRoot)
 			if s.Kind == KindSecret {
 				value += " " + resolvesText(cfg.SecretResolves(s.Path))
 			}
@@ -52,7 +52,7 @@ func WriteJSON(w io.Writer, cfg *Config) error {
 		e := showEntry{Setting: s.Path, Source: noneText}
 		if v, ok := cfg.values[s.Path]; ok {
 			value, layer := v.Value, v.Layer.String()
-			e.Layer, e.Source = &layer, sourceText(v, "")
+			e.Layer, e.Source = &layer, v.SourceText("")
 			e.Value = value
 			if s.Kind == KindList {
 				if items, err := parseList(value); err == nil {
@@ -81,7 +81,8 @@ func resolvesText(ok bool) string {
 	return "(does not resolve)"
 }
 
-func sourceText(v Value, displayRoot string) string {
+// SourceText describes where the value came from; files inside displayRoot are shown relative to it.
+func (v Value) SourceText(displayRoot string) string {
 	switch {
 	case v.Source.File != "":
 		file := v.Source.File
