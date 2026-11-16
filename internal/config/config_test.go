@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -97,8 +98,13 @@ func TestDefaultRegistry(t *testing.T) {
 		t.Fatalf("storage.backups.keep = %+v, %v", k, ok)
 	}
 	got := r.Settings()
-	if len(got) != 4 || got[0].Path != "log.level" || got[1].Path != "project.id" || got[2].Path != "storage.backups.keep" || got[3].Path != "storage.migrate" {
-		t.Fatalf("settings = %+v", got)
+	var paths []string
+	for _, s := range got {
+		paths = append(paths, s.Path)
+	}
+	want := []string{"log.level", "pr.base_branch", "pr.draft", "pr.provider", "pr.remote", "pr.timeout", "project.id", "storage.backups.keep", "storage.migrate"}
+	if !slices.Equal(paths, want) {
+		t.Fatalf("settings = %v, want %v", paths, want)
 	}
 }
 

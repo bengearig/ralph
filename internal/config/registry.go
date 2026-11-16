@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
+	"unicode"
 )
 
 // Scope says which files may set a setting.
@@ -124,6 +126,52 @@ func DefaultRegistry() *Registry {
 			},
 		},
 		Setting{
+			Path:        "pr.provider",
+			Description: "Which pull request provider to use",
+			Default:     "github",
+			Allowed:     []string{"github"},
+		},
+		Setting{
+			Path:        "pr.remote",
+			Description: "The git remote the branch is pushed to",
+			Default:     "origin",
+			Validate: func(v string) error {
+				if strings.TrimSpace(v) == "" {
+					return errors.New("must not be blank")
+				}
+				if strings.ContainsFunc(v, unicode.IsSpace) {
+					return errors.New("must not contain whitespace")
+				}
+				return nil
+			},
+		},
+		Setting{
+			Path:        "pr.base_branch",
+			Description: "The branch pull requests target; empty means the remote's default branch, else main",
+			Validate:    validateBranchName,
+		},
+		Setting{
+			Path:        "pr.draft",
+			Description: "Whether pull requests open as drafts",
+			Default:     "true",
+			Allowed:     []string{"true", "false"},
+		},
+		Setting{
+			Path:        "pr.timeout",
+			Description: "Per-request timeout for the pull request provider, from 1s to 5m",
+			Default:     "30s",
+			Validate: func(v string) error {
+				d, err := time.ParseDuration(v)
+				if err != nil {
+					return errors.New("must be a duration such as 30s")
+				}
+				if d < time.Second || d > 5*time.Minute {
+					return errors.New("must be between 1s and 5m")
+				}
+				return nil
+			},
+		},
+		Setting{
 			Path:        "project.id",
 			Description: "Identifier of the ralph project",
 			Validate: func(v string) error {
@@ -143,4 +191,31 @@ func DefaultRegistry() *Registry {
 // EnvName returns the environment variable that sets the setting at path.
 func EnvName(path string) string {
 	return "RALPH_" + strings.ToUpper(strings.ReplaceAll(path, ".", "_"))
+}
+
+// validateBranchName accepts an empty value or a name git allows for a branch.
+func validateBranchName(v string) error {
+	if v == "" {
+		return nil
+	}
+	if strings.HasPrefix(v, "-") || strings.HasPrefix(v, "/") || strings.HasSuffix(v, "/") ||
+		strings.HasSuffix(v, ".") || v == "@" {
+		return errors.New("is not a valid git branch name")
+	}
+	for _, bad := range []string{"..", "@{", "//"} {
+		if strings.Contains(v, bad) {
+			return fmt.Errorf("must not contain %q", bad)
+		}
+	}
+	if strings.ContainsFunc(v, func(r rune) bool {
+		return unicode.IsSpace(r) || unicode.IsControl(r) || strings.ContainsRune("~^:?*[\\", r)
+	}) {
+		return errors.New("contains a character git does not allow in branch names")
+	}
+	for _, part := range strings.Split(v, "/") {
+		if strings.HasPrefix(part, ".") || strings.HasSuffix(part, ".lock") {
+			return errors.New("is not a valid git branch name")
+		}
+	}
+	return nil
 }
