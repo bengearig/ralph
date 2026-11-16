@@ -48,6 +48,10 @@ func newInitCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			ignored, err := project.EnsureIgnore(root, project.LocalIgnoreEntries())
+			if err != nil {
+				return err
+			}
 
 			if _, err := config.Load(config.Options{
 				Registry:    config.DefaultRegistry(),
@@ -60,7 +64,7 @@ func newInitCommand() *cobra.Command {
 
 			out := cmd.OutOrStdout()
 			ralphDir := project.RalphDir(root)
-			if changed || len(res.Applied) > 0 {
+			if changed || len(ignored) > 0 || len(res.Applied) > 0 {
 				_, _ = fmt.Fprintf(out, "initialized ralph in %s\n", ralphDir)
 			} else {
 				_, _ = fmt.Fprintf(out, "ralph is already set up in %s\n", ralphDir)

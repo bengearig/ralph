@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -171,5 +173,74 @@ func TestInitThenConfigShow(t *testing.T) {
 	}
 	if got := row(t, out, "project.id"); got[1] != id || got[2] != "project" {
 		t.Errorf("project.id = %q", got)
+	}
+}
+
+func gitExit(repo *testutil.Repo, args ...string) int {
+	cmd := exec.Command("git", append([]string{"-C", repo.Dir}, args...)...)
+	if err := cmd.Run(); err != nil {
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			return ee.ExitCode()
+		}
+		return -1
+	}
+	return 0
+}
+
+func TestInitWritesIgnoreFile(t *testing.T) {
+	repo := inRepo(t)
+	if code, _, stderr := run(t, "init"); code != 0 {
+		t.Fatalf("code = %d, stderr = %q", code, stderr)
+	}
+	ignored := []string{".ralph/store.db", ".ralph/store.db-wal", ".ralph/backups/x.db", ".ralph/project.local.yaml"}
+	if got := gitExit(repo, append([]string{"check-ignore"}, ignored...)...); got != 0 {
+		t.Errorf("check-ignore exit = %d, want 0", got)
+	}
+	if got := gitExit(repo, "check-ignore", ".ralph/project.yaml"); got != 1 {
+		t.Errorf("check-ignore project.yaml exit = %d, want 1", got)
+	}
+}
+
+func TestInitIgnoreIdempotent(t *testing.T) {
+	repo := inRepo(t)
+	run(t, "init")
+	path := filepath.Join(repo.Dir, ".ralph", ".gitignore")
+	before := readFile(t, path)
+	if code, _, stderr := run(t, "init"); code != 0 {
+		t.Fatalf("code = %d, stderr = %q", code, stderr)
+	}
+	if got := readFile(t, path); got != before {
+		t.Fatalf(".gitignore changed: %q", got)
+	}
+}
+
+func TestInitDoesNotTouchRootGitignore(t *testing.T) {
+	repo := inRepo(t)
+	run(t, "init")
+	if _, err := os.Stat(filepath.Join(repo.Dir, ".gitignore")); !os.IsNotExist(err) {
+		t.Errorf("root .gitignore created: %v", err)
+	}
+
+	repo.WriteFile(".gitignore", "node_modules/\n")
+	run(t, "init")
+	if got := readFile(t, filepath.Join(repo.Dir, ".gitignore")); got != "node_modules/\n" {
+		t.Errorf("root .gitignore = %q", got)
+	}
+}
+
+func TestInitReportsIgnoreChangeOnly(t *testing.T) {
+	repo := inRepo(t)
+	run(t, "init")
+	path := filepath.Join(repo.Dir, ".ralph", ".gitignore")
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	code, stdout, stderr := run(t, "init")
+	if code != 0 || !strings.Contains(stdout, "initialized") {
+		t.Fatalf("code = %d, stdout = %q, stderr = %q", code, stdout, stderr)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Error(err)
 	}
 }
