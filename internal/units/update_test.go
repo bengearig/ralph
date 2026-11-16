@@ -131,7 +131,7 @@ func TestUpdateFinishedTaskRejected(t *testing.T) {
 		u := task(t, s, sl.ID, "t")
 		var err error
 		for _, st := range path {
-			if u, err = s.SetState(ctx, u.ID, u.Fingerprint, st, ""); err != nil {
+			if u, err = s.SetState(ctx, u.ID, u.Fingerprint, st, reasonFor(st)); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -243,11 +243,11 @@ func TestSetStateTable(t *testing.T) {
 			u := task(t, s, sl.ID, "t")
 			var err error
 			for _, st := range paths[from] {
-				if u, err = s.SetState(ctx, u.ID, u.Fingerprint, st, ""); err != nil {
+				if u, err = s.SetState(ctx, u.ID, u.Fingerprint, st, reasonFor(st)); err != nil {
 					t.Fatalf("reach %s: %v", from, err)
 				}
 			}
-			got, err := s.SetState(ctx, u.ID, u.Fingerprint, to, "")
+			got, err := s.SetState(ctx, u.ID, u.Fingerprint, to, reasonFor(to))
 			if slices.Contains(units.AllowedNext(from), to) {
 				if err != nil || got.State != to {
 					t.Errorf("%s to %s: %v, state %s", from, to, err, got.State)
@@ -345,7 +345,7 @@ func TestSetStateNoReasonNoNote(t *testing.T) {
 	ctx := context.Background()
 	tk := task(t, s, slice(t, s, brief(t, s).ID).ID, "t")
 	u, _ := s.SetState(ctx, tk.ID, tk.Fingerprint, units.StateTodo, "")
-	if _, err := s.SetState(ctx, u.ID, u.Fingerprint, units.StateBlocked, "  \n"); err != nil {
+	if _, err := s.SetState(ctx, u.ID, u.Fingerprint, units.StateInProgress, "  \n"); err != nil {
 		t.Fatal(err)
 	}
 	if notes, _ := s.Notes(ctx, tk.ID); len(notes) != 0 {
@@ -481,4 +481,12 @@ func TestNoLostUpdatesUnderConcurrency(t *testing.T) {
 			t.Errorf("worker %d applied %d", w, n)
 		}
 	}
+}
+
+func reasonFor(st units.State) string {
+	switch st {
+	case units.StateBlocked, units.StateProposed, units.StateCancelled:
+		return "test setup"
+	}
+	return ""
 }

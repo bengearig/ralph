@@ -39,8 +39,23 @@ func (e *TransitionError) Error() string {
 
 func (e *TransitionError) Is(target error) bool { return target == ErrInvalidTransition }
 
+func reasonRequired(to State) bool {
+	return to == StateBlocked || to == StateProposed || to == StateCancelled
+}
+
+func moveNoteKind(to State) NoteKind {
+	switch to {
+	case StateBlocked:
+		return NoteBlocked
+	case StateProposed:
+		return NoteKickback
+	}
+	return NoteGeneral
+}
+
 // SetState moves a task to a new state if its fingerprint is still expected.
-// A non-blank reason is recorded as a note in the same transaction.
+// A move to BLOCKED, PROPOSED or CANCELLED needs a reason; any other move
+// takes one optionally. A reason is recorded as a note in the same transaction.
 func (s *Store) SetState(ctx context.Context, id, expected string, to State, reason string) (Unit, error) {
 	err := s.db.CheckedWrite(ctx, id, expected, currentFingerprint(ctx, id), func(tx *sql.Tx) error {
 		u, err := getTx(ctx, tx, id)
@@ -69,12 +84,16 @@ func (s *Store) SetState(ctx context.Context, id, expected string, to State, rea
 				return &NotReadyError{ID: id, Missing: missing}
 			}
 		}
+		blank := strings.TrimSpace(reason) == ""
+		if blank && reasonRequired(to) {
+			return &ReasonRequiredError{ID: id, From: u.State, To: to}
+		}
 		now := s.stamp()
 		if _, err := tx.ExecContext(ctx, "UPDATE units SET state = ?, updated_at = ?, updated_by = ? WHERE id = ?", string(to), now, ActorFrom(ctx), id); err != nil {
 			return fmt.Errorf("units: set state of %s: %w", id, err)
 		}
-		if strings.TrimSpace(reason) != "" {
-			return insertNote(ctx, tx, id, NoteGeneral, fmt.Sprintf("%s to %s: %s", u.State, to, reason), now)
+		if !blank {
+			return insertNote(ctx, tx, id, moveNoteKind(to), fmt.Sprintf("%s to %s: %s", u.State, to, reason), now)
 		}
 		return nil
 	})

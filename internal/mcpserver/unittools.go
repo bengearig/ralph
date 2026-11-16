@@ -22,6 +22,8 @@ var (
 	levelEnum = []any{"brief", "slice", "task"}
 	stateEnum = []any{"PROPOSED", "TODO", "IN_PROGRESS", "BLOCKED", "DONE", "CANCELLED"}
 	kindEnum  = []any{"document", "external"}
+
+	noteKindEnum = []any{"NOTE", "KICKBACK"}
 )
 
 // unitResult is a unit's detail plus the fingerprint to pass on the next write.
@@ -88,6 +90,7 @@ type setStateInput struct {
 type noteInput struct {
 	ID   string `json:"id" jsonschema:"unit ID such as B-1, S-2 or T-3"`
 	Body string `json:"body" jsonschema:"the note text"`
+	Kind string `json:"kind,omitempty" jsonschema:"NOTE (the default) or KICKBACK"`
 }
 
 type linkInput struct {
@@ -214,7 +217,7 @@ Parents: a slice's parent_id is a brief; a task's parent_id is a slice, or omitt
 
 	addTool(s, srv, &mcp.Tool{
 		Name: "task_set_state",
-		Description: `Move a task to another state: PROPOSED, TODO, IN_PROGRESS, BLOCKED, DONE or CANCELLED. Only tasks have a state; a brief's or slice's status is derived. If the move is not allowed the call fails with error_code "invalid_transition" and lists the states the task may move to. Moving a task to TODO needs a description and, for a task in a slice, acceptance criteria; otherwise the call fails with error_code "not_ready" and lists what is missing. An optional reason is recorded as a note. Returns the task with its new fingerprint.
+		Description: `Move a task to another state: PROPOSED, TODO, IN_PROGRESS, BLOCKED, DONE or CANCELLED. Only tasks have a state; a brief's or slice's status is derived. If the move is not allowed the call fails with error_code "invalid_transition" and lists the states the task may move to. Moving a task to TODO needs a description and, for a task in a slice, acceptance criteria; otherwise the call fails with error_code "not_ready" and lists what is missing. Moving a task to BLOCKED, to PROPOSED or to CANCELLED needs a reason; without one the call fails with error_code "reason_required". Moving a task to PROPOSED is a kickback: it says the task, or the plan around it, needs to be planned again, and the reason is recorded as a KICKBACK note. For any other move the reason is optional. A reason is recorded as a note. Returns the task with its new fingerprint.
 
 ` + fingerprintText,
 		Annotations: writes(false),
@@ -235,17 +238,23 @@ Parents: a slice's parent_id is a brief; a task's parent_id is a slice, or omitt
 	})
 
 	addTool(s, srv, &mcp.Tool{
-		Name:         "note_add",
-		Description:  `Add a note to a brief, a slice or a task, such as progress, a decision or a question. Notes are append-only, are shown oldest first by unit_get and do not change the unit's fingerprint. Returns the note.`,
-		Annotations:  writes(false),
-		InputSchema:  schemaFor[noteInput](nil),
+		Name:        "note_add",
+		Description: `Add a note to a brief, a slice or a task, such as progress, a decision or a question. Notes are append-only, are shown oldest first by unit_get and do not change the unit's fingerprint. The kind is NOTE by default; a KICKBACK note on a PROPOSED or TODO task records that the task or the plan around it needs to be planned again. Returns the note.`,
+		Annotations: writes(false),
+		InputSchema: schemaFor[noteInput](func(p map[string]*jsonschema.Schema) {
+			p["kind"] = enum(noteKindEnum)
+		}),
 		OutputSchema: outputFor[view.Note](),
 	}, func(ctx context.Context, svc units.Service, in noteInput) (any, string, error) {
 		id, err := parseID(in.ID)
 		if err != nil {
 			return nil, "", err
 		}
-		n, err := svc.AddNote(ctx, id, units.NoteGeneral, in.Body)
+		kind := units.NoteKind(in.Kind)
+		if in.Kind == "" {
+			kind = units.NoteGeneral
+		}
+		n, err := svc.AddNote(ctx, id, kind, in.Body)
 		if err != nil {
 			return nil, "", err
 		}

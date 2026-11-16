@@ -10,9 +10,15 @@ import (
 
 type NoteKind string
 
-const NoteGeneral NoteKind = "NOTE"
+const (
+	NoteGeneral  NoteKind = "NOTE"
+	NoteKickback NoteKind = "KICKBACK"
+	NoteBlocked  NoteKind = "BLOCKED"
+)
 
-func (k NoteKind) valid() bool { return k == NoteGeneral }
+func (k NoteKind) valid() bool {
+	return k == NoteGeneral || k == NoteKickback || k == NoteBlocked
+}
 
 // Note is a remark on a unit. Notes are outside the fingerprint.
 type Note struct {
@@ -36,7 +42,10 @@ func insertNote(ctx context.Context, tx *sql.Tx, unitID string, kind NoteKind, b
 // AddNote records a note on a unit of any level.
 func (s *Store) AddNote(ctx context.Context, unitID string, kind NoteKind, body string) (Note, error) {
 	if !kind.valid() {
-		return Note{}, fmt.Errorf("%w: note kind %q is not NOTE", ErrInvalid, kind)
+		return Note{}, fmt.Errorf("%w: note kind %q is not NOTE, KICKBACK or BLOCKED", ErrInvalid, kind)
+	}
+	if kind == NoteBlocked {
+		return Note{}, fmt.Errorf("%w: a BLOCKED note is written by the state change to BLOCKED, not added directly", ErrInvalid)
 	}
 	if strings.TrimSpace(body) == "" {
 		return Note{}, fmt.Errorf("%w: note body is empty", ErrInvalid)
@@ -45,6 +54,11 @@ func (s *Store) AddNote(ctx context.Context, unitID string, kind NoteKind, body 
 	err := s.db.WriteTx(ctx, func(tx *sql.Tx) error {
 		if err := unitExists(ctx, tx, unitID); err != nil {
 			return err
+		}
+		if kind == NoteKickback {
+			if err := checkKickbackTarget(ctx, tx, unitID); err != nil {
+				return err
+			}
 		}
 		if err := insertNote(ctx, tx, unitID, kind, body, s.stamp()); err != nil {
 			return err
@@ -55,6 +69,20 @@ func (s *Store) AddNote(ctx context.Context, unitID string, kind NoteKind, body 
 		return Note{}, err
 	}
 	return s.note(ctx, id)
+}
+
+func checkKickbackTarget(ctx context.Context, tx *sql.Tx, unitID string) error {
+	u, err := getTx(ctx, tx, unitID)
+	if err != nil {
+		return err
+	}
+	if u.Level != LevelTask {
+		return fmt.Errorf("%w: a KICKBACK note goes on a task, and %s is a %s", ErrInvalid, unitID, u.Level)
+	}
+	if u.State == StateDone || u.State == StateCancelled {
+		return fmt.Errorf("%w: a KICKBACK note cannot go on %s, which is %s", ErrInvalid, unitID, u.State)
+	}
+	return nil
 }
 
 const noteColumns = "id, unit_id, kind, body, author, created_at"

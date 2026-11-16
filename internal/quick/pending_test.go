@@ -36,7 +36,7 @@ func pendingTask(t *testing.T, svc units.Service, parent, title string, state un
 	}[state]
 	for _, st := range steps {
 		reason := ""
-		if st == units.StateBlocked {
+		if st == units.StateBlocked || st == units.StateCancelled {
 			reason = "stuck"
 		}
 		if u, err = svc.SetState(ctx, u.ID, u.Fingerprint, st, reason); err != nil {

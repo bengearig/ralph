@@ -133,3 +133,22 @@ func TestSummaryUnfinalizedField(t *testing.T) {
 		t.Errorf("json = %s", raw)
 	}
 }
+
+func TestUnitGetNoteKind(t *testing.T) {
+	svc := seed(t)
+	ctx := context.Background()
+	if _, err := svc.AddNote(ctx, "T-1", units.NoteKickback, "replan"); err != nil {
+		t.Fatal(err)
+	}
+	v, err := UnitDetail(ctx, svc, "T-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(v.Notes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"kind":"KICKBACK"`) {
+		t.Errorf("notes = %s", raw)
+	}
+}

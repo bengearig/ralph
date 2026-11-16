@@ -51,7 +51,7 @@ func (e *statusEnv) create(svc units.Service, level units.Level, parent, title s
 	if state != "" && state != units.StateProposed {
 		cur := u
 		for _, step := range pathTo(state) {
-			if cur, err = svc.SetState(e.ctx, u.ID, cur.Fingerprint, step, ""); err != nil {
+			if cur, err = svc.SetState(e.ctx, u.ID, cur.Fingerprint, step, stepReason(step)); err != nil {
 				e.t.Fatal(err)
 			}
 		}
@@ -457,4 +457,11 @@ func TestStatusUnfinalizedJSON(t *testing.T) {
 		got.Unfinalized[0]["title"] != "First" || got.Unfinalized[1]["branch"] != "ralph/t-2-second" {
 		t.Errorf("unfinalized = %v", got.Unfinalized)
 	}
+}
+
+func stepReason(st units.State) string {
+	if st == units.StateBlocked || st == units.StateCancelled {
+		return "test setup"
+	}
+	return ""
 }

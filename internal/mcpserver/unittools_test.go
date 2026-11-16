@@ -530,3 +530,66 @@ func TestTaskSetStateDescriptionMentionsReadiness(t *testing.T) {
 		t.Errorf("unit_update description = %q", d)
 	}
 }
+
+func TestTaskSetStateReasonRequiredCode(t *testing.T) {
+	cs, _ := newClient(t)
+	tk := create(t, cs, map[string]any{"level": "task", "title": "T", "body": "b"})
+	res := fails(t, cs, "task_set_state", map[string]any{"id": "T-1", "fingerprint": tk["fingerprint"], "state": "CANCELLED"}, "reason_required")
+	for _, want := range []string{"T-1", "PROPOSED", "CANCELLED", "again with a reason"} {
+		if !strings.Contains(text(res), want) {
+			t.Errorf("text %q lacks %q", text(res), want)
+		}
+	}
+}
+
+func TestTaskSetStateKickbackRecorded(t *testing.T) {
+	cs, _ := newClient(t)
+	tk := create(t, cs, map[string]any{"level": "task", "title": "T", "body": "b"})
+	todo := ok(t, cs, "task_set_state", map[string]any{"id": "T-1", "fingerprint": tk["fingerprint"], "state": "TODO"})
+	ok(t, cs, "task_set_state", map[string]any{"id": "T-1", "fingerprint": todo["fingerprint"], "state": "PROPOSED", "reason": "needs a plan"})
+	notes := ok(t, cs, "unit_get", map[string]any{"id": "T-1"})["notes"].([]any)
+	last := notes[len(notes)-1].(map[string]any)
+	if last["kind"] != "KICKBACK" || last["body"] != "TODO to PROPOSED: needs a plan" {
+		t.Errorf("notes = %v", notes)
+	}
+}
+
+func TestNoteAddKindDefaultsToNote(t *testing.T) {
+	cs, _ := newClient(t)
+	create(t, cs, map[string]any{"level": "brief", "title": "B", "body": "goal"})
+	if got := ok(t, cs, "note_add", map[string]any{"id": "B-1", "body": "x"}); got["kind"] != "NOTE" {
+		t.Errorf("note = %v", got)
+	}
+}
+
+func TestNoteAddKickback(t *testing.T) {
+	cs, _ := newClient(t)
+	create(t, cs, map[string]any{"level": "task", "title": "T", "body": "b"})
+	got := ok(t, cs, "note_add", map[string]any{"id": "T-1", "body": "replan", "kind": "KICKBACK"})
+	if got["kind"] != "KICKBACK" {
+		t.Errorf("note = %v", got)
+	}
+	create(t, cs, map[string]any{"level": "brief", "title": "B", "body": "goal"})
+	fails(t, cs, "note_add", map[string]any{"id": "B-1", "body": "replan", "kind": "KICKBACK"}, "invalid")
+}
+
+func TestNoteAddKindEnumInSchema(t *testing.T) {
+	cs, _ := newClient(t)
+	got := enumStrings(schemaOf(t, tools(t, cs)["note_add"]).Properties["kind"])
+	if len(got) != 2 || got[0] != "NOTE" || got[1] != "KICKBACK" {
+		t.Errorf("kind enum = %v", got)
+	}
+	if d := tools(t, cs)["note_add"].Description; !strings.Contains(d, "KICKBACK") || !strings.Contains(d, "planned again") {
+		t.Errorf("description = %q", d)
+	}
+}
+
+func TestTaskSetStateDescriptionListsReasons(t *testing.T) {
+	cs, _ := newClient(t)
+	d := tools(t, cs)["task_set_state"].Description
+	for _, want := range []string{"BLOCKED", "PROPOSED", "CANCELLED", "reason_required", "kickback"} {
+		if !strings.Contains(d, want) {
+			t.Errorf("description lacks %q", want)
+		}
+	}
+}
