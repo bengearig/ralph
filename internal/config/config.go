@@ -77,6 +77,8 @@ func (w Warning) String() string {
 type Config struct {
 	values   map[string]Value
 	warnings []Warning
+	registry *Registry
+	getenv   func(string) (string, bool)
 }
 
 // DefaultUserFile returns the user configuration file, or empty if the user
@@ -135,6 +137,9 @@ func Load(opts Options) (*Config, error) {
 			return nil, err
 		}
 		for _, v := range found {
+			if err := checkSecret(reg.settings[v.Path], v); err != nil {
+				return nil, err
+			}
 			if f.layer == LayerProject && reg.settings[v.Path].Scope == ScopeUser {
 				warnings = append(warnings, Warning{File: v.Source.File, Line: v.Source.Line, Path: v.Path})
 				continue
@@ -146,7 +151,11 @@ func Load(opts Options) (*Config, error) {
 	for _, s := range reg.Settings() {
 		name := EnvName(s.Path)
 		if v, ok := getenv(name); ok && v != "" {
-			values[s.Path] = Value{Path: s.Path, Value: v, Layer: LayerEnv, Source: Source{Name: name}}
+			val := Value{Path: s.Path, Value: v, Layer: LayerEnv, Source: Source{Name: name}}
+			if err := checkSecret(s, val); err != nil {
+				return nil, err
+			}
+			values[s.Path] = val
 		}
 	}
 
@@ -166,10 +175,14 @@ func Load(opts Options) (*Config, error) {
 		if !ok {
 			return nil, fmt.Errorf("config: unknown flag %q", name)
 		}
-		values[s.Path] = Value{Path: s.Path, Value: opts.Flags[name], Layer: LayerFlag, Source: Source{Name: "--" + name}}
+		val := Value{Path: s.Path, Value: opts.Flags[name], Layer: LayerFlag, Source: Source{Name: "--" + name}}
+		if err := checkSecret(s, val); err != nil {
+			return nil, err
+		}
+		values[s.Path] = val
 	}
 
-	return &Config{values: values, warnings: warnings}, nil
+	return &Config{values: values, warnings: warnings, registry: reg, getenv: getenv}, nil
 }
 
 // Get returns the value of the setting at path, if it is set.

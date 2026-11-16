@@ -24,6 +24,7 @@ type Setting struct {
 	Default     string
 	Flag        string
 	Scope       Scope
+	Kind        Kind
 }
 
 // Registry is the set of settings a configuration may contain.
