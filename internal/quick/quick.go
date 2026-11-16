@@ -5,6 +5,9 @@
 package quick
 
 import (
+	"context"
+
+	"github.com/bengearig/ralph/internal/hosting"
 	"github.com/bengearig/ralph/internal/integration"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/verify"
@@ -30,6 +33,15 @@ type Deps struct {
 	Units     units.Service
 	Workspace workspace.Workspace
 	Config    Config
+	// Provider is built when a pull request is needed, so a missing token only matters then.
+	Provider func(ctx context.Context) (hosting.Provider, error)
+	// Runner runs the verification commands; nil means a verify.Runner over the project root.
+	Runner Runner
+}
+
+// Runner runs verification commands; verify.Runner satisfies it.
+type Runner interface {
+	Run(ctx context.Context, commands []string) (verify.Report, error)
 }
 
 // Service runs quick work.
