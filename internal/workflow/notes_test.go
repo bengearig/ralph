@@ -56,3 +56,12 @@ func TestProjectNotesListsReceive(t *testing.T) {
 		}
 	}
 }
+
+func TestProjectNotesListsArticulate(t *testing.T) {
+	got, _ := notesFor(t)
+	for _, want := range []string{"/ralph:articulate", "/ralph/articulate"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("notes lack %q:\n%s", want, got)
+		}
+	}
+}

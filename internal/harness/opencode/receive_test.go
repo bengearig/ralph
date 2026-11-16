@@ -79,3 +79,21 @@ func TestToolNamesExistOnTheServerOpenCode(t *testing.T) {
 		}
 	}
 }
+
+func TestArticulateCommandUsesBareNames(t *testing.T) {
+	articulate, ok, err := workflow.Get("articulate")
+	if err != nil || !ok {
+		t.Fatal(ok, err)
+	}
+	c := oneCommand(t, articulate, "ralph")
+	for _, want := range []string{"unit_update", "task_set_state", "$ARGUMENTS"} {
+		if !strings.Contains(c, want) {
+			t.Errorf("content lacks %q", want)
+		}
+	}
+	for _, bad := range []string{"mcp__", "{{"} {
+		if strings.Contains(c, bad) {
+			t.Errorf("content contains %q", bad)
+		}
+	}
+}

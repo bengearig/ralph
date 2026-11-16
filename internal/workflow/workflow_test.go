@@ -7,7 +7,7 @@ import (
 	"testing/fstest"
 )
 
-func TestAllLoadsReceiveStatusAndQuick(t *testing.T) {
+func TestAllLoadsArticulateReceiveStatusAndQuick(t *testing.T) {
 	all, err := All()
 	if err != nil {
 		t.Fatal(err)
@@ -27,7 +27,7 @@ func TestAllLoadsReceiveStatusAndQuick(t *testing.T) {
 			}
 		}
 	}
-	if want := []string{"quick", "receive", "status"}; !reflect.DeepEqual(names, want) {
+	if want := []string{"articulate", "quick", "receive", "status"}; !reflect.DeepEqual(names, want) {
 		t.Fatalf("names = %v, want %v", names, want)
 	}
 	got, ok, err := Get("status")
@@ -340,5 +340,82 @@ func TestReceiveNamesNoLoopOrDocumentTools(t *testing.T) {
 		if strings.Contains(in.Body, bad) {
 			t.Errorf("body mentions %q", bad)
 		}
+	}
+}
+
+func articulateInstruction(t *testing.T) Instruction {
+	t.Helper()
+	in, ok, err := Get("articulate")
+	if err != nil || !ok {
+		t.Fatal(ok, err)
+	}
+	return in
+}
+
+func TestArticulateFrontMatter(t *testing.T) {
+	in := articulateInstruction(t)
+	if want := "ralph articulate: work out each task's details with the user and promote it"; in.Description != want {
+		t.Errorf("description = %q", in.Description)
+	}
+	if want := "[a brief, slice or task ID]"; in.ArgumentHint != want {
+		t.Errorf("argument hint = %q", in.ArgumentHint)
+	}
+}
+
+func TestArticulateToolsReferenced(t *testing.T) {
+	want := []string{"dependency_add", "note_add", "status", "task_set_state", "unit_create", "unit_get", "unit_update"}
+	if got := articulateInstruction(t).Tools(); !reflect.DeepEqual(got, want) {
+		t.Errorf("Tools() = %v, want %v", got, want)
+	}
+}
+
+func TestArticulateContent(t *testing.T) {
+	out, err := articulateInstruction(t).Render(neutralContext())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"ask the user which brief, slice or task to articulate",
+		"the notes recorded on it during receive",
+		"one task at a time, in slice order and then position order",
+		"a few questions at a time",
+		"a stranger with no access to this conversation could implement from",
+		"verifiable, preferably by tests or commands",
+		"names the narrowest command that proves the task",
+		"only on a slice's last task or in its final check",
+		"set TODO with a short reason",
+		"without asking for separate permission",
+		"refused as not ready",
+		"fill in what the error lists and promote the task again",
+		"KICKBACK note",
+		"suggest planning the brief again with the receive command and the brief's ID",
+		"Leave TODO tasks alone unless the user wants to revisit one",
+		"Notice for the user:",
+		"writes no production code",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("rendered text lacks %q", want)
+		}
+	}
+}
+
+func TestArticulateHarnessNeutralBody(t *testing.T) {
+	body := articulateInstruction(t).Body
+	for _, bad := range []string{"mcp__", "$ARGUMENTS", "CLAUDE", "AGENTS", "EnterPlanMode", "ExitPlanMode"} {
+		if strings.Contains(body, bad) {
+			t.Errorf("body contains harness-specific %q", bad)
+		}
+	}
+}
+
+func TestArticulateNamesNoLoopCommand(t *testing.T) {
+	in := articulateInstruction(t)
+	for _, tool := range in.Tools() {
+		if strings.Contains(tool, "loop") {
+			t.Errorf("references tool %q", tool)
+		}
+	}
+	if strings.Contains(strings.ToLower(in.Body), "loop") {
+		t.Error("body names a loop command")
 	}
 }

@@ -331,3 +331,15 @@ func TestProjectNotesListsReceive(t *testing.T) {
 		t.Errorf("section lacks /ralph:receive:\n%s", c)
 	}
 }
+
+func TestArticulateCommandUsesClaudeNames(t *testing.T) {
+	c := string(artifactAt(t, inputs(t), ".claude/commands/ralph/articulate.md").Content)
+	for _, want := range []string{"mcp__ralph__unit_update", "mcp__ralph__task_set_state", "$ARGUMENTS"} {
+		if !strings.Contains(c, want) {
+			t.Errorf("content lacks %q", want)
+		}
+	}
+	if strings.Contains(c, "{{") {
+		t.Errorf("content has an unrendered template action:\n%s", c)
+	}
+}
