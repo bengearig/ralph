@@ -6,12 +6,14 @@ import (
 
 	"github.com/bengearig/ralph/internal/harness"
 	"github.com/bengearig/ralph/internal/harness/claudecode"
+	"github.com/bengearig/ralph/internal/harness/opencode"
 )
 
 // Adapters returns every adapter; add one line per adapter.
 func Adapters() []harness.Adapter {
 	return []harness.Adapter{
 		claudecode.New(),
+		opencode.New(),
 	}
 }
 
