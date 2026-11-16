@@ -40,6 +40,9 @@ Input: a middle unit whose bottom units are ready.
   [0008](decisions/0008-feature-flow.md).
 - Each iteration works one ready bottom unit, in order, producing one commit. The prompt includes the unit and the
   documents linked to it, and the agent can search for more through the MCP server.
+- The loop works in the user's checkout, on the middle unit's branch, and refuses to start when the working tree has
+  uncommitted changes. See [0023](decisions/0023-loop-workspace.md).
+- Each iteration leaves a run record, and the unit gets a summary. See [local-state.md](local-state.md).
 - A failing iteration is retried. After a configured number of consecutive failures on a unit, the loop stops and asks
   for help (Stall Statute).
 - Verification is dictated by project configuration, by the unit's acceptance criteria, or both. Whether it runs after

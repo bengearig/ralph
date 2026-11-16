@@ -13,7 +13,8 @@ A solo developer working fully locally. Everything runs on one machine with loca
 - The work model, with orphan tasks, and the feature flow: Receive, Articulate, the headless loop, pull requests, review
   feedback as new bottom units, quick work, `ralph monitor`, and the handling after a merge or a closure. See
   [concepts.md](concepts.md), [workflow.md](workflow.md).
-- Local storage in SQLite, behind the service interfaces. See [architecture.md](architecture.md).
+- Local storage in SQLite, behind the service interfaces, with migrations, a backup command and run records. See
+  [architecture.md](architecture.md) and [local-state.md](local-state.md).
 - Layered configuration with the command that shows the effective configuration, and `ralph init`. See
   [configuration.md](configuration.md), [harness-integration.md](harness-integration.md).
 - Harness adapters for Claude Code and OpenCode, with commands or skills, MCP, project instruction entries and the
@@ -31,6 +32,9 @@ A solo developer working fully locally. Everything runs on one machine with loca
   [0014](decisions/0014-server-storage-authentication-tenancy.md).
 - The hosted commercial service.
 - Webhooks, which need a server.
+- The portable export of records and documents, and worktrees for the loop.
+- Squash and rebase merges. A bottom unit is a commit, and these merges replace those commits on the base branch. The
+  first release does not match units to history after such a merge. Doing so is a later feature.
 - Stacked branches, the arrangements in which an outside system owns the data or ralph reads through to it, GitHub
   Issues, and credentials for individual users stored on a server.
 

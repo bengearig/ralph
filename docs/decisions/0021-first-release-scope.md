@@ -15,6 +15,8 @@ the work model asks for each delivered slice to leave something stable and usabl
   and purging, and Jira in both roles.
 - Pull request providers for the first release are GitHub and Bitbucket Cloud, behind one provider interface.
 - The first release is delivered in stages that each leave a working tool.
+- Squash and rebase merges are not supported in the first release. Matching units to history after one is a later
+  feature.
 
 ## Alternatives rejected
 

@@ -20,8 +20,9 @@ Listed from the most general to the more specific. See [0002](decisions/0002-des
 
 1. Avoid disrupting the user's existing workflow. Adopting ralph should be a near seamless transition.
 2. Avoid reinventing the wheel when the existing one is perfectly fine.
-3. Be highly configurable, because principle 1 requires fitting many workflows.
-4. Stay minimalist and favor quality over quantity. Some configurability arrives later so this stays true.
+3. Stay minimalist and favor quality over quantity.
+4. Be highly configurable, because principle 1 requires fitting many workflows. Minimalism bounds this: configurability
+   arrives over time as features are added, not all at once.
 5. Do not be specific to any one employer's or person's workflow.
 
 ## Goals

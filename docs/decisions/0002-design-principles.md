@@ -10,8 +10,9 @@ hobbyists to enterprise employees, and wraps harnesses people already use.
 ## Decision
 
 The principles in [overview.md](../overview.md) govern all later decisions. When they conflict, the more general
-principle wins: not disrupting the user's workflow outranks not reinventing the wheel, which outranks configurability,
-which is bounded by minimalism.
+principle wins: not disrupting the user's workflow outranks not reinventing the wheel, which outranks minimalism, which
+bounds configurability. Configurability is expected to grow substantially over time as features are added, within
+that bound.
 
 ## Alternatives rejected
 
