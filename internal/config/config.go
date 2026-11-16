@@ -7,7 +7,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -92,7 +94,8 @@ func DefaultUserFile() string {
 }
 
 // Load merges defaults, the user file, the project files, the environment and
-// flags. It stops at the first problem.
+// flags. It reports every problem together in a *Error, ordered by layer and
+// then by line.
 func Load(opts Options) (*Config, error) {
 	reg := opts.Registry
 	if reg == nil {
@@ -105,57 +108,59 @@ func Load(opts Options) (*Config, error) {
 
 	values := map[string]Value{}
 	var warnings []Warning
+	var problems []Problem
 	for _, s := range reg.Settings() {
-		if s.Default != "" {
-			values[s.Path] = Value{Path: s.Path, Value: s.Default, Layer: LayerDefault}
+		if s.Default == "" {
+			continue
 		}
+		if msg := valueProblem(s, s.Default); msg != "" {
+			problems = append(problems, Problem{Source: sourceDefault, Message: msg})
+			continue
+		}
+		values[s.Path] = Value{Path: s.Path, Value: s.Default, Layer: LayerDefault}
 	}
 
-	files := []struct {
+	type layerFile struct {
 		layer Layer
 		path  string
-	}{{LayerUser, opts.UserFile}}
+	}
+	files := []layerFile{{LayerUser, opts.UserFile}}
 	if opts.ProjectRoot != "" {
 		dir := project.RalphDir(opts.ProjectRoot)
 		files = append(files,
-			struct {
-				layer Layer
-				path  string
-			}{LayerProject, filepath.Join(dir, project.ProjectFile)},
-			struct {
-				layer Layer
-				path  string
-			}{LayerProjectLocal, filepath.Join(dir, project.LocalFile)},
+			layerFile{LayerProject, filepath.Join(dir, project.ProjectFile)},
+			layerFile{LayerProjectLocal, filepath.Join(dir, project.LocalFile)},
 		)
 	}
 	for _, f := range files {
 		if f.path == "" {
 			continue
 		}
-		found, err := loadFile(reg, f.path, f.layer)
-		if err != nil {
-			return nil, err
-		}
+		found, fileProblems := loadFile(reg, f.path, f.layer)
 		for _, v := range found {
-			if err := checkSecret(reg.settings[v.Path], v); err != nil {
-				return nil, err
+			s := reg.settings[v.Path]
+			if msg := valueProblem(s, v.Value); msg != "" {
+				fileProblems = append(fileProblems, Problem{File: v.Source.File, Line: v.Source.Line, Message: msg})
+				continue
 			}
-			if f.layer == LayerProject && reg.settings[v.Path].Scope == ScopeUser {
+			if f.layer == LayerProject && s.Scope == ScopeUser {
 				warnings = append(warnings, Warning{File: v.Source.File, Line: v.Source.Line, Path: v.Path})
 				continue
 			}
 			values[v.Path] = v
 		}
+		sort.SliceStable(fileProblems, func(i, j int) bool { return fileProblems[i].Line < fileProblems[j].Line })
+		problems = append(problems, fileProblems...)
 	}
 
 	for _, s := range reg.Settings() {
 		name := EnvName(s.Path)
 		if v, ok := getenv(name); ok && v != "" {
-			val := Value{Path: s.Path, Value: v, Layer: LayerEnv, Source: Source{Name: name}}
-			if err := checkSecret(s, val); err != nil {
-				return nil, err
+			if msg := valueProblem(s, v); msg != "" {
+				problems = append(problems, Problem{Source: name, Message: msg})
+				continue
 			}
-			values[s.Path] = val
+			values[s.Path] = Value{Path: s.Path, Value: v, Layer: LayerEnv, Source: Source{Name: name}}
 		}
 	}
 
@@ -173,15 +178,19 @@ func Load(opts Options) (*Config, error) {
 	for _, name := range names {
 		s, ok := byFlag[name]
 		if !ok {
-			return nil, fmt.Errorf("config: unknown flag %q", name)
+			problems = append(problems, Problem{Source: "--" + name, Message: "unknown flag"})
+			continue
 		}
-		val := Value{Path: s.Path, Value: opts.Flags[name], Layer: LayerFlag, Source: Source{Name: "--" + name}}
-		if err := checkSecret(s, val); err != nil {
-			return nil, err
+		if msg := valueProblem(s, opts.Flags[name]); msg != "" {
+			problems = append(problems, Problem{Source: "--" + name, Message: msg})
+			continue
 		}
-		values[s.Path] = val
+		values[s.Path] = Value{Path: s.Path, Value: opts.Flags[name], Layer: LayerFlag, Source: Source{Name: "--" + name}}
 	}
 
+	if len(problems) > 0 {
+		return nil, &Error{Problems: problems, Warnings: warnings}
+	}
 	return &Config{values: values, warnings: warnings, registry: reg, getenv: getenv}, nil
 }
 
@@ -206,17 +215,23 @@ func (c *Config) Values() []Value {
 	return out
 }
 
-func loadFile(reg *Registry, file string, layer Layer) ([]Value, error) {
+var yamlLine = regexp.MustCompile(`line (\d+)`)
+
+func loadFile(reg *Registry, file string, layer Layer) ([]Value, []Problem) {
 	data, err := os.ReadFile(file)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("config: read %s: %w", file, err)
+		return nil, []Problem{{File: file, Message: fmt.Sprintf("cannot read file: %v", err)}}
 	}
 	var doc yaml.Node
 	if err := yaml.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("config: %s: invalid YAML: %w", file, err)
+		p := Problem{File: file, Message: "invalid YAML: " + strings.TrimPrefix(err.Error(), "yaml: ")}
+		if m := yamlLine.FindStringSubmatch(err.Error()); m != nil {
+			p.Line, _ = strconv.Atoi(m[1])
+		}
+		return nil, []Problem{p}
 	}
 	if doc.Kind == 0 {
 		return nil, nil
@@ -232,29 +247,33 @@ func loadFile(reg *Registry, file string, layer Layer) ([]Value, error) {
 		return nil, nil
 	}
 	if root.Kind != yaml.MappingNode {
-		return nil, fmt.Errorf("config: %s:%d: top level must be a mapping", file, root.Line)
+		return nil, []Problem{{File: file, Line: root.Line, Message: "top level must be a mapping"}}
 	}
 	var out []Value
-	if err := walk(reg, file, layer, root, "", &out); err != nil {
-		return nil, err
-	}
-	return out, nil
+	var problems []Problem
+	walk(reg, file, layer, root, "", &out, &problems)
+	return out, problems
 }
 
-func walk(reg *Registry, file string, layer Layer, m *yaml.Node, prefix string, out *[]Value) error {
+func walk(reg *Registry, file string, layer Layer, m *yaml.Node, prefix string, out *[]Value, problems *[]Problem) {
 	for i := 0; i+1 < len(m.Content); i += 2 {
 		key, val := m.Content[i], m.Content[i+1]
 		path := key.Value
 		if prefix != "" {
 			path = prefix + "." + key.Value
 		}
+		problem := func(format string, args ...any) {
+			*problems = append(*problems, Problem{File: file, Line: key.Line, Message: fmt.Sprintf(format, args...)})
+		}
 		if key.Kind != yaml.ScalarNode || strings.Contains(key.Value, ".") {
-			return fmt.Errorf("config: %s:%d: unknown setting %q", file, key.Line, path)
+			problem("unknown setting %q", path)
+			continue
 		}
 		switch {
 		case isSetting(reg, path):
 			if val.Kind != yaml.ScalarNode {
-				return fmt.Errorf("config: %s:%d: setting %q must be a scalar value", file, key.Line, path)
+				problem("setting %q must be a scalar value", path)
+				continue
 			}
 			*out = append(*out, Value{
 				Path:   path,
@@ -264,16 +283,14 @@ func walk(reg *Registry, file string, layer Layer, m *yaml.Node, prefix string, 
 			})
 		case reg.prefixes[path]:
 			if val.Kind != yaml.MappingNode {
-				return fmt.Errorf("config: %s:%d: %q must be a mapping of settings", file, key.Line, path)
+				problem("%q must be a mapping of settings", path)
+				continue
 			}
-			if err := walk(reg, file, layer, val, path, out); err != nil {
-				return err
-			}
+			walk(reg, file, layer, val, path, out, problems)
 		default:
-			return fmt.Errorf("config: %s:%d: unknown setting %q", file, key.Line, path)
+			problem("unknown setting %q", path)
 		}
 	}
-	return nil
 }
 
 func isSetting(reg *Registry, path string) bool {

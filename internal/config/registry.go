@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -25,6 +26,10 @@ type Setting struct {
 	Flag        string
 	Scope       Scope
 	Kind        Kind
+	// Allowed, if non-empty, lists the only values the setting accepts.
+	Allowed []string
+	// Validate, if set, rejects values the setting does not accept.
+	Validate func(string) error
 }
 
 // Registry is the set of settings a configuration may contain.
@@ -97,10 +102,17 @@ func DefaultRegistry() *Registry {
 			Description: "Minimum severity of log messages written to stderr",
 			Default:     "info",
 			Flag:        "log-level",
+			Allowed:     []string{"debug", "info", "warn", "error"},
 		},
 		Setting{
 			Path:        "project.id",
 			Description: "Identifier of the ralph project",
+			Validate: func(v string) error {
+				if strings.TrimSpace(v) == "" {
+					return errors.New("must not be empty")
+				}
+				return nil
+			},
 		},
 	)
 	if err != nil {

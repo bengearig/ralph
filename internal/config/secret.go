@@ -38,23 +38,6 @@ func ParseSecretRef(s string) (SecretRef, error) {
 	return SecretRef{Scheme: schemeEnv, Name: name}, nil
 }
 
-func checkSecret(s Setting, v Value) error {
-	if s.Kind != KindSecret {
-		return nil
-	}
-	if _, err := ParseSecretRef(v.Value); err != nil {
-		return fmt.Errorf("config: %s: setting %q %w", describeSource(v.Source), s.Path, err)
-	}
-	return nil
-}
-
-func describeSource(src Source) string {
-	if src.File != "" {
-		return fmt.Sprintf("%s:%d", src.File, src.Line)
-	}
-	return src.Name
-}
-
 // Secret resolves the reference held by the secret setting at path.
 func (c *Config) Secret(path string) (string, error) {
 	s, ok := c.registry.Lookup(path)
