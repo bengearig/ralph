@@ -3,7 +3,6 @@ package claudecode
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 
@@ -20,8 +19,6 @@ type adapter struct{}
 func New() harness.Adapter { return adapter{} }
 
 func (adapter) Name() string { return name }
-
-func (adapter) Detect(context.Context, string) harness.Detection { return harness.Detection{} }
 
 func (adapter) Artifacts(in harness.Inputs) ([]harness.Artifact, error) {
 	var arts []harness.Artifact
