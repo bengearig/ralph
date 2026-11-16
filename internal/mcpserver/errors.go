@@ -2,10 +2,16 @@ package mcpserver
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"regexp"
+	"strings"
 
 	"github.com/bengearig/ralph/internal/db"
+	"github.com/bengearig/ralph/internal/hosting"
+	"github.com/bengearig/ralph/internal/quick"
 	"github.com/bengearig/ralph/internal/units"
+	"github.com/bengearig/ralph/internal/workspace"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -17,7 +23,24 @@ const (
 	codeTransition     = "invalid_transition"
 	codeStale          = "stale"
 	codeInternal       = "internal"
+
+	codeDirtyTree          = "dirty_tree"
+	codeNotOnBase          = "not_on_base"
+	codeBaseAhead          = "base_ahead"
+	codeDetachedHead       = "detached_head"
+	codeNoCommits          = "no_commits"
+	codeBranchExists       = "branch_exists"
+	codeNotQuickWork       = "not_quick_work"
+	codeAmbiguousTask      = "ambiguous_task"
+	codeWrongBranch        = "wrong_branch"
+	codeNothingToDeliver   = "nothing_to_deliver"
+	codeVerificationFailed = "verification_failed"
+	codeCommitFailed       = "commit_failed"
+	codePushFailed         = "push_failed"
+	codePullRequestFailed  = "pull_request_failed"
 )
+
+var urlCredentials = regexp.MustCompile(`([A-Za-z][A-Za-z0-9+.-]*://)[^/\s@]*@`)
 
 const notInitializedText = "ralph is not set up in this project: ask the user to run `ralph init` in the project directory, then try again."
 
@@ -25,6 +48,7 @@ const notInitializedText = "ralph is not set up in this project: ask the user to
 // a structured error_code.
 func errorResult(err error) *mcp.CallToolResult {
 	code, text := classify(err)
+	text = urlCredentials.ReplaceAllString(text, "$1")
 	structured := map[string]any{"error_code": code, "message": text}
 	var te *units.TransitionError
 	if errors.As(err, &te) {
@@ -33,6 +57,10 @@ func errorResult(err error) *mcp.CallToolResult {
 			allowed[i] = string(st)
 		}
 		structured["allowed"] = allowed
+	}
+	var ve *quick.VerificationError
+	if errors.As(err, &ve) {
+		structured["verification"] = verificationOf(true, ve.Report)
 	}
 	return &mcp.CallToolResult{
 		IsError:           true,
@@ -48,6 +76,34 @@ func classify(err error) (code, text string) {
 		if errors.Is(err, db.ErrNotFound) || errors.Is(err, os.ErrNotExist) {
 			return codeNotInitialized, notInitializedText
 		}
+	case errors.Is(err, workspace.ErrDirty):
+		return codeDirtyTree, dirtyText(err)
+	case errors.Is(err, workspace.ErrNotOnBase):
+		return codeNotOnBase, err.Error() + ". Ask the user to switch to the base branch, then call quick_start again."
+	case errors.Is(err, workspace.ErrBaseAhead):
+		return codeBaseAhead, err.Error() + ". Ask the user to push or reset it, then call quick_start again."
+	case errors.Is(err, workspace.ErrDetachedHead):
+		return codeDetachedHead, err.Error() + ". Ask the user to switch to the base branch, then try again."
+	case errors.Is(err, workspace.ErrNoCommits):
+		return codeNoCommits, err.Error() + ". Ask the user to make a first commit, then call quick_start again."
+	case errors.Is(err, workspace.ErrBranchExists):
+		return codeBranchExists, err.Error() + ". Nothing was created. Ask the user to remove or rename that branch, or choose another title, then call quick_start again."
+	case errors.Is(err, quick.ErrNotQuickWork):
+		return codeNotQuickWork, err.Error() + ". Only a task started with quick_start can be finished with quick_finish; check the id or omit it."
+	case errors.Is(err, quick.ErrAmbiguousTask):
+		return codeAmbiguousTask, err.Error() + "."
+	case errors.Is(err, quick.ErrWrongBranch):
+		return codeWrongBranch, err.Error() + ", then call quick_finish again."
+	case errors.Is(err, quick.ErrNothingToDeliver):
+		return codeNothingToDeliver, err.Error() + ". Make the changes first, then call quick_finish again."
+	case errors.Is(err, quick.ErrVerificationFailed):
+		return codeVerificationFailed, verificationText(err)
+	case errors.Is(err, quick.ErrCommitFailed):
+		return codeCommitFailed, err.Error() + ". Fix the cause and call quick_finish again."
+	case errors.Is(err, quick.ErrPushFailed):
+		return codePushFailed, err.Error() + ". The commit was made. Fix the cause (ask the user if it is access to the remote) and call quick_finish again."
+	case errors.Is(err, quick.ErrPullRequestFailed):
+		return codePullRequestFailed, pullRequestText(err)
 	case errors.Is(err, units.ErrNotFound):
 		return codeNotFound, err.Error()
 	case errors.Is(err, units.ErrInvalidParent):
@@ -60,4 +116,52 @@ func classify(err error) (code, text string) {
 		return codeStale, err.Error() + ". Call unit_get to read the unit's current fingerprint and state, then retry."
 	}
 	return codeInternal, "internal error: " + err.Error()
+}
+
+const maxListedPaths = 10
+
+func dirtyText(err error) string {
+	var de *workspace.DirtyError
+	if !errors.As(err, &de) {
+		return err.Error() + ". Ask the user to commit or stash their changes, then call quick_start again."
+	}
+	shown := de.Paths
+	if len(shown) > maxListedPaths {
+		shown = shown[:maxListedPaths]
+	}
+	text := "the working tree has uncommitted changes: " + strings.Join(shown, ", ")
+	if more := len(de.Paths) - len(shown); more > 0 {
+		text += fmt.Sprintf(" and %d more", more)
+	}
+	return text + ". Nothing was created. Ask the user to commit or stash them, then call quick_start again."
+}
+
+const maxOutputTail = 2000
+
+func verificationText(err error) string {
+	var b strings.Builder
+	b.WriteString(err.Error())
+	var ve *quick.VerificationError
+	if errors.As(err, &ve) {
+		if res, ok := ve.Report.Failed(); ok && res.Output != "" {
+			out := strings.TrimRight(res.Output, "\n")
+			if len(out) > maxOutputTail {
+				out = out[len(out)-maxOutputTail:]
+				if i := strings.IndexByte(out, '\n'); i >= 0 {
+					out = out[i+1:]
+				}
+			}
+			b.WriteString("\nEnd of its output:\n" + out)
+		}
+	}
+	b.WriteString("\nNothing was committed or pushed. Fix the problem and call quick_finish again.")
+	return b.String()
+}
+
+func pullRequestText(err error) string {
+	text := err.Error() + ". The commit and the push succeeded; call quick_finish again to retry opening the pull request."
+	if errors.Is(err, hosting.ErrUnauthorized) {
+		text += " The host refused the credentials: ask the user to set the github.token setting to a token that may open pull requests."
+	}
+	return text
 }

@@ -20,6 +20,9 @@ type Options struct {
 	Open    func(ctx context.Context) (units.Service, error)
 	Actor   string
 	Sources []NoticeSource
+	// Quick builds the quick work service on the first quick tool call; nil
+	// leaves the quick tools out.
+	Quick func(ctx context.Context, svc units.Service) (Quick, error)
 }
 
 type server struct {
@@ -27,6 +30,9 @@ type server struct {
 
 	mu  sync.Mutex
 	svc units.Service
+
+	quickMu sync.Mutex
+	quick   Quick
 
 	noticeMu sync.Mutex
 	seen     map[Notice]struct{}
@@ -38,6 +44,7 @@ func New(opts Options) *mcp.Server {
 	srv := mcp.NewServer(&mcp.Implementation{Name: opts.Name, Version: opts.Version}, nil)
 	s.addStatusTool(srv)
 	s.addUnitTools(srv)
+	s.addQuickTools(srv)
 	return srv
 }
 

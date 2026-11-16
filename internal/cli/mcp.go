@@ -69,6 +69,9 @@ func runMCP(ctx context.Context, a *app, t mcp.Transport) error {
 		Version: version.String(),
 		Actor:   identity.Resolve(ctx, a.root),
 		Sources: []mcpserver.NoticeSource{integrationNotice(a.root)},
+		Quick: func(ctx context.Context, svc units.Service) (mcpserver.Quick, error) {
+			return newQuickService(ctx, a, svc)
+		},
 		Open: func(ctx context.Context) (units.Service, error) {
 			d, err := openStore(ctx, a, db.Options{MustExist: true})
 			if err != nil {
