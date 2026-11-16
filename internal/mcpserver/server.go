@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/bengearig/ralph/internal/documents"
+	"github.com/bengearig/ralph/internal/search"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -32,6 +33,9 @@ type Options struct {
 	// Documents supplies the documents service on the first document tool
 	// call; nil leaves the document tools out.
 	Documents func(ctx context.Context) (documents.Service, error)
+	// Search supplies the search service on the first search call; nil leaves
+	// the search tool out.
+	Search func(ctx context.Context) (search.Service, error)
 }
 
 type server struct {
@@ -47,6 +51,9 @@ type server struct {
 	docMu sync.Mutex
 	docs  documents.Service
 
+	searchMu sync.Mutex
+	search   search.Service
+
 	noticeMu sync.Mutex
 	seen     map[Notice]struct{}
 }
@@ -59,6 +66,7 @@ func New(opts Options) *mcp.Server {
 	s.addUnitTools(srv)
 	s.addQuickTools(srv)
 	s.addDocTools(srv)
+	s.addSearchTool(srv)
 	s.addPlanningTool(srv)
 	return srv
 }

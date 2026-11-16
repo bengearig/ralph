@@ -11,6 +11,7 @@ import (
 	"github.com/bengearig/ralph/internal/documents"
 	"github.com/bengearig/ralph/internal/hosting"
 	"github.com/bengearig/ralph/internal/quick"
+	"github.com/bengearig/ralph/internal/search"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/workspace"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -95,6 +96,8 @@ func classify(err error) (code, text string) {
 	case isDocumentStale(err):
 		return codeStale, err.Error() + ". Call doc_get to read the document's current fingerprint and state, then retry."
 	case errors.Is(err, documents.ErrInvalid):
+		return codeInvalid, err.Error()
+	case errors.Is(err, search.ErrInvalid):
 		return codeInvalid, err.Error()
 	case errors.Is(err, workspace.ErrDirty):
 		return codeDirtyTree, dirtyText(err)

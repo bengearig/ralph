@@ -46,23 +46,23 @@ type Query struct {
 // leaves out unless it includes inactive records; Status says why. A larger
 // Score is a better match.
 type Hit struct {
-	Kind     Kind
-	ID       string
-	Title    string
-	Snippet  string
-	Status   string
-	Score    float64
-	Unit     string
-	Inactive bool
+	Kind     Kind    `json:"kind" jsonschema:"brief, slice, task, note or document"`
+	ID       string  `json:"id" jsonschema:"the unit or document ID; for a note, the unit it is on"`
+	Title    string  `json:"title"`
+	Snippet  string  `json:"snippet,omitempty" jsonschema:"an excerpt of the matching text with the matching words in square brackets"`
+	Status   string  `json:"status,omitempty" jsonschema:"a task's state or a document's status"`
+	Score    float64 `json:"score" jsonschema:"larger is a better match"`
+	Unit     string  `json:"unit,omitempty"`
+	Inactive bool    `json:"inactive" jsonschema:"true for an archived or superseded document, a cancelled task or a note on one"`
 }
 
 // Result is the outcome of a search. Mode names the kind of search that
 // produced it; Relaxed is true when no hit matched every word and the hits
 // match some of them.
 type Result struct {
-	Mode    string
-	Relaxed bool
-	Hits    []Hit
+	Mode    string `json:"mode" jsonschema:"the kind of search that produced the result"`
+	Relaxed bool   `json:"relaxed" jsonschema:"true when no record had every word and the hits match some of them"`
+	Hits    []Hit  `json:"hits"`
 }
 
 // Service is search as callers see it. Implementations, local or remote,

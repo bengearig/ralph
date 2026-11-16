@@ -15,6 +15,7 @@ import (
 	"github.com/bengearig/ralph/internal/integration"
 	"github.com/bengearig/ralph/internal/mcpserver"
 	"github.com/bengearig/ralph/internal/quick"
+	"github.com/bengearig/ralph/internal/search"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/version"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -117,6 +118,13 @@ func runMCP(ctx context.Context, a *app, t mcp.Transport) error {
 				return nil, err
 			}
 			return newDocumentsService(a, d), nil
+		},
+		Search: func(ctx context.Context) (search.Service, error) {
+			d, err := store(ctx)
+			if err != nil {
+				return nil, err
+			}
+			return search.New(d), nil
 		},
 	})
 	err := srv.Run(ctx, t)
