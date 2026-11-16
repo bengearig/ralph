@@ -19,6 +19,7 @@ func LocalIgnoreEntries() []string {
 		"/" + StoreFile + "*",
 		"/" + BackupDirName + "/",
 		"/" + LocalFile,
+		"/" + IntegrationLocalFile,
 	}
 }
 

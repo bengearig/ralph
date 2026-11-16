@@ -17,6 +17,11 @@ const (
 	ProjectFile = "project.yaml"
 	LocalFile   = "project.local.yaml"
 
+	// IntegrationFile and IntegrationLocalFile record what ralph installed for
+	// harnesses; the local one is not committed.
+	IntegrationFile      = "integration.json"
+	IntegrationLocalFile = "integration.local.json"
+
 	StoreFile     = "store.db"
 	BackupDirName = "backups"
 )

@@ -31,11 +31,11 @@ func writeIgnore(t *testing.T, root, content string) {
 const header = "# Local ralph files. Written by ralph init.\n"
 
 func TestLocalIgnoreEntriesUseConstants(t *testing.T) {
-	want := []string{"/" + StoreFile + "*", "/" + BackupDirName + "/", "/" + LocalFile}
+	want := []string{"/" + StoreFile + "*", "/" + BackupDirName + "/", "/" + LocalFile, "/" + IntegrationLocalFile}
 	if got := LocalIgnoreEntries(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("entries = %q, want %q", got, want)
 	}
-	if got := LocalIgnoreEntries(); got[0] != "/store.db*" || got[1] != "/backups/" || got[2] != "/project.local.yaml" {
+	if got := LocalIgnoreEntries(); got[0] != "/store.db*" || got[1] != "/backups/" || got[2] != "/project.local.yaml" || got[3] != "/integration.local.json" {
 		t.Fatalf("entries = %q", got)
 	}
 }
@@ -49,7 +49,7 @@ func TestEnsureIgnoreCreatesFile(t *testing.T) {
 	if !reflect.DeepEqual(added, LocalIgnoreEntries()) {
 		t.Fatalf("added = %q", added)
 	}
-	want := header + "/store.db*\n/backups/\n/project.local.yaml\n"
+	want := header + "/store.db*\n/backups/\n/project.local.yaml\n/integration.local.json\n"
 	if got := readIgnore(t, root); got != want {
 		t.Fatalf("file = %q, want %q", got, want)
 	}
@@ -77,10 +77,10 @@ func TestEnsureIgnoreKeepsUserLines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"/store.db*", "/project.local.yaml"}; !reflect.DeepEqual(added, want) {
+	if want := []string{"/store.db*", "/project.local.yaml", "/integration.local.json"}; !reflect.DeepEqual(added, want) {
 		t.Fatalf("added = %q, want %q", added, want)
 	}
-	want := "mine.log\n/backups/\nother\n/store.db*\n/project.local.yaml\n"
+	want := "mine.log\n/backups/\nother\n/store.db*\n/project.local.yaml\n/integration.local.json\n"
 	if got := readIgnore(t, root); got != want {
 		t.Fatalf("file = %q, want %q", got, want)
 	}
@@ -92,7 +92,7 @@ func TestEnsureIgnoreAddsMissingNewline(t *testing.T) {
 	if _, err := EnsureIgnore(root, LocalIgnoreEntries()); err != nil {
 		t.Fatal(err)
 	}
-	want := "mine.log\n/store.db*\n/backups/\n/project.local.yaml\n"
+	want := "mine.log\n/store.db*\n/backups/\n/project.local.yaml\n/integration.local.json\n"
 	if got := readIgnore(t, root); got != want {
 		t.Fatalf("file = %q, want %q", got, want)
 	}
@@ -105,10 +105,10 @@ func TestEnsureIgnoreHandlesCRLF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"/project.local.yaml"}; !reflect.DeepEqual(added, want) {
+	if want := []string{"/project.local.yaml", "/integration.local.json"}; !reflect.DeepEqual(added, want) {
 		t.Fatalf("added = %q, want %q", added, want)
 	}
-	want := "/store.db*\r\n/backups/  \r\n/project.local.yaml\n"
+	want := "/store.db*\r\n/backups/  \r\n/project.local.yaml\n/integration.local.json\n"
 	if got := readIgnore(t, root); got != want {
 		t.Fatalf("file = %q, want %q", got, want)
 	}
@@ -137,4 +137,13 @@ func TestEnsureIgnoreExactLinesOnly(t *testing.T) {
 	if got := readIgnore(t, root); got != "store.db\n/store.db*\n" {
 		t.Fatalf("file = %q", got)
 	}
+}
+
+func TestLocalIgnoreEntriesIncludeLocalManifest(t *testing.T) {
+	for _, e := range LocalIgnoreEntries() {
+		if e == "/integration.local.json" {
+			return
+		}
+	}
+	t.Fatalf("entries = %q", LocalIgnoreEntries())
 }
