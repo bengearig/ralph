@@ -8,3 +8,8 @@
 
 # build output
 /bin/
+
+# ralph local files (new store)
+/.ralph/store.db*
+/.ralph/backups/
+/.ralph/project.local.yaml

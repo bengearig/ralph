@@ -121,3 +121,17 @@ func TestRalphDir(t *testing.T) {
 		t.Fatalf("RalphDir = %q, want %q", got, want)
 	}
 }
+
+func TestStorePath(t *testing.T) {
+	root := t.TempDir()
+	if got, want := StorePath(root), filepath.Join(root, ".ralph", "store.db"); got != want {
+		t.Fatalf("StorePath = %q, want %q", got, want)
+	}
+}
+
+func TestBackupsDir(t *testing.T) {
+	root := t.TempDir()
+	if got, want := BackupsDir(root), filepath.Join(root, ".ralph", "backups"); got != want {
+		t.Fatalf("BackupsDir = %q, want %q", got, want)
+	}
+}

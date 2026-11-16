@@ -16,6 +16,9 @@ const (
 	DirName     = ".ralph"
 	ProjectFile = "project.yaml"
 	LocalFile   = "project.local.yaml"
+
+	StoreFile     = "store.db"
+	BackupDirName = "backups"
 )
 
 var (
@@ -74,4 +77,14 @@ func FindRoot(dir string) (string, error) {
 // RalphDir returns the ralph directory of the project at root; it need not exist.
 func RalphDir(root string) string {
 	return filepath.Join(root, DirName)
+}
+
+// StorePath returns the database file of the project at root.
+func StorePath(root string) string {
+	return filepath.Join(RalphDir(root), StoreFile)
+}
+
+// BackupsDir returns the directory holding database backups.
+func BackupsDir(root string) string {
+	return filepath.Join(RalphDir(root), BackupDirName)
 }
