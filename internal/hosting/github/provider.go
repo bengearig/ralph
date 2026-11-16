@@ -2,7 +2,6 @@ package github
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -86,14 +85,4 @@ func (p *Provider) FindPullRequest(ctx context.Context, head string) (hosting.Pu
 		}
 	}
 	return list[0].toPullRequest(), true, nil
-}
-
-// GetPullRequest is not implemented yet.
-func (p *Provider) GetPullRequest(context.Context, int) (hosting.PullRequest, error) {
-	return hosting.PullRequest{}, fmt.Errorf("github: reading a pull request: %w", errUnsupported)
-}
-
-// ReviewFeedback is not implemented yet.
-func (p *Provider) ReviewFeedback(context.Context, int, hosting.FeedbackOptions) ([]hosting.Feedback, error) {
-	return nil, fmt.Errorf("github: reading review feedback: %w", errUnsupported)
 }

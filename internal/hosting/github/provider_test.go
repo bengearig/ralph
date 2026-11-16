@@ -382,13 +382,3 @@ func TestGitHubStateMapping(t *testing.T) {
 		}
 	}
 }
-
-func TestGitHubUnimplementedReads(t *testing.T) {
-	p := listServer(t, "[]")
-	if _, err := p.GetPullRequest(context.Background(), 1); !errors.Is(err, errors.ErrUnsupported) {
-		t.Errorf("GetPullRequest err = %v", err)
-	}
-	if _, err := p.ReviewFeedback(context.Background(), 1, hosting.FeedbackOptions{}); !errors.Is(err, errors.ErrUnsupported) {
-		t.Errorf("ReviewFeedback err = %v", err)
-	}
-}

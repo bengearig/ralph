@@ -50,10 +50,7 @@ type Provider struct {
 	userAgent string
 }
 
-var (
-	_              hosting.Provider = (*Provider)(nil)
-	errUnsupported                  = errors.ErrUnsupported
-)
+var _ hosting.Provider = (*Provider)(nil)
 
 // New validates cfg and returns a Provider.
 func New(cfg Config) (*Provider, error) {
@@ -115,19 +112,25 @@ func (p *Provider) repoPath(suffix string) string {
 
 // do sends one request and decodes a 2xx JSON response into out.
 func (p *Provider) do(ctx context.Context, method, path string, query url.Values, in, out any) error {
+	_, err := p.send(ctx, method, path, query, in, out)
+	return err
+}
+
+// send is do that also returns the response headers.
+func (p *Provider) send(ctx context.Context, method, path string, query url.Values, in, out any) (http.Header, error) {
 	token, err := p.token()
 	if err != nil {
-		return fmt.Errorf("%w: cannot read the token from setting %s: %v", hosting.ErrUnauthorized, tokenSetting, err)
+		return nil, fmt.Errorf("%w: cannot read the token from setting %s: %v", hosting.ErrUnauthorized, tokenSetting, err)
 	}
 	if token == "" {
-		return fmt.Errorf("%w: setting %s resolved to an empty token", hosting.ErrUnauthorized, tokenSetting)
+		return nil, fmt.Errorf("%w: setting %s resolved to an empty token", hosting.ErrUnauthorized, tokenSetting)
 	}
 
 	var body io.Reader
 	if in != nil {
 		b, err := json.Marshal(in)
 		if err != nil {
-			return fmt.Errorf("github: encoding request: %w", err)
+			return nil, fmt.Errorf("github: encoding request: %w", err)
 		}
 		body = bytes.NewReader(b)
 	}
@@ -137,7 +140,7 @@ func (p *Provider) do(ctx context.Context, method, path string, query url.Values
 	}
 	req, err := http.NewRequestWithContext(ctx, method, target, body)
 	if err != nil {
-		return fmt.Errorf("github: building request: %w", err)
+		return nil, fmt.Errorf("github: building request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
@@ -150,26 +153,26 @@ func (p *Provider) do(ctx context.Context, method, path string, query url.Values
 	resp, err := p.client.Do(req)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return ctxErr
+			return nil, ctxErr
 		}
-		return fmt.Errorf("%w: %s %s: %s", hosting.ErrUnavailable, method, path, redact(errors.Unwrap(err), err, token))
+		return nil, fmt.Errorf("%w: %s %s: %s", hosting.ErrUnavailable, method, path, redact(errors.Unwrap(err), err, token))
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 	if err != nil {
-		return fmt.Errorf("%w: reading response: %s", hosting.ErrUnavailable, redact(nil, err, token))
+		return nil, fmt.Errorf("%w: reading response: %s", hosting.ErrUnavailable, redact(nil, err, token))
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return statusError(resp, raw, token)
+		return nil, statusError(resp, raw, token)
 	}
 	if out == nil {
-		return nil
+		return resp.Header, nil
 	}
 	if err := json.Unmarshal(raw, out); err != nil {
-		return fmt.Errorf("%w: unreadable response from GitHub", hosting.ErrUnavailable)
+		return nil, fmt.Errorf("%w: unreadable response from GitHub", hosting.ErrUnavailable)
 	}
-	return nil
+	return resp.Header, nil
 }
 
 // redact renders err without the token, preferring the unwrapped cause, which omits the URL.
