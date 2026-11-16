@@ -50,3 +50,13 @@ BEGIN
 	SELECT RAISE(ABORT, 'id, level, number and parent_id of a unit never change');
 END;
 `
+
+const createLinksSQL = `
+CREATE TABLE links (
+	unit_id TEXT NOT NULL REFERENCES units(id) ON DELETE CASCADE,
+	kind TEXT NOT NULL CHECK (kind IN ('document', 'external')),
+	target TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	PRIMARY KEY (unit_id, kind, target)
+);
+`
