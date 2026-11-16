@@ -12,9 +12,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var errNotInRepository = errors.New("not in a git repository")
+
 func storeOptions(a *app, opts db.Options) (string, db.Options, error) {
 	if a.root == "" {
-		return "", opts, errors.New("not in a git repository")
+		return "", opts, errNotInRepository
 	}
 	opts.Mode = db.MigrateAuto
 	if v, ok := a.cfg.Get("storage.migrate"); ok && v.Value == "manual" {

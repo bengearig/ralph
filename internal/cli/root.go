@@ -39,7 +39,7 @@ func NewRootCommand() *cobra.Command {
 		},
 	}
 	cmd.PersistentFlags().String(logLevelFlag, "", "minimum log severity: debug, info, warn or error (setting log.level)")
-	cmd.AddCommand(newVersionCommand(), newConfigCommand(a), newMigrateCommand(a))
+	cmd.AddCommand(newVersionCommand(), newConfigCommand(a), newMigrateCommand(a), newBackupCommand(a))
 	return cmd
 }
 

@@ -33,6 +33,10 @@ type Options struct {
 	BackupKeep int
 	// Now defaults to time.Now.
 	Now func() time.Time
+	// MustExist makes a missing database file an error instead of creating it.
+	MustExist bool
+	// NoMigrate skips migrations and the schema version checks; ownership is still checked.
+	NoMigrate bool
 }
 
 type DB struct {
@@ -40,7 +44,8 @@ type DB struct {
 	path string
 }
 
-// Open opens the database at path, creating and stamping it when it is new.
+// Open opens the database at path, creating and stamping it when it is new
+// unless opts.MustExist is set.
 // A file that is not a ralph database is refused without being modified.
 func Open(ctx context.Context, path string, opts Options) (*DB, error) {
 	d, _, err := open(ctx, path, opts)
@@ -56,6 +61,11 @@ func open(ctx context.Context, path string, opts Options) (*DB, int, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return nil, 0, fmt.Errorf("db: resolve %q: %w", path, err)
+	}
+	if opts.MustExist {
+		if _, err := os.Stat(abs); err != nil {
+			return nil, 0, fmt.Errorf("db: database %q: %w", abs, err)
+		}
 	}
 	if err := checkOwnership(ctx, abs); err != nil {
 		return nil, 0, err
@@ -83,7 +93,7 @@ func open(ctx context.Context, path string, opts Options) (*DB, int, error) {
 		return nil, 0, err
 	}
 	from, err := d.SchemaVersion(ctx)
-	if err == nil {
+	if err == nil && !opts.NoMigrate {
 		err = d.migrate(ctx, from, list, opts, fresh)
 	}
 	if err != nil {

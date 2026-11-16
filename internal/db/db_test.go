@@ -284,3 +284,69 @@ func TestWriteTxConcurrentWriters(t *testing.T) {
 		t.Errorf("rows = %d, want %d", n, writers*perWriter)
 	}
 }
+
+func TestOpenMustExistMissingFile(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "sub")
+	path := filepath.Join(dir, "store.db")
+	_, err := Open(context.Background(), path, Options{MustExist: true})
+	if err == nil || !strings.Contains(err.Error(), path) {
+		t.Fatalf("err = %v, want one naming %q", err, path)
+	}
+	if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("directory was created: %v", err)
+	}
+}
+
+func TestOpenMustExistExistingFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "store.db")
+	openT(t, path).Close()
+	d, err := Open(context.Background(), path, Options{MustExist: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+}
+
+func TestOpenNoMigrateSkipsPending(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "store.db")
+	d, err := openWith(t, path, three()[:1], MigrateAuto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+	d, err = Open(context.Background(), path, Options{Migrations: three(), NoMigrate: true, BackupDir: filepath.Join(dir, "backups")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if v := version(t, d); v != 1 {
+		t.Errorf("version = %d, want 1", v)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "backups")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("backups directory exists: %v", err)
+	}
+}
+
+func TestOpenNoMigrateAllowsNewerDatabase(t *testing.T) {
+	path := newerAt5(t)
+	d, err := Open(context.Background(), path, Options{Migrations: three(), NoMigrate: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if v := version(t, d); v != 5 {
+		t.Errorf("version = %d, want 5", v)
+	}
+}
+
+func TestOpenNoMigrateStillChecksOwnership(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "other.db")
+	if err := os.WriteFile(path, []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Open(context.Background(), path, Options{NoMigrate: true})
+	if !errors.Is(err, ErrForeignDatabase) {
+		t.Fatalf("err = %v", err)
+	}
+}
