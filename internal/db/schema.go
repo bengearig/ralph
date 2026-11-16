@@ -60,3 +60,15 @@ CREATE TABLE links (
 	PRIMARY KEY (unit_id, kind, target)
 );
 `
+
+const createNotesSQL = `
+CREATE TABLE notes (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	unit_id TEXT NOT NULL REFERENCES units(id),
+	kind TEXT NOT NULL,
+	body TEXT NOT NULL,
+	created_at TEXT NOT NULL
+);
+
+CREATE INDEX notes_unit ON notes (unit_id, id);
+`

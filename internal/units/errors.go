@@ -11,3 +11,5 @@ var (
 	ErrInvalid       = errors.New("invalid input")
 	ErrInvalidParent = errors.New("invalid parent")
 )
+
+var ErrInvalidTransition = errors.New("invalid transition")

@@ -23,6 +23,7 @@ type Migration struct {
 var Migrations = []Migration{
 	{Version: 1, Name: "create units", SQL: createUnitsSQL},
 	{Version: 2, Name: "create links", SQL: createLinksSQL},
+	{Version: 3, Name: "create notes", SQL: createNotesSQL},
 }
 
 // MigrateMode says what Open does when migrations are pending.
