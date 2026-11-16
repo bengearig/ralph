@@ -20,13 +20,14 @@ type Note struct {
 	UnitID    string
 	Kind      NoteKind
 	Body      string
+	Author    string
 	CreatedAt time.Time
 }
 
 func insertNote(ctx context.Context, tx *sql.Tx, unitID string, kind NoteKind, body, now string) error {
 	if _, err := tx.ExecContext(ctx,
-		"INSERT INTO notes (unit_id, kind, body, created_at) VALUES (?, ?, ?, ?)",
-		unitID, string(kind), body, now); err != nil {
+		"INSERT INTO notes (unit_id, kind, body, author, created_at) VALUES (?, ?, ?, ?, ?)",
+		unitID, string(kind), body, ActorFrom(ctx), now); err != nil {
 		return fmt.Errorf("units: add note to %s: %w", unitID, err)
 	}
 	return nil
@@ -56,7 +57,7 @@ func (s *Store) AddNote(ctx context.Context, unitID string, kind NoteKind, body 
 	return s.note(ctx, id)
 }
 
-const noteColumns = "id, unit_id, kind, body, created_at"
+const noteColumns = "id, unit_id, kind, body, author, created_at"
 
 func scanNote(r scanner) (Note, error) {
 	var (
@@ -64,7 +65,7 @@ func scanNote(r scanner) (Note, error) {
 		kind    string
 		created string
 	)
-	if err := r.Scan(&n.ID, &n.UnitID, &kind, &n.Body, &created); err != nil {
+	if err := r.Scan(&n.ID, &n.UnitID, &kind, &n.Body, &n.Author, &created); err != nil {
 		return Note{}, err
 	}
 	n.Kind = NoteKind(kind)

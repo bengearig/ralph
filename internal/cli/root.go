@@ -19,6 +19,8 @@ const logLevelFlag = "log-level"
 type app struct {
 	root string
 	cfg  *config.Config
+
+	actor string
 }
 
 func NewRootCommand() *cobra.Command {

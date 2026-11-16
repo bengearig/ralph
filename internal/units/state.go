@@ -65,7 +65,7 @@ func (s *Store) SetState(ctx context.Context, id, expected string, to State, rea
 			return &TransitionError{ID: id, From: u.State, To: to, Allowed: allowed}
 		}
 		now := s.stamp()
-		if _, err := tx.ExecContext(ctx, "UPDATE units SET state = ?, updated_at = ? WHERE id = ?", string(to), now, id); err != nil {
+		if _, err := tx.ExecContext(ctx, "UPDATE units SET state = ?, updated_at = ?, updated_by = ? WHERE id = ?", string(to), now, ActorFrom(ctx), id); err != nil {
 			return fmt.Errorf("units: set state of %s: %w", id, err)
 		}
 		if strings.TrimSpace(reason) != "" {

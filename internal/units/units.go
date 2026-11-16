@@ -70,6 +70,8 @@ type Unit struct {
 	State              State
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	CreatedBy          string
+	UpdatedBy          string
 	Fingerprint        string
 }
 

@@ -12,7 +12,7 @@ import (
 	"github.com/bengearig/ralph/internal/db"
 )
 
-const columns = "id, level, number, parent_id, position, title, body, acceptance_criteria, state, created_at, updated_at"
+const columns = "id, level, number, parent_id, position, title, body, acceptance_criteria, state, created_at, updated_at, created_by, updated_by"
 
 type Store struct {
 	// Now supplies the time stamped on writes.
@@ -98,6 +98,7 @@ func (s *Store) Create(ctx context.Context, n NewUnit) (Unit, error) {
 		}
 		id = n.Level.prefix() + "-" + strconv.Itoa(number)
 		now := s.stamp()
+		actor := ActorFrom(ctx)
 
 		var parent any
 		position := 0
@@ -111,8 +112,8 @@ func (s *Store) Create(ctx context.Context, n NewUnit) (Unit, error) {
 			if n.Position > 0 && n.Position < position {
 				position = n.Position
 				if _, err := tx.ExecContext(ctx,
-					"UPDATE units SET position = position + 1, updated_at = ? WHERE parent_id = ? AND position >= ?",
-					now, n.ParentID, position); err != nil {
+					"UPDATE units SET position = position + 1, updated_at = ?, updated_by = ? WHERE parent_id = ? AND position >= ?",
+					now, actor, n.ParentID, position); err != nil {
 					return fmt.Errorf("units: make room at position %d under %q: %w", position, n.ParentID, err)
 				}
 			}
@@ -123,8 +124,8 @@ func (s *Store) Create(ctx context.Context, n NewUnit) (Unit, error) {
 			state = string(StateProposed)
 		}
 		if _, err := tx.ExecContext(ctx,
-			"INSERT INTO units ("+columns+") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			id, string(n.Level), number, parent, position, n.Title, n.Body, n.AcceptanceCriteria, state, now, now); err != nil {
+			"INSERT INTO units ("+columns+") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			id, string(n.Level), number, parent, position, n.Title, n.Body, n.AcceptanceCriteria, state, now, now, actor, actor); err != nil {
 			return fmt.Errorf("units: insert %s: %w", id, err)
 		}
 		return nil
@@ -144,7 +145,7 @@ func scan(r scanner) (Unit, error) {
 		parent, state sql.NullString
 		created, upd  string
 	)
-	if err := r.Scan(&u.ID, &level, &u.Number, &parent, &u.Position, &u.Title, &u.Body, &u.AcceptanceCriteria, &state, &created, &upd); err != nil {
+	if err := r.Scan(&u.ID, &level, &u.Number, &parent, &u.Position, &u.Title, &u.Body, &u.AcceptanceCriteria, &state, &created, &upd, &u.CreatedBy, &u.UpdatedBy); err != nil {
 		return Unit{}, err
 	}
 	u.Level = Level(level)

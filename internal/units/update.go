@@ -96,8 +96,8 @@ func (s *Store) Update(ctx context.Context, id, expected string, c Change) (Unit
 			criteria = *c.AcceptanceCriteria
 		}
 		if _, err := tx.ExecContext(ctx,
-			"UPDATE units SET title = ?, body = ?, acceptance_criteria = ?, updated_at = ? WHERE id = ?",
-			title, body, criteria, now, id); err != nil {
+			"UPDATE units SET title = ?, body = ?, acceptance_criteria = ?, updated_at = ?, updated_by = ? WHERE id = ?",
+			title, body, criteria, now, ActorFrom(ctx), id); err != nil {
 			return fmt.Errorf("units: update %s: %w", id, err)
 		}
 		return nil
@@ -118,11 +118,11 @@ func move(ctx context.Context, tx *sql.Tx, u Unit, position int, now string) err
 	if position == u.Position {
 		return nil
 	}
-	query, args := "", []any{now, u.ParentID, position, u.Position, u.ID}
+	query, args := "", []any{now, ActorFrom(ctx), u.ParentID, position, u.Position, u.ID}
 	if position < u.Position {
-		query = "UPDATE units SET position = position + 1, updated_at = ? WHERE parent_id = ? AND position >= ? AND position < ? AND id <> ?"
+		query = "UPDATE units SET position = position + 1, updated_at = ?, updated_by = ? WHERE parent_id = ? AND position >= ? AND position < ? AND id <> ?"
 	} else {
-		query = "UPDATE units SET position = position - 1, updated_at = ? WHERE parent_id = ? AND position <= ? AND position > ? AND id <> ?"
+		query = "UPDATE units SET position = position - 1, updated_at = ?, updated_by = ? WHERE parent_id = ? AND position <= ? AND position > ? AND id <> ?"
 	}
 	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("units: shift siblings of %s: %w", u.ID, err)

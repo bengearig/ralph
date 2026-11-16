@@ -72,3 +72,9 @@ CREATE TABLE notes (
 
 CREATE INDEX notes_unit ON notes (unit_id, id);
 `
+
+const recordActorsSQL = `
+ALTER TABLE units ADD COLUMN created_by TEXT NOT NULL DEFAULT '';
+ALTER TABLE units ADD COLUMN updated_by TEXT NOT NULL DEFAULT '';
+ALTER TABLE notes ADD COLUMN author TEXT NOT NULL DEFAULT '';
+`
