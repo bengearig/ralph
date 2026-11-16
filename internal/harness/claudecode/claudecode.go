@@ -4,6 +4,7 @@ package claudecode
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/bengearig/ralph/internal/harness"
@@ -48,7 +49,44 @@ func (adapter) Artifacts(in harness.Inputs) ([]harness.Artifact, error) {
 		Content: []byte(notes),
 		Label:   "section in CLAUDE.md",
 	})
+	mcp, err := mcpContent(in.MCP)
+	if err != nil {
+		return nil, err
+	}
+	perm, err := json.Marshal("mcp__" + in.MCP.Name)
+	if err != nil {
+		return nil, fmt.Errorf("permission: %w", err)
+	}
+	arts = append(arts,
+		harness.Artifact{
+			Kind:    harness.KindJSONEntry,
+			Scope:   harness.ScopeProject,
+			Path:    ".mcp.json",
+			KeyPath: []string{"mcpServers", in.MCP.Name},
+			Content: mcp,
+			Label:   "MCP server in .mcp.json",
+		},
+		harness.Artifact{
+			Kind:    harness.KindJSONArrayItem,
+			Scope:   harness.ScopeLocal,
+			Path:    ".claude/settings.local.json",
+			KeyPath: []string{"permissions", "allow"},
+			Content: perm,
+			Label:   "permission in .claude/settings.local.json",
+		})
 	return arts, nil
+}
+
+func mcpContent(m harness.MCPServer) ([]byte, error) {
+	args := m.Args
+	if args == nil {
+		args = []string{}
+	}
+	b, err := json.Marshal(map[string]any{"type": "stdio", "command": m.Command, "args": args})
+	if err != nil {
+		return nil, fmt.Errorf("MCP server entry: %w", err)
+	}
+	return b, nil
 }
 
 func toolName(server string) func(string) string {

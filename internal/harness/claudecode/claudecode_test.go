@@ -58,8 +58,8 @@ func TestArtifactsForStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(arts) != len(in.Instructions)+1 {
-		t.Fatalf("%d artifacts for %d instructions and the section", len(arts), len(in.Instructions))
+	if len(arts) != len(in.Instructions)+3 {
+		t.Fatalf("%d artifacts for %d instructions, the section and the JSON artifacts", len(arts), len(in.Instructions))
 	}
 	a := statusArtifact(t)
 	if a.Kind != harness.KindFile || a.Scope != harness.ScopeProject || a.Label != "command /ralph:status" {
@@ -204,5 +204,55 @@ func TestSectionOverrideFromInputs(t *testing.T) {
 	in.ProjectNotes = "custom notes"
 	if got := string(sectionArtifact(t, in).Content); got != "custom notes" {
 		t.Errorf("content = %q", got)
+	}
+}
+
+func artifactAt(t *testing.T, in harness.Inputs, path string) harness.Artifact {
+	t.Helper()
+	arts, err := New().Artifacts(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range arts {
+		if a.Path == path {
+			return a
+		}
+	}
+	t.Fatalf("no artifact at %s", path)
+	return harness.Artifact{}
+}
+
+func TestMCPEntryArtifact(t *testing.T) {
+	a := artifactAt(t, inputs(t), ".mcp.json")
+	if a.Kind != harness.KindJSONEntry || a.Scope != harness.ScopeProject || a.Label != "MCP server in .mcp.json" {
+		t.Errorf("artifact = %+v", a)
+	}
+	if strings.Join(a.KeyPath, "/") != "mcpServers/ralph" {
+		t.Errorf("key path = %v", a.KeyPath)
+	}
+	if string(a.Content) != `{"args":["mcp"],"command":"ralph","type":"stdio"}` {
+		t.Errorf("content = %s", a.Content)
+	}
+}
+
+func TestMCPEntryUsesInputs(t *testing.T) {
+	in := inputs(t)
+	in.MCP = harness.MCPServer{Name: "other", Command: "/bin/rl", Args: []string{"serve", "-x"}}
+	a := artifactAt(t, in, ".mcp.json")
+	if strings.Join(a.KeyPath, "/") != "mcpServers/other" {
+		t.Errorf("key path = %v", a.KeyPath)
+	}
+	if string(a.Content) != `{"args":["serve","-x"],"command":"/bin/rl","type":"stdio"}` {
+		t.Errorf("content = %s", a.Content)
+	}
+}
+
+func TestPermissionArtifact(t *testing.T) {
+	a := artifactAt(t, inputs(t), ".claude/settings.local.json")
+	if a.Kind != harness.KindJSONArrayItem || a.Scope != harness.ScopeLocal || a.Label != "permission in .claude/settings.local.json" {
+		t.Errorf("artifact = %+v", a)
+	}
+	if strings.Join(a.KeyPath, "/") != "permissions/allow" || string(a.Content) != `"mcp__ralph"` {
+		t.Errorf("key path %v content %s", a.KeyPath, a.Content)
 	}
 }
