@@ -38,7 +38,7 @@ func WriteText(w io.Writer, cfg *Config, displayRoot string) error {
 
 type showEntry struct {
 	Setting  string  `json:"setting"`
-	Value    *string `json:"value"`
+	Value    any     `json:"value"`
 	Layer    *string `json:"layer"`
 	Source   string  `json:"source"`
 	Resolves *bool   `json:"resolves,omitempty"`
@@ -52,11 +52,17 @@ func WriteJSON(w io.Writer, cfg *Config) error {
 		e := showEntry{Setting: s.Path, Source: noneText}
 		if v, ok := cfg.values[s.Path]; ok {
 			value, layer := v.Value, v.Layer.String()
-			e.Value, e.Layer, e.Source = &value, &layer, sourceText(v, "")
+			e.Layer, e.Source = &layer, sourceText(v, "")
+			e.Value = value
+			if s.Kind == KindList {
+				if items, err := parseList(value); err == nil {
+					e.Value = items
+				}
+			}
 		}
 		if s.Kind == KindSecret {
 			resolves := false
-			if e.Value != nil {
+			if e.Layer != nil {
 				resolves = cfg.SecretResolves(s.Path)
 			}
 			e.Resolves = &resolves

@@ -160,6 +160,10 @@ func Load(opts Options) (*Config, error) {
 				problems = append(problems, Problem{Source: name, Message: msg})
 				continue
 			}
+			if s.Kind == KindList {
+				items, _ := parseList(v)
+				v = encodeList(items)
+			}
 			values[s.Path] = Value{Path: s.Path, Value: v, Layer: LayerEnv, Source: Source{Name: name}}
 		}
 	}
@@ -198,6 +202,24 @@ func Load(opts Options) (*Config, error) {
 func (c *Config) Get(path string) (Value, bool) {
 	v, ok := c.values[path]
 	return v, ok
+}
+
+// List returns a copy of the list held by the list setting at path, if it is
+// set.
+func (c *Config) List(path string) ([]string, bool) {
+	s, ok := c.registry.Lookup(path)
+	if !ok || s.Kind != KindList {
+		return nil, false
+	}
+	v, ok := c.values[path]
+	if !ok {
+		return nil, false
+	}
+	items, err := parseList(v.Value)
+	if err != nil {
+		return nil, false
+	}
+	return items, true
 }
 
 // Warnings returns the warnings raised by Load, in file order.
@@ -270,6 +292,18 @@ func walk(reg *Registry, file string, layer Layer, m *yaml.Node, prefix string, 
 			continue
 		}
 		switch {
+		case isSetting(reg, path) && reg.settings[path].Kind == KindList:
+			items, ok := yamlItems(val)
+			if !ok {
+				problem("setting %q must be a list of text values", path)
+				continue
+			}
+			*out = append(*out, Value{
+				Path:   path,
+				Value:  encodeList(items),
+				Layer:  layer,
+				Source: Source{File: file, Line: val.Line},
+			})
 		case isSetting(reg, path):
 			if val.Kind != yaml.ScalarNode {
 				problem("setting %q must be a scalar value", path)
@@ -291,6 +325,21 @@ func walk(reg *Registry, file string, layer Layer, m *yaml.Node, prefix string, 
 			problem("unknown setting %q", path)
 		}
 	}
+}
+
+// yamlItems returns the scalar texts of a sequence node.
+func yamlItems(n *yaml.Node) ([]string, bool) {
+	if n.Kind != yaml.SequenceNode {
+		return nil, false
+	}
+	items := make([]string, 0, len(n.Content))
+	for _, item := range n.Content {
+		if item.Kind != yaml.ScalarNode || item.Tag == "!!null" {
+			return nil, false
+		}
+		items = append(items, item.Value)
+	}
+	return items, true
 }
 
 func isSetting(reg *Registry, path string) bool {

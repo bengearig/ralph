@@ -15,6 +15,8 @@ const (
 	KindString Kind = iota
 	// KindSecret holds a reference to a secret, never the secret.
 	KindSecret
+	// KindList holds a list of text values, stored as a compact JSON array.
+	KindList
 )
 
 const schemeEnv = "env"

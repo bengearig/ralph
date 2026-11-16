@@ -39,6 +39,7 @@ type fixture struct {
 	reg                         *Registry
 	userFile, projFile, localFi string
 	root                        string
+	env                         map[string]string
 }
 
 func newFixture(t *testing.T) fixture {

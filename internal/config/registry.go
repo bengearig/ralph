@@ -37,6 +37,8 @@ type Setting struct {
 	Allowed []string
 	// Validate, if set, rejects values the setting does not accept.
 	Validate func(string) error
+	// ValidateItem, if set, rejects list items the setting does not accept.
+	ValidateItem func(string) error
 }
 
 // Registry is the set of settings a configuration may contain.
@@ -65,6 +67,13 @@ func NewRegistry(settings ...Setting) (*Registry, error) {
 		}
 		if _, dup := r.settings[s.Path]; dup {
 			return nil, fmt.Errorf("config: duplicate setting %q", s.Path)
+		}
+		if s.Kind == KindList {
+			if s.Default != "" || s.Flag != "" || s.Validate != nil || len(s.Allowed) > 0 {
+				return nil, fmt.Errorf("config: list setting %q must not have a default, flag, validator or allowed values", s.Path)
+			}
+		} else if s.ValidateItem != nil {
+			return nil, fmt.Errorf("config: setting %q has an item validator but is not a list setting", s.Path)
 		}
 		if s.Flag != "" {
 			if other, dup := r.flags[s.Flag]; dup {

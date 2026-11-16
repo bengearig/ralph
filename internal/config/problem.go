@@ -1,6 +1,9 @@
 package config
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -52,6 +55,9 @@ func (e *Error) Error() string {
 // valueProblem returns the message describing why v is not acceptable for s, or
 // empty if it is. The message never contains the value of a secret setting.
 func valueProblem(s Setting, v string) string {
+	if s.Kind == KindList {
+		return listProblem(s, v)
+	}
 	if s.Kind == KindSecret {
 		if _, err := ParseSecretRef(v); err != nil {
 			return fmt.Sprintf("setting %q %s", s.Path, err)
@@ -63,6 +69,75 @@ func valueProblem(s Setting, v string) string {
 	if s.Validate != nil {
 		if err := s.Validate(v); err != nil {
 			return fmt.Sprintf("invalid value for %q: %s", s.Path, err)
+		}
+	}
+	return ""
+}
+
+const (
+	maxListItems     = 50
+	maxListItemBytes = 4096
+)
+
+var errNotJSONList = errors.New("must be a JSON array of strings")
+
+// parseList decodes a JSON array of strings; it never returns a nil slice on
+// success.
+func parseList(v string) ([]string, error) {
+	if !strings.HasPrefix(strings.TrimLeft(v, " \t\r\n"), "[") {
+		return nil, errNotJSONList
+	}
+	var raw []any
+	dec := json.NewDecoder(strings.NewReader(v))
+	if err := dec.Decode(&raw); err != nil || dec.More() {
+		return nil, errNotJSONList
+	}
+	items := make([]string, 0, len(raw))
+	for _, r := range raw {
+		str, ok := r.(string)
+		if !ok {
+			return nil, errNotJSONList
+		}
+		items = append(items, str)
+	}
+	return items, nil
+}
+
+func encodeList(items []string) string {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if items == nil {
+		items = []string{}
+	}
+	_ = enc.Encode(items)
+	return strings.TrimSuffix(buf.String(), "\n")
+}
+
+func listProblem(s Setting, v string) string {
+	items, err := parseList(v)
+	if err != nil {
+		return err.Error()
+	}
+	if len(items) > maxListItems {
+		return fmt.Sprintf("invalid value for %q: must have at most %d items", s.Path, maxListItems)
+	}
+	for i, item := range items {
+		var msg string
+		switch {
+		case strings.Trim(item, " \t") == "":
+			msg = "must not be blank"
+		case len(item) > maxListItemBytes:
+			msg = fmt.Sprintf("must be at most %d bytes", maxListItemBytes)
+		case strings.ContainsRune(item, 0):
+			msg = "must not contain a NUL byte"
+		case s.ValidateItem != nil:
+			if err := s.ValidateItem(item); err != nil {
+				msg = err.Error()
+			}
+		}
+		if msg != "" {
+			return fmt.Sprintf("invalid value for %q: item %d: %s", s.Path, i+1, msg)
 		}
 	}
 	return ""
