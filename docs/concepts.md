@@ -36,7 +36,7 @@ A task with no slice, so a bottom unit that belongs to no middle or top-level un
 "change the accent color to a given value". It is not limited to bugfixes.
 
 By default an orphan task gets its own branch and pull request. This must be implemented so it can become configurable
-later. It is received and completed in the user's own session through a dedicated entry point. See
+later. It is received and completed in the user's own session through a dedicated entry point, `quick`. See
 [0007](decisions/0007-orphan-task-delivery.md).
 
 ### Ordering

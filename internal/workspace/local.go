@@ -200,7 +200,11 @@ func (l *Local) CreateBranch(ctx context.Context, name string) error {
 }
 
 func (l *Local) CommitAll(ctx context.Context, message string) (string, error) {
-	if _, err := l.ok(ctx, "", "add", "-A"); err != nil {
+	add := []string{"add", "-A", "--", "."}
+	for _, ig := range l.ignored {
+		add = append(add, ":(top,literal,exclude)"+ig)
+	}
+	if _, err := l.ok(ctx, "", add...); err != nil {
 		return "", err
 	}
 	res, err := l.run(ctx, "", "diff", "--cached", "--quiet")

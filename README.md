@@ -12,6 +12,9 @@ The project is under construction. The design is in [docs/](docs/README.md).
   `claude-code`; without the flag it installs for each harness it detects. When ralph's integration files are out of
   date, `ralph status` and the MCP server say so; run `ralph init` to update them.
 - `ralph status` shows briefs, slices and tasks with their statuses.
+- `ralph quick start <title>` creates a task and its own branch for a small piece of work; `ralph quick finish` runs the
+  commands in the `verify.commands` setting, then commits, pushes and opens a draft pull request. In an agent session,
+  `/ralph:quick <instruction>` does both. Nothing is merged.
 - `ralph mcp` serves ralph's records to an agent over the Model Context Protocol on standard input and output.
 
 ## Development

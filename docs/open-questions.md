@@ -10,7 +10,6 @@ Status: draft
 | Is the monitor's final name `ralph monitor`, and what is the acting command called? | workflow |
 | Does branch deletion after merge cover the local branch, the remote branch, or both? | workflow |
 | How does ralph read feedback from a pull request, and which feedback becomes a bottom unit? | workflow |
-| Which wins when project configuration and acceptance criteria both specify verification? | workflow |
 | Where does a unit that cannot be made ready go back to? | workflow |
 | Does verification run after each bottom unit, after each middle unit, or both? | workflow |
 | How is a failed iteration retried, and what is the stall threshold's default? | workflow |
@@ -26,9 +25,6 @@ Status: draft
 | Are earlier versions indexed for search? | documents |
 | Should search cover tickets and issues after the first release? | documents |
 | Is the fixed set of levels right, or should nesting be arbitrary? | concepts, workflow |
-| What is the entry point's final name? | workflow |
-| How does ralph judge ambiguity and "too big for quick work", and what is the threshold for suggesting Receive? | workflow |
-| How are unfinalized tasks surfaced, and what happens when finalization's checks fail? | workflow |
 | Does the same in-session option apply to feature work, or only to orphan tasks? | workflow |
 | What does ralph do when a ticket whose data it owns is changed in the task manager (overwrite, warn, import)? | task-manager-and-issues |
 | Is the bottom unit mapped to tickets by default, and what are the defaults for other levels? | task-manager-and-issues |
@@ -47,7 +43,7 @@ Status: draft
 | How does a client find and authenticate to a remote instance? | architecture |
 | How is the ralph user credited in a pull request description when the shared token is used? | architecture |
 | Where is the record of written files kept, how is the managed section marked, and how does `ralph init` remove files? | harness-integration |
-| Which actions, if any, must exist as both CLI commands and MCP tools (quick-work finalization is named as both in 0007)? | harness-integration |
+| Which other actions, if any, must exist as both CLI commands and MCP tools? | harness-integration |
 | What can users override in the workflow instructions, and where do overrides live? | harness-integration |
 | What must an adapter declare about a harness's capabilities, and what does ralph do when one is missing? | harness-integration |
 | How does the loop build the prompt for a bottom unit, given that linked documents are pushed in (0019)? | harness-integration |
@@ -68,7 +64,6 @@ Status: draft
 | What are the names of the backup command and the setting that requires explicit migration? | local-state |
 | How long are run records kept by default, how are they purged, and how are secrets that appear in them handled? | local-state |
 | How does the loop behave when the checkout is on a different branch than the unit's, or when the branch already exists? | local-state |
-| What is the shape of the workspace seam that lets worktrees be added later? | local-state |
 | What is the portable export's format, and when is it designed? | local-state |
 | What is the pull request provider interface, and how do GitHub and Bitbucket Cloud differ in review feedback and closing references? | first-release |
 | Which later release adds the API server, and what is its first slice? | first-release |

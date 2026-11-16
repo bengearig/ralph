@@ -70,6 +70,28 @@ Input: a middle unit whose bottom units are ready.
 - After a merge the units close and the branch is deleted. The next middle unit waits for the user to start the loop,
   unless an auto mode is active. See [0011](decisions/0011-after-merge-and-closed-pull-requests.md).
 
+## Quick work
+
+Small work with no breakdown, such as a bugfix, follows [0007](decisions/0007-orphan-task-delivery.md). It is a task with
+no slice, delivered as its own pull request.
+
+1. The entry point is `/ralph:quick <instruction>` in the harness session, or `ralph quick start <title>` on the command
+   line. The agent asks the user only where the instruction is ambiguous, and says so when the request is much larger than
+   quick work; the user decides.
+2. Before anything is created, ralph checks that the checkout is on the base branch, that the working tree has no changes
+   other than the files ralph keeps local, and that the base branch is not ahead of its remote. A failed check names what to
+   fix and creates nothing.
+3. Ralph creates the task and its branch from the base branch, and moves the task to in progress.
+4. The agent implements the task in the session.
+5. `quick_finish` (or `ralph quick finish`) runs the commands in the `verify.commands` setting, showing them and where
+   they came from first. Ralph enforces these commands; the acceptance criteria are for the agent and the reviewer and are
+   not run. The first failure stops delivery and changes nothing.
+6. When verification passes, ralph commits the changes, pushes the branch and opens a pull request, a draft by default,
+   then marks the task done.
+7. After a failure the task stays in progress and `ralph status` lists it as unfinalized. Calling finish again resumes: an
+   existing commit, pushed branch and open pull request are reused.
+8. Nothing merges. A person reviews and merges the pull request.
+
 ## Documents
 
 Documents hold architecture, design, decisions and reference material, project-wide or tied to a top-level unit. They

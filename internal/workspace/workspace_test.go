@@ -176,6 +176,20 @@ func TestCommitAllStagesEverything(t *testing.T) {
 	}
 }
 
+func TestCommitAllLeavesIgnoredPathsOut(t *testing.T) {
+	r, _ := newRepo(t)
+	w := NewLocal(r.Dir, WithIgnored([]string{"local.json", "dir/"}))
+	r.WriteFile("local.json", "{}")
+	r.WriteFile("dir/a.txt", "a")
+	r.WriteFile("kept.txt", "k")
+	if _, err := w.CommitAll(ctx, "subject"); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.Git("diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"); got != "kept.txt" {
+		t.Errorf("committed = %q, want only kept.txt", got)
+	}
+}
+
 func TestCommitAllNothing(t *testing.T) {
 	_, w := newRepo(t)
 	if _, err := w.CommitAll(ctx, "msg"); !errors.Is(err, ErrNothingToCommit) {

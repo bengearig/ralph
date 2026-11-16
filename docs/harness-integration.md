@@ -26,8 +26,8 @@ Used for the phases where the user works with the agent: Receive, Articulate, an
 
 The MCP server covers only what agents need. The CLI covers what people run, such as installing integration files and
 monitoring. Actions an agent needs to finish its own work, such as finalizing quick work, are MCP tools, and
-[0007](decisions/0007-orphan-task-delivery.md) also names a CLI form for it. Which actions, if any, appear in both is
-open. See [0016](decisions/0016-harness-integration.md).
+[0007](decisions/0007-orphan-task-delivery.md) also names a CLI form for it. Quick start and finish are both a command
+and a tool; other actions are decided as they are added. See [0016](decisions/0016-harness-integration.md).
 
 ## Headless invocation
 

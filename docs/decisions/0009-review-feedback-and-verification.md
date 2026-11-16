@@ -12,7 +12,8 @@ Different people and projects verify differently.
 - Feedback received on a pull request becomes a new bottom unit appended to that pull request's middle unit. A ralph
   action may read the feedback back from the pull request and create the bottom unit.
 - Verification can be dictated by project configuration, by a task's acceptance criteria, or both. The two can differ
-  across people and projects.
+  across people and projects. Precedence: configured verification commands are enforced by ralph, which runs them, and a failure
+  stops delivery. Acceptance criteria are for the agent and the reviewer: ralph shows them and does not run them.
 
 ## Alternatives rejected
 
@@ -23,4 +24,3 @@ Different people and projects verify differently.
 
 - The pull request provider integration must read review feedback, not only create pull requests.
 - A middle unit can gain bottom units after its pull request is open, so its state must allow that.
-- Precedence when project configuration and acceptance criteria both apply is open.
