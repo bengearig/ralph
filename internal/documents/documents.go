@@ -104,6 +104,14 @@ type Service interface {
 	List(ctx context.Context, f Filter) ([]Document, error)
 	// Update applies a change to an ACTIVE document if its fingerprint is still expected.
 	Update(ctx context.Context, id, expected string, c Change) (Document, error)
+	// Archive moves an ACTIVE document to ARCHIVED if its fingerprint is still expected.
+	Archive(ctx context.Context, id, expected string) (Document, error)
+	// Supersede moves an ACTIVE document to SUPERSEDED, naming the ACTIVE
+	// document that replaces it, if its fingerprint is still expected.
+	Supersede(ctx context.Context, id, expected, supersededBy string) (Document, error)
+	// Restore moves an ARCHIVED or SUPERSEDED document to ACTIVE if its
+	// fingerprint is still expected.
+	Restore(ctx context.Context, id, expected string) (Document, error)
 }
 
 var _ Service = (*Store)(nil)
