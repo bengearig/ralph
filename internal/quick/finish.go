@@ -194,18 +194,7 @@ func (s *Service) findTask(ctx context.Context, id, current string) (units.Unit,
 
 // branchOf returns the branch a task's link names, or "" when it has none.
 func (s *Service) branchOf(ctx context.Context, id string) (string, error) {
-	links, err := s.deps.Units.Links(ctx, id)
-	if err != nil {
-		return "", err
-	}
-	for _, l := range links {
-		if l.Kind == units.LinkExternal {
-			if name, ok := strings.CutPrefix(l.Target, branchLinkPrefix); ok && name != "" {
-				return name, nil
-			}
-		}
-	}
-	return "", nil
+	return branchLink(ctx, s.deps.Units, id)
 }
 
 func (s *Service) openPullRequest(ctx context.Context, n hosting.NewPullRequest) (hosting.PullRequest, bool, error) {

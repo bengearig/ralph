@@ -126,6 +126,13 @@ func printSummary(out io.Writer, doc view.SummaryView) error {
 			return err
 		}
 	}
+	if len(doc.Unfinalized) > 0 {
+		_, _ = fmt.Fprintln(out, "\nUnfinalized quick work")
+		for _, u := range doc.Unfinalized {
+			_, _ = fmt.Fprintf(out, "%s  %s  branch %s\n", u.ID, u.Title, u.Branch)
+		}
+		_, _ = fmt.Fprintln(out, `Finish it with "ralph quick finish <ID>", or cancel the task if the work was dropped.`)
+	}
 	if doc.Hidden > 0 {
 		_, err = fmt.Fprintf(out, "%d finished item(s) hidden; use --all\n", doc.Hidden)
 		return err

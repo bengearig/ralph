@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -68,7 +69,10 @@ func truncateNotice(msg string) string {
 // skipped.
 func (s *server) collectNotices(ctx context.Context) []Notice {
 	var fresh []Notice
-	for i, src := range s.opts.Sources {
+	s.mu.Lock()
+	srcs := append(slices.Clone(s.opts.Sources), s.unitSources...)
+	s.mu.Unlock()
+	for i, src := range srcs {
 		if src == nil {
 			continue
 		}

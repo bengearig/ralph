@@ -20,6 +20,9 @@ type Options struct {
 	Open    func(ctx context.Context) (units.Service, error)
 	Actor   string
 	Sources []NoticeSource
+	// UnitSources build notice sources from the units service; each is called
+	// once, after the service has been opened.
+	UnitSources []func(svc units.Service) NoticeSource
 	// Quick builds the quick work service on the first quick tool call; nil
 	// leaves the quick tools out.
 	Quick func(ctx context.Context, svc units.Service) (Quick, error)
@@ -31,8 +34,9 @@ type server struct {
 	mu  sync.Mutex
 	svc units.Service
 
-	quickMu sync.Mutex
-	quick   Quick
+	unitSources []NoticeSource
+	quickMu     sync.Mutex
+	quick       Quick
 
 	noticeMu sync.Mutex
 	seen     map[Notice]struct{}
@@ -69,6 +73,11 @@ func (s *server) service(ctx context.Context) (units.Service, error) {
 		return nil, &openError{err}
 	}
 	s.svc = svc
+	for _, build := range s.opts.UnitSources {
+		if build != nil {
+			s.unitSources = append(s.unitSources, build(svc))
+		}
+	}
 	return svc, nil
 }
 

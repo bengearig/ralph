@@ -13,6 +13,7 @@ import (
 
 	"github.com/bengearig/ralph/internal/integration"
 	"github.com/bengearig/ralph/internal/project"
+	"github.com/bengearig/ralph/internal/units"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -183,5 +184,58 @@ func TestInitClearsOutdated(t *testing.T) {
 	}
 	if got := notices(t, cs, ctx); len(got) != 0 {
 		t.Errorf("notice after init: %v", got)
+	}
+}
+
+func TestStatusUnfinalizedBeforeIntegrationLine(t *testing.T) {
+	e := outdatedEnv(t)
+	seedUnfinalized(e)
+	makeOutdated(t, e.repo.Dir)
+	_, out, _ := e.status()
+	hint := strings.Index(out, finishHint)
+	if hint < 0 || !strings.HasSuffix(out, finishHint+"\n\n"+integrationOutdatedLine+"\n") {
+		t.Errorf("out = %q", out)
+	}
+}
+
+func TestMCPUnfinalizedNotice(t *testing.T) {
+	e := outdatedEnv(t)
+	ids := seedUnfinalized(e)
+	cs, ctx := connectMCP(t, e)
+	call := func() (codes, texts []string) {
+		res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "status"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		m, _ := res.StructuredContent.(map[string]any)
+		list, _ := m["notices"].([]any)
+		for _, n := range list {
+			nm, _ := n.(map[string]any)
+			codes = append(codes, nm["code"].(string))
+			texts = append(texts, nm["message"].(string))
+		}
+		return codes, texts
+	}
+	codes, texts := call()
+	if len(codes) != 2 || codes[0] != "quick_unfinalized" || codes[1] != "quick_unfinalized" ||
+		!strings.HasPrefix(texts[0], ids[0]+` "First" was started and not finalized (branch ralph/t-1-first).`) {
+		t.Fatalf("notices = %v %v", codes, texts)
+	}
+	if codes, _ := call(); len(codes) != 0 {
+		t.Fatalf("repeated: %v", codes)
+	}
+	e.with(func(s units.Service) {
+		for _, id := range ids {
+			u, err := s.Get(e.ctx, id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.SetState(e.ctx, id, u.Fingerprint, units.StateDone, ""); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+	if codes, _ := call(); len(codes) != 0 {
+		t.Fatalf("after done: %v", codes)
 	}
 }

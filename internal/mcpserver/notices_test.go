@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/bengearig/ralph/internal/units"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -301,5 +302,77 @@ func TestNoticesInOutputSchemas(t *testing.T) {
 		if _, ok := sc.Properties["notices"]; !ok {
 			t.Errorf("%s: output schema has no notices property", tool.Name)
 		}
+	}
+}
+
+func TestUnitSourcesRunAfterServiceOpen(t *testing.T) {
+	svc := seeded(t)
+	var built, ran atomic.Int32
+	cs := connect(t, Options{Name: "ralph", Open: staticOpen(svc), UnitSources: []func(units.Service) NoticeSource{
+		func(got units.Service) NoticeSource {
+			built.Add(1)
+			if got != svc {
+				t.Errorf("source built over a different service")
+			}
+			return func(context.Context) ([]Notice, error) {
+				n := ran.Add(1)
+				return []Notice{{Code: "u", Message: fmt.Sprintf("run %d", n)}}, nil
+			}
+		},
+	}})
+	if built.Load() != 0 || ran.Load() != 0 {
+		t.Fatalf("before any call: built %d ran %d", built.Load(), ran.Load())
+	}
+	for i := 1; i <= 2; i++ {
+		res := callStatus(t, cs, nil)
+		if ns := structuredNotices(t, res); len(ns) != 1 || ns[0].Message != fmt.Sprintf("run %d", i) {
+			t.Errorf("call %d notices = %v", i, ns)
+		}
+	}
+	if built.Load() != 1 || ran.Load() != 2 {
+		t.Errorf("built %d ran %d", built.Load(), ran.Load())
+	}
+}
+
+func TestUnitSourcesSkippedWhenOpenFails(t *testing.T) {
+	var built, ran atomic.Int32
+	cs := connect(t, Options{
+		Name: "ralph",
+		Open: func(context.Context) (units.Service, error) { return nil, errors.New("no store") },
+		UnitSources: []func(units.Service) NoticeSource{func(units.Service) NoticeSource {
+			built.Add(1)
+			return func(context.Context) ([]Notice, error) { ran.Add(1); return nil, nil }
+		}},
+		Sources: []NoticeSource{fixed(Notice{Code: "ok", Message: "fine"})},
+	})
+	res := callStatus(t, cs, nil)
+	if !res.IsError {
+		t.Fatal("want an error result")
+	}
+	if ns := structuredNotices(t, res); len(ns) != 1 || ns[0].Code != "ok" {
+		t.Errorf("notices = %v", ns)
+	}
+	if built.Load() != 0 || ran.Load() != 0 {
+		t.Errorf("built %d ran %d", built.Load(), ran.Load())
+	}
+}
+
+func TestUnitSourceFailureIsLoggedAndSkipped(t *testing.T) {
+	logs, _ := captureLogs(t)
+	cs := connect(t, Options{Name: "ralph", Open: staticOpen(seeded(t)), UnitSources: []func(units.Service) NoticeSource{
+		func(units.Service) NoticeSource {
+			return func(context.Context) ([]Notice, error) { return nil, errors.New("unit boom") }
+		},
+		func(units.Service) NoticeSource { return fixed(Notice{Code: "ok", Message: "fine"}) },
+	}})
+	res := callStatus(t, cs, nil)
+	if res.IsError {
+		t.Fatalf("error result: %q", text(res))
+	}
+	if ns := structuredNotices(t, res); len(ns) != 1 || ns[0].Code != "ok" {
+		t.Errorf("notices = %v", ns)
+	}
+	if l := logs.String(); !strings.Contains(l, "level=WARN") || !strings.Contains(l, "unit boom") {
+		t.Errorf("log = %q", l)
 	}
 }

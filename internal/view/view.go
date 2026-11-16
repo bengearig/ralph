@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/bengearig/ralph/internal/quick"
 	"github.com/bengearig/ralph/internal/units"
 )
 
@@ -33,9 +34,17 @@ type Brief struct {
 // SummaryView lists unfinished briefs with their slices, and tasks that have
 // no slice. Hidden counts the finished items left out and is not serialized.
 type SummaryView struct {
-	Briefs []Brief `json:"briefs"`
-	Tasks  []Item  `json:"tasks"`
-	Hidden int     `json:"-"`
+	Briefs      []Brief           `json:"briefs"`
+	Tasks       []Item            `json:"tasks"`
+	Unfinalized []UnfinalizedView `json:"unfinalized,omitempty"`
+	Hidden      int               `json:"-"`
+}
+
+// UnfinalizedView is quick work that was started and not finalized.
+type UnfinalizedView struct {
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Branch string `json:"branch"`
 }
 
 type Parent struct {
@@ -155,6 +164,13 @@ func Summary(ctx context.Context, svc units.Service, all bool) (SummaryView, err
 			continue
 		}
 		doc.Tasks = append(doc.Tasks, Item{ID: t.ID, Title: t.Title, Status: string(t.State)})
+	}
+	pending, err := quick.Pending(ctx, svc)
+	if err != nil {
+		return SummaryView{}, err
+	}
+	for _, p := range pending {
+		doc.Unfinalized = append(doc.Unfinalized, UnfinalizedView{ID: p.ID, Title: p.Title, Branch: p.Branch})
 	}
 	return doc, nil
 }

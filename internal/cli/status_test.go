@@ -384,3 +384,77 @@ func TestStatusReadOnly(t *testing.T) {
 		t.Error("database file changed")
 	}
 }
+
+func seedUnfinalized(e *statusEnv) []string {
+	var ids []string
+	e.with(func(s units.Service) {
+		for _, c := range []struct{ title, branch string }{{"First", "ralph/t-1-first"}, {"Second", "ralph/t-2-second"}} {
+			id := e.create(s, units.LevelTask, "", c.title, units.StateInProgress)
+			if err := s.AddLink(e.ctx, id, units.LinkExternal, "branch:"+c.branch); err != nil {
+				e.t.Fatal(err)
+			}
+			ids = append(ids, id)
+		}
+	})
+	return ids
+}
+
+const finishHint = `Finish it with "ralph quick finish <ID>", or cancel the task if the work was dropped.`
+
+func TestStatusUnfinalizedSection(t *testing.T) {
+	e := newStatusEnv(t)
+	e.with(func(s units.Service) { e.create(s, units.LevelTask, "", "Plain", units.StateTodo) })
+	ids := seedUnfinalized(e)
+	code, out, stderr := e.status()
+	if code != 0 || stderr != "" {
+		t.Fatalf("code %d stderr %q", code, stderr)
+	}
+	want := "\nUnfinalized quick work\n" +
+		ids[0] + "  First  branch ralph/t-1-first\n" +
+		ids[1] + "  Second  branch ralph/t-2-second\n" + finishHint + "\n"
+	if !strings.HasSuffix(out, want) {
+		t.Errorf("out = %q, want suffix %q", out, want)
+	}
+	if strings.Index(out, "Tasks with no slice") > strings.Index(out, "Unfinalized quick work") {
+		t.Errorf("section order wrong:\n%s", out)
+	}
+	if _, all, _ := e.status("--all"); all != out {
+		t.Errorf("--all changed output: %q", all)
+	}
+}
+
+func TestStatusNoUnfinalizedSectionWhenNone(t *testing.T) {
+	e := newStatusEnv(t)
+	e.with(func(s units.Service) {
+		e.create(s, units.LevelTask, "", "Plain", units.StateInProgress)
+		e.create(s, units.LevelTask, "", "Todo", units.StateTodo)
+	})
+	_, out, _ := e.status()
+	if strings.Contains(out, "Unfinalized") || strings.Contains(out, "quick finish") {
+		t.Errorf("out = %q", out)
+	}
+	want := "T-1  IN_PROGRESS  Plain\nT-2  TODO         Todo\n"
+	if !strings.HasSuffix(out, want) {
+		t.Errorf("out = %q", out)
+	}
+}
+
+func TestStatusUnfinalizedJSON(t *testing.T) {
+	e := newStatusEnv(t)
+	_, out, _ := e.status("--json")
+	if strings.Contains(out, "unfinalized") {
+		t.Errorf("present when none: %s", out)
+	}
+	ids := seedUnfinalized(e)
+	_, out, _ = e.status("--json")
+	var got struct {
+		Unfinalized []map[string]string `json:"unfinalized"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Unfinalized) != 2 || got.Unfinalized[0]["id"] != ids[0] ||
+		got.Unfinalized[0]["title"] != "First" || got.Unfinalized[1]["branch"] != "ralph/t-2-second" {
+		t.Errorf("unfinalized = %v", got.Unfinalized)
+	}
+}

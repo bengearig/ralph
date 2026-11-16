@@ -2,7 +2,9 @@ package view
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/bengearig/ralph/internal/db"
@@ -87,5 +89,47 @@ func TestUnitDetailNotFound(t *testing.T) {
 	var nf *NotFoundError
 	if !errors.As(err, &nf) || !errors.Is(err, units.ErrNotFound) || err.Error() != "unit T-99 was not found" {
 		t.Errorf("err = %v", err)
+	}
+}
+
+func TestSummaryUnfinalizedField(t *testing.T) {
+	svc := seed(t)
+	ctx := units.WithActor(context.Background(), "Ann <ann@example.com>")
+
+	before, err := Summary(ctx, svc, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(before.Unfinalized) != 0 {
+		t.Fatalf("unfinalized = %+v", before.Unfinalized)
+	}
+	rawBefore, _ := json.Marshal(before)
+	if strings.Contains(string(rawBefore), "unfinalized") {
+		t.Errorf("json has unfinalized: %s", rawBefore)
+	}
+
+	u, err := svc.Create(ctx, units.NewUnit{Level: units.LevelTask, Title: "quick", Body: "b", AcceptanceCriteria: "c"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.AddLink(ctx, u.ID, units.LinkExternal, "branch:ralph/quick"); err != nil {
+		t.Fatal(err)
+	}
+	for _, st := range []units.State{units.StateTodo, units.StateInProgress} {
+		if u, err = svc.SetState(ctx, u.ID, u.Fingerprint, st, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := Summary(ctx, svc, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := UnfinalizedView{ID: u.ID, Title: "quick", Branch: "ralph/quick"}
+	if len(got.Unfinalized) != 1 || got.Unfinalized[0] != want {
+		t.Errorf("unfinalized = %+v", got.Unfinalized)
+	}
+	raw, _ := json.Marshal(got)
+	if !strings.Contains(string(raw), `"unfinalized":[{"id":"`+u.ID+`","title":"quick","branch":"ralph/quick"}]`) {
+		t.Errorf("json = %s", raw)
 	}
 }

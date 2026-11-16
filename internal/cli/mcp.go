@@ -13,6 +13,7 @@ import (
 	"github.com/bengearig/ralph/internal/identity"
 	"github.com/bengearig/ralph/internal/integration"
 	"github.com/bengearig/ralph/internal/mcpserver"
+	"github.com/bengearig/ralph/internal/quick"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/version"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -45,6 +46,20 @@ func integrationNotice(root string) mcpserver.NoticeSource {
 	}
 }
 
+func quickNotice(svc units.Service) mcpserver.NoticeSource {
+	return func(ctx context.Context) ([]mcpserver.Notice, error) {
+		msgs, err := quick.PendingMessages(ctx, svc)
+		if err != nil {
+			return nil, err
+		}
+		var notices []mcpserver.Notice
+		for _, m := range msgs {
+			notices = append(notices, mcpserver.Notice{Code: "quick_unfinalized", Message: m})
+		}
+		return notices, nil
+	}
+}
+
 // runMCP serves the MCP server on t until the client disconnects or ctx ends,
 // then closes the database if a tool call opened it.
 func runMCP(ctx context.Context, a *app, t mcp.Transport) error {
@@ -65,10 +80,11 @@ func runMCP(ctx context.Context, a *app, t mcp.Transport) error {
 	}()
 
 	srv := mcpserver.New(mcpserver.Options{
-		Name:    "ralph",
-		Version: version.String(),
-		Actor:   identity.Resolve(ctx, a.root),
-		Sources: []mcpserver.NoticeSource{integrationNotice(a.root)},
+		Name:        "ralph",
+		Version:     version.String(),
+		Actor:       identity.Resolve(ctx, a.root),
+		Sources:     []mcpserver.NoticeSource{integrationNotice(a.root)},
+		UnitSources: []func(units.Service) mcpserver.NoticeSource{quickNotice},
 		Quick: func(ctx context.Context, svc units.Service) (mcpserver.Quick, error) {
 			return newQuickService(ctx, a, svc)
 		},
