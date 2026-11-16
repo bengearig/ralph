@@ -1,0 +1,7 @@
+{
+  "type": "error",
+  "error": {
+    "message": "Too many requests",
+    "detail": "Rate limit for this resource has been exceeded"
+  }
+}

@@ -62,5 +62,5 @@ Status: draft
 | How long are run records kept by default, how are they purged, and how are secrets that appear in them handled? | local-state |
 | How does the loop behave when the checkout is on a different branch than the unit's, or when the branch already exists? | local-state |
 | What is the portable export's format, and when is it designed? | local-state |
-| What is the pull request provider interface, and how do GitHub and Bitbucket Cloud differ in review feedback and closing references? | first-release |
+| How does a pull request carry a closing reference, for each provider, so that the issue source links or closes the issue? | task-manager-and-issues |
 | Which later release adds the API server, and what is its first slice? | first-release |

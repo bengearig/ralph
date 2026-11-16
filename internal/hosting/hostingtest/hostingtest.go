@@ -38,6 +38,18 @@ type Subject struct {
 	Pause time.Duration
 }
 
+// MissingControls names the controls that are not set, so a test can insist
+// that no conformance subtest is skipped for want of one.
+func (s Subject) MissingControls() []string {
+	var out []string
+	for _, c := range []string{ctlMerge, ctlDecline, ctlReview, ctlInline, ctlComment, ctlReject, ctlRateLimit, ctlBringDown} {
+		if missing(s, c) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 // runT is the part of *testing.T the suite needs, so that tests of the suite
 // can run it against a recorder.
 type runT interface {

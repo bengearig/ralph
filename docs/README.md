@@ -23,6 +23,7 @@ text is [the Manifesto](../MANIFESTO.md); these docs do not restate it.
 | [configuration.md](configuration.md) | Layers, setting scope, secrets | draft |
 | [documents-and-search.md](documents-and-search.md) | Documents, search, retrieval for the loop | draft |
 | [task-manager-and-issues.md](task-manager-and-issues.md) | Task manager mirror and issue source | draft |
+| [pull-request-providers.md](pull-request-providers.md) | Pull request providers: interface, choice, credentials, feedback mapping, conformance | draft |
 | [local-state.md](local-state.md) | Project root, database, upgrades, backup, run records | draft |
 | [first-release.md](first-release.md) | Scope and delivery of the first release | draft |
 | [open-questions.md](open-questions.md) | Unresolved design items | draft |

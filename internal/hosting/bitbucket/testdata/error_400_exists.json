@@ -1,0 +1,6 @@
+{
+  "type": "error",
+  "error": {
+    "message": "Bad request: a pull request already exists for this source branch and destination."
+  }
+}

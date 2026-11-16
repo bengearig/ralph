@@ -16,6 +16,10 @@ The project is under construction. The design is in [docs/](docs/README.md).
 - `ralph quick start <title>` creates a task and its own branch for a small piece of work; `ralph quick finish` runs the
   commands in the `verify.commands` setting, then commits, pushes and opens a draft pull request. In an agent session,
   `/ralph:quick <instruction>` does both. Nothing is merged.
+- Pull requests go to GitHub or Bitbucket Cloud, chosen from the remote (`pr.provider`, see
+  [docs/pull-request-providers.md](docs/pull-request-providers.md)). For Bitbucket, set `bitbucket.token` to a reference
+  such as `env:BITBUCKET_TOKEN` and, for an Atlassian API token, `bitbucket.user` to the account email; without a user
+  the token is sent as an access token. `bitbucket.workspace` and `bitbucket.repo` override what the remote says.
 - `ralph mcp` serves ralph's records to an agent over the Model Context Protocol on standard input and output.
 
 ## Development
@@ -52,6 +56,22 @@ RALPH_OPENCODE_LIVE=1 go test ./internal/harness/opencode -run TestLiveOpenCode 
 ```sh
 RALPH_GITHUB_LIVE=1 RALPH_GITHUB_LIVE_REPO=owner/repo RALPH_GITHUB_LIVE_BRANCH=main \
   go test ./internal/hosting/github -run TestLiveGitHub -v
+```
+
+If a pull request exists for the branch, the test also reads that pull request and its review feedback.
+
+### Live Bitbucket test
+
+`TestLiveBitbucket` in `internal/hosting/bitbucket` checks the Bitbucket Cloud provider against the real service. It is
+skipped unless `RALPH_BITBUCKET_LIVE=1`, and it only reads. Set `RALPH_BITBUCKET_LIVE_REPO` to `workspace/repo` and put a
+token in the variable named by `RALPH_BITBUCKET_LIVE_TOKEN_ENV` (default `BITBUCKET_TOKEN`). Set
+`RALPH_BITBUCKET_LIVE_USER` to the account email when the token is an API token, which sends it with Basic
+authentication; leave it unset for a repository, project or workspace access token. `RALPH_BITBUCKET_LIVE_BRANCH` names
+the branch to look up and defaults to `main`. For example:
+
+```sh
+RALPH_BITBUCKET_LIVE=1 RALPH_BITBUCKET_LIVE_REPO=workspace/repo RALPH_BITBUCKET_LIVE_BRANCH=main \
+  go test ./internal/hosting/bitbucket -run TestLiveBitbucket -v
 ```
 
 If a pull request exists for the branch, the test also reads that pull request and its review feedback.
