@@ -5,6 +5,11 @@ ralph is a developer-side tool that wraps a coding harness and keeps development
 
 The project is under construction. The design is in [docs/](docs/README.md).
 
+## Usage
+
+- `ralph init` sets ralph up in the current git repository.
+- `ralph status` shows briefs, slices and tasks with their statuses.
+
 ## Development
 
 ### Prerequisites
