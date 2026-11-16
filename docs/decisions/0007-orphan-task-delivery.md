@@ -12,7 +12,7 @@ to arrive as a reviewable change. Small work must stay lighter than feature work
 - An orphan task gets its own branch and pull request by default. This is implemented so the behavior can be made
   configurable later.
 - It is received through a dedicated entry point (working name `/ralph:solo`) that takes either an instruction or a
-  reference to an existing tracker item.
+  reference to an existing issue or ticket. See [0020](0020-task-manager-and-issue-source.md).
 - The interview scales with ambiguity: questions are asked only where the instruction is ambiguous (Article I). An
   unambiguous instruction, such as changing a color to a given value, needs none. No slices are produced.
 - When the instruction is significantly larger than quick work, the entry point suggests the feature Receive flow

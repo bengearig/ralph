@@ -46,7 +46,8 @@ Input: a middle unit whose bottom units are ready.
 - Middle units of one top-level unit are worked sequentially where order matters. By default a dependent middle unit
   waits for the previous one to merge; stacking is configurable. See
   [0010](decisions/0010-sequencing-and-merge-detection.md).
-- Creating the pull request is a ralph command. The hosting provider is configurable. Open.
+- Creating the pull request is a ralph command. The hosting provider is configurable. GitHub and Bitbucket Cloud are
+  supported in the first release. See [0021](decisions/0021-first-release-scope.md).
 - A pull request closed without merging is recorded and the unit stops for a human decision. See
   [0011](decisions/0011-after-merge-and-closed-pull-requests.md).
 

@@ -15,20 +15,32 @@ Status: draft
 | Where does a unit that cannot be made ready go back to? | workflow |
 | Does verification run after each bottom unit, after each middle unit, or both? | workflow |
 | How is a failed iteration retried, and what is the stall threshold's default? | workflow |
-| How do documents relate to repo files (mirror direction, conflicts) and to tracker content? | architecture |
-| How does the loop get the right documents as context? | architecture |
+| Where do exported document files go, how are they named, and how does a file say it is generated? | documents |
+| How much can the loop push into a prompt, and what is dropped first when the limit is hit? | documents |
+| How are chunk size and boundaries chosen, and what Ollama models are supported or required? | documents |
+| How are keyword and semantic results combined in one ranking? | documents |
+| What is the rebuild command's name, and does it also cover rebuilding the keyword index? | documents |
+| Which parts of the embedding configuration make an index stale, and which changes, such as a timeout, do not? | documents |
+| How does ralph notice a model updated under the same name when the provider reports no version? | documents |
+| How does ralph show progress and an estimate for a rebuild, and what happens when one fails partway? | documents |
+| What are the retention and purge rules for earlier document versions (what is configurable, what can be purged, what is protected)? | documents |
+| Are earlier versions indexed for search? | documents |
+| Should search cover tickets and issues after the first release? | documents |
 | Is the fixed set of levels right, or should nesting be arbitrary? | concepts, workflow |
 | What is the entry point's final name? | workflow |
 | How does ralph judge ambiguity and "too big for quick work", and what is the threshold for suggesting Receive? | workflow |
 | How are unfinalized tasks surfaced, and what happens when finalization's checks fail? | workflow |
 | Does the same in-session option apply to feature work, or only to orphan tasks? | workflow |
-| Which tracker items, if any, correspond to the top-level and middle units (for example epics)? | architecture |
-| Which source-of-truth arrangements for external trackers ship first? | architecture |
-| How are sync direction, conflicts and field ownership handled with a tracker? | architecture |
-| Which trackers come first (Jira, GitHub Issues, others)? | architecture |
+| What does ralph do when a ticket whose data it owns is changed in the task manager (overwrite, warn, import)? | task-manager-and-issues |
+| Is the bottom unit mapped to tickets by default, and what are the defaults for other levels? | task-manager-and-issues |
+| How are ralph's states mapped to Jira's workflow states, including workflows that do not allow every jump? | task-manager-and-issues |
+| When a unit starts from a Jira ticket whose type the level mapping does not cover, what does ralph do? | task-manager-and-issues |
+| Does ralph comment on or move an issue it started work from, beyond the reference in the pull request? | task-manager-and-issues |
+| What does the issue-source interface look like (listing, searching, reading), and how does a user find an issue to start from? | task-manager-and-issues |
+| Which system is added after Jira, and in which role? | task-manager-and-issues |
 | What are the fingerprint, the stale-write error and the reconciliation path, concretely? | architecture |
 | What would permissions attach to (user, team, project, record) so they can be added later? | architecture |
-| Which services exist beyond storage and pull request handling (search, tracker sync, logging), and which can be remote? | architecture |
+| Which services exist beyond storage and pull request handling (search, logging), and which can be remote? | architecture |
 | Which local and remote combinations does the first release support? | architecture |
 | How does single-tenant mode map onto organizations and projects? | architecture |
 | What do tokens carry (user, scopes, expiry), how are they issued and revoked, and what other methods come later? | architecture |
@@ -39,11 +51,13 @@ Status: draft
 | Which actions, if any, must exist as both CLI commands and MCP tools (quick-work finalization is named as both in 0007)? | harness-integration |
 | What can users override in the workflow instructions, and where do overrides live? | harness-integration |
 | What must an adapter declare about a harness's capabilities, and what does ralph do when one is missing? | harness-integration |
-| How does the loop build the prompt for a bottom unit and choose documents as context? | harness-integration |
+| How does the loop build the prompt for a bottom unit, given that linked documents are pushed in (0019)? | harness-integration |
 | What does each adapter's restricted allowlist contain, and what is the setting's name, given auto mode is already used in 0011? | harness-integration |
 | Which harness versions are supported, and how does ralph detect an incompatible one? | harness-integration |
 | What are the configuration file names, the command that shows the effective configuration, and how is the project-local file kept out of version control? | configuration |
 | Should a remote instance hold settings shared by a team, as a layer between the user file and the project file? | configuration |
 | Which secret sources beyond environment variables are supported, and when? | configuration |
 | Which of the settings in the decisions so far are user-only? | configuration |
-| What is the first release's minimal feature set? | overview |
+| What is the order of the first release's milestones, and which is the first usable tool? | first-release |
+| What is the pull request provider interface, and how do GitHub and Bitbucket Cloud differ in review feedback and closing references? | first-release |
+| Which later release adds the API server, and what is its first slice? | first-release |

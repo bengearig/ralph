@@ -17,7 +17,7 @@ How ralph is built so one CLI serves a solo developer and a shared instance alik
 ## Services
 
 Each service is configured independently as local or remote. Services include the storage of ralph's records, pull
-request handling and tracker sync. The full list is open.
+request handling, the task manager and the issue source. The full list is open.
 
 - Storage holds work records, documents and their links. Locally it is SQLite. It can be configured to use a remote
   instance, which is how developers share state. See [0006](decisions/0006-shared-state-and-concurrency.md).

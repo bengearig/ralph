@@ -20,8 +20,8 @@ merges, the result is stable and usable.
 - A bottom unit may exist with no parent (an orphan task) for quick work. See
   [0007](0007-orphan-task-delivery.md).
 - Each middle unit leaves the result stable and usable when merged.
-- Bottom units are what external trackers hold, so the bottom unit's name should reflect that. Names are otherwise
-  undecided.
+- Bottom units are the level most naturally mapped to tickets in a task manager, so the bottom unit's name should
+  reflect that. Names are otherwise undecided.
 
 ## Alternatives rejected
 

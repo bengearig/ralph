@@ -14,7 +14,7 @@ Work is organized in a fixed set of levels, each tied to a git artifact.
 | --- | --- | --- |
 | Top-level unit | None | A received instruction, such as a feature, broken down into slices. It groups the branches and pull requests of its middle units. |
 | Middle unit | Branch and pull request | A slice of work that leaves the result stable and usable when merged. |
-| Bottom unit | Commit | The smallest unit of work done. Corresponds to an item in an external tracker. |
+| Bottom unit | Commit | The smallest unit of work done. The level most naturally mapped to a ticket in a task manager. |
 
 "Result" means whatever is being developed: an application, documentation, and so on.
 
@@ -49,15 +49,27 @@ The method is Receive, Articulate, Loop, Pull request, Human review, as in [the 
 work passes through Receive and Articulate to produce top-level, middle and bottom units. An orphan task skips the
 breakdown; its flow is open.
 
-## External tracker
+## Task manager
 
-A service such as Jira or GitHub Issues that holds work items outside ralph. See
-[0005](decisions/0005-external-tracker-linking.md).
+A system such as Jira that keeps a copy of ralph's units outside ralph, so the work can be seen and reported on there.
+Ralph owns the data and pushes changes to it. A task manager is a role; one system can also play the issue source role.
+See [task-manager-and-issues.md](task-manager-and-issues.md).
+
+## Issue source
+
+A system such as Jira or GitHub Issues where items originate outside ralph, such as bug reports and requests, and from
+which work is started. Data flows from it into ralph. See [task-manager-and-issues.md](task-manager-and-issues.md).
+
+## Task list
+
+Ralph's own set of work records that the loop iterates on. It is distinct from a task manager, which holds a copy for
+reporting.
 
 ## Link
 
-The association between a ralph record and the corresponding item in an external tracker. Required for every
-integrated record, whichever side holds the data.
+The association between a ralph record and the corresponding ticket or issue in a task manager or issue source.
+Required for every integrated record, whichever side holds the data. See
+[0005](decisions/0005-external-work-items-linking.md).
 
 ## Instance
 
