@@ -1,0 +1,24 @@
+services:
+  storage:
+    provider: sqlite
+    sqlite:
+      path: .ralph/ralph.db
+  logging:
+    provider: stdout
+    level: info
+    format: text
+  embeddings:
+    provider: ollama
+    timeout: 30s
+    chunking:
+      max_chars: 2000
+      overlap_chars: 200
+    ollama:
+      model: nomic-embed-text
+harnesses:
+  - id: claude
+    provider: claude
+  - id: opencode
+    provider: opencode
+
+
