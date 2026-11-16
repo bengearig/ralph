@@ -47,3 +47,12 @@ func TestProjectNotesStillMentionsEssentials(t *testing.T) {
 		}
 	}
 }
+
+func TestProjectNotesListsReceive(t *testing.T) {
+	got, _ := notesFor(t)
+	for _, want := range []string{"/ralph:receive", "/ralph/receive"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("notes lack %q:\n%s", want, got)
+		}
+	}
+}

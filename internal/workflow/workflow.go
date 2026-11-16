@@ -34,6 +34,14 @@ type RenderContext struct {
 	Tool func(name string) string
 	// Arguments is the harness's placeholder for what the user typed after the command.
 	Arguments string
+	// Text holds the harness's wording for keys that differ between harnesses;
+	// a key it lacks gets the neutral default.
+	Text map[string]string
+}
+
+// defaultText is the neutral wording for each key of RenderContext.Text.
+var defaultText = map[string]string{
+	"approval": "Show the outline to the user in this conversation and wait. Create or apply nothing until the user approves it. If they reject it with feedback, revise the outline and show it again. Create or apply it only once they approve.",
 }
 
 type frontMatter struct {
@@ -129,6 +137,15 @@ func (in Instruction) Render(rc RenderContext) (string, error) {
 	funcs := template.FuncMap{
 		"tool":      func(name string) string { return rc.Tool(name) },
 		"arguments": func() string { return rc.Arguments },
+		"harnessText": func(key string) (string, error) {
+			if text, ok := rc.Text[key]; ok {
+				return text, nil
+			}
+			if text, ok := defaultText[key]; ok {
+				return text, nil
+			}
+			return "", fmt.Errorf("unknown harness text %q", key)
+		},
 	}
 	tmpl, err := template.New(in.Name).Option("missingkey=error").Funcs(funcs).Parse(in.Body)
 	if err != nil {
@@ -162,8 +179,8 @@ func (in Instruction) Tools() []string {
 	return names
 }
 
-// checkTree allows only text and actions made of the tool and arguments
-// functions with literal arguments; text/template builtins cannot be removed
+// checkTree allows only text and actions made of the tool, arguments and
+// harnessText functions with literal arguments; text/template builtins cannot be removed
 // from a template, so they are rejected here.
 func checkTree(root *parse.ListNode) error {
 	for _, n := range root.Nodes {
@@ -171,7 +188,7 @@ func checkTree(root *parse.ListNode) error {
 		case *parse.TextNode:
 		case *parse.ActionNode:
 			if len(n.Pipe.Decl) != 0 || len(n.Pipe.Cmds) != 1 {
-				return fmt.Errorf("only a single call to tool or arguments is allowed in %s", n)
+				return fmt.Errorf("only a single call to tool, arguments or harnessText is allowed in %s", n)
 			}
 			args := n.Pipe.Cmds[0].Args
 			id, ok := args[0].(*parse.IdentifierNode)
@@ -185,6 +202,13 @@ func checkTree(root *parse.ListNode) error {
 				}
 				if _, ok := args[1].(*parse.StringNode); !ok {
 					return fmt.Errorf("tool takes a string literal in %s", n)
+				}
+			case "harnessText":
+				if len(args) != 2 {
+					return fmt.Errorf("harnessText takes one string argument in %s", n)
+				}
+				if _, ok := args[1].(*parse.StringNode); !ok {
+					return fmt.Errorf("harnessText takes a string literal in %s", n)
 				}
 			case "arguments":
 				if len(args) != 1 {

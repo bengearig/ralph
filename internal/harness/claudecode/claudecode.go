@@ -90,6 +90,11 @@ func toolName(server string) func(string) string {
 	return func(tool string) string { return "mcp__" + server + "__" + tool }
 }
 
+// approvalText is the plan-mode flow Claude Code uses to ask for approval of an outline.
+const approvalText = "Use plan mode. If this session is not in plan mode, enter it with the `EnterPlanMode` tool. If the user declines to enter plan mode, create nothing: show the outline in a message and say it will be created once they confirm. " +
+	"Write the outline as the plan, then call the `ExitPlanMode` tool to ask for approval. If the user rejects it with feedback, revise the outline and ask again. Create or apply the outline only after it is approved.\n\n" +
+	"If this session is already in plan mode when this command starts, write tools are unavailable. Do the reading and ask the questions, but create nothing, not even the brief. Write the full plan, including the brief's title and its text word for word, then call the `ExitPlanMode` tool. After the plan is approved, create the brief and then the outline."
+
 type commandHead struct {
 	Description  string `yaml:"description"`
 	ArgumentHint string `yaml:"argument-hint,omitempty"`
@@ -99,6 +104,7 @@ func command(ins workflow.Instruction, server string) ([]byte, error) {
 	body, err := ins.Render(workflow.RenderContext{
 		Tool:      toolName(server),
 		Arguments: "$ARGUMENTS",
+		Text:      map[string]string{"approval": approvalText},
 	})
 	if err != nil {
 		return nil, err

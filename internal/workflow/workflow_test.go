@@ -7,7 +7,7 @@ import (
 	"testing/fstest"
 )
 
-func TestAllLoadsQuickAndStatus(t *testing.T) {
+func TestAllLoadsReceiveStatusAndQuick(t *testing.T) {
 	all, err := All()
 	if err != nil {
 		t.Fatal(err)
@@ -27,7 +27,7 @@ func TestAllLoadsQuickAndStatus(t *testing.T) {
 			}
 		}
 	}
-	if want := []string{"quick", "status"}; !reflect.DeepEqual(names, want) {
+	if want := []string{"quick", "receive", "status"}; !reflect.DeepEqual(names, want) {
 		t.Fatalf("names = %v, want %v", names, want)
 	}
 	got, ok, err := Get("status")
@@ -217,6 +217,128 @@ func TestStatusInstructionContent(t *testing.T) {
 	for _, bad := range []string{"mcp__", "$ARGUMENTS"} {
 		if strings.Contains(in.Body, bad) || strings.Contains(out, bad) {
 			t.Errorf("instruction contains harness-specific %q", bad)
+		}
+	}
+}
+
+func neutralContext() RenderContext {
+	return RenderContext{Tool: func(n string) string { return n }}
+}
+
+func TestHarnessTextDefault(t *testing.T) {
+	out, err := Instruction{Name: "x", Body: `{{harnessText "approval"}}`}.Render(neutralContext())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != defaultText["approval"] || !strings.HasPrefix(out, "Show the outline to the user in this conversation and wait.") {
+		t.Errorf("got %q", out)
+	}
+}
+
+func TestHarnessTextAdapterWins(t *testing.T) {
+	rc := neutralContext()
+	rc.Text = map[string]string{"approval": "ADAPTER"}
+	out, err := Instruction{Name: "x", Body: `{{harnessText "approval"}}`}.Render(rc)
+	if err != nil || out != "ADAPTER" {
+		t.Errorf("got %q, %v", out, err)
+	}
+}
+
+func TestHarnessTextUnknownKeyErrors(t *testing.T) {
+	_, err := Instruction{Name: "myinstr", Body: `{{harnessText "nope"}}`}.Render(neutralContext())
+	if err == nil || !strings.Contains(err.Error(), "myinstr") || !strings.Contains(err.Error(), "nope") {
+		t.Errorf("error = %v, want one naming the instruction and the key", err)
+	}
+}
+
+func TestHarnessTextNeedsLiteralArgument(t *testing.T) {
+	for _, body := range []string{`{{harnessText .Key}}`, `{{harnessText "a" "b"}}`, `{{harnessText}}`, `{{$k := "approval"}}{{harnessText $k}}`} {
+		if _, err := (Instruction{Name: "bad", Body: body}).Render(neutralContext()); err == nil {
+			t.Errorf("body %q was accepted", body)
+		}
+	}
+}
+
+func TestToolsIgnoresHarnessText(t *testing.T) {
+	in := Instruction{Name: "x", Body: `{{tool "b"}} {{harnessText "approval"}} {{tool "a"}}`}
+	if got, want := in.Tools(), []string{"a", "b"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("Tools() = %v, want %v", got, want)
+	}
+}
+
+func receiveInstruction(t *testing.T) Instruction {
+	t.Helper()
+	in, ok, err := Get("receive")
+	if err != nil || !ok {
+		t.Fatal(ok, err)
+	}
+	return in
+}
+
+func TestReceiveFrontMatter(t *testing.T) {
+	in := receiveInstruction(t)
+	if want := "ralph receive: capture instructions and plan them at a high level"; in.Description != want {
+		t.Errorf("description = %q", in.Description)
+	}
+	if want := "[the instructions, or the ID of a brief to revise]"; in.ArgumentHint != want {
+		t.Errorf("argument hint = %q", in.ArgumentHint)
+	}
+}
+
+func TestReceiveToolsReferenced(t *testing.T) {
+	want := []string{"dependency_add", "note_add", "planning_settings", "status", "task_set_state", "unit_create", "unit_get", "unit_list", "unit_update"}
+	if got := receiveInstruction(t).Tools(); !reflect.DeepEqual(got, want) {
+		t.Errorf("Tools() = %v, want %v", got, want)
+	}
+}
+
+func TestReceiveContent(t *testing.T) {
+	out, err := receiveInstruction(t).Render(neutralContext())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"If nothing was typed, ask the user",
+		"planning_settings",
+		"word for word",
+		"a few questions at a time",
+		"Prefer one slice over two that could not stand alone",
+		"dependency_add",
+		"Order alone is not a dependency",
+		"when the outline revises an existing one",
+		"Always get the user's approval before applying a revision",
+		"Never delete anything",
+		"CANCELLED with a reason",
+		"move it back to PROPOSED with a kickback reason",
+		"Notice for the user:",
+		"does not work out task details, write acceptance criteria, promote any task, or write code",
+		defaultText["approval"],
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("rendered text lacks %q", want)
+		}
+	}
+}
+
+func TestReceiveHarnessNeutralBody(t *testing.T) {
+	body := receiveInstruction(t).Body
+	for _, bad := range []string{"mcp__", "$ARGUMENTS", "CLAUDE", "EnterPlanMode", "ExitPlanMode", "AGENTS"} {
+		if strings.Contains(body, bad) {
+			t.Errorf("body contains harness-specific %q", bad)
+		}
+	}
+}
+
+func TestReceiveNamesNoLoopOrDocumentTools(t *testing.T) {
+	in := receiveInstruction(t)
+	for _, tool := range in.Tools() {
+		if strings.HasPrefix(tool, "doc_") || strings.Contains(tool, "loop") {
+			t.Errorf("references tool %q", tool)
+		}
+	}
+	for _, bad := range []string{"doc_", "ralph loop", "document"} {
+		if strings.Contains(in.Body, bad) {
+			t.Errorf("body mentions %q", bad)
 		}
 	}
 }

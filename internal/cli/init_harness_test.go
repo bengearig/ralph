@@ -58,7 +58,7 @@ func TestInitInstallsClaudeCode(t *testing.T) {
 	if !strings.Contains(stdout, "claude-code: 2.0.1") {
 		t.Errorf("stdout = %q", stdout)
 	}
-	if n := countPrefix(stdout, "installed "); n != 5 {
+	if n := countPrefix(stdout, "installed "); n != 6 {
 		t.Errorf("installed lines = %d in %q", n, stdout)
 	}
 }
@@ -124,7 +124,7 @@ func TestInitIntegrationIdempotent(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d, stderr = %q", code, stderr)
 	}
-	if n := countPrefix(stdout, "unchanged "); n != 5 {
+	if n := countPrefix(stdout, "unchanged "); n != 6 {
 		t.Errorf("unchanged lines = %d in %q", n, stdout)
 	}
 	for _, a := range []string{"installed ", "updated ", "adopted ", "kept "} {

@@ -303,3 +303,31 @@ func TestPermissionArtifact(t *testing.T) {
 		t.Errorf("key path %v content %s", a.KeyPath, a.Content)
 	}
 }
+
+func TestReceiveCommandUsesPlanMode(t *testing.T) {
+	c := string(artifactAt(t, inputs(t), ".claude/commands/ralph/receive.md").Content)
+	for _, want := range []string{
+		"EnterPlanMode",
+		"ExitPlanMode",
+		"If the user declines to enter plan mode, create nothing",
+		"already in plan mode when this command starts",
+		"mcp__ralph__planning_settings",
+		"$ARGUMENTS",
+	} {
+		if !strings.Contains(c, want) {
+			t.Errorf("content lacks %q", want)
+		}
+	}
+	if strings.Contains(c, "Show the outline to the user in this conversation and wait.") {
+		t.Error("content has the neutral approval text")
+	}
+	if strings.Contains(c, "{{") {
+		t.Errorf("content has an unrendered template action:\n%s", c)
+	}
+}
+
+func TestProjectNotesListsReceive(t *testing.T) {
+	if c := string(sectionArtifact(t, inputs(t)).Content); !strings.Contains(c, "/ralph:receive") {
+		t.Errorf("section lacks /ralph:receive:\n%s", c)
+	}
+}
