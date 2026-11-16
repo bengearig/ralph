@@ -4,7 +4,6 @@ Status: draft
 
 | Question | Blocks |
 | --- | --- |
-| What are the names for the work levels and for the unplanned and ready states? | concepts, workflow |
 | How is order between middle units recorded when it matters? | workflow |
 | What is auto mode: what does it start, how is it enabled, and what stops it? | workflow |
 | How much of the follow-up to a detected change can be applied automatically, and how is that configured? | workflow |

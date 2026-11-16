@@ -38,4 +38,5 @@ Decisions: [0001](decisions/0001-docs-in-repo.md), [0002](decisions/0002-design-
 [0014](decisions/0014-server-storage-authentication-tenancy.md), [0015](decisions/0015-pull-request-identity.md), [0016](decisions/0016-harness-integration.md),
 [0017](decisions/0017-integration-files-and-headless-permissions.md),
 [0018](decisions/0018-configuration-layers-scope-and-secrets.md), [0019](decisions/0019-documents-and-search.md), [0020](decisions/0020-task-manager-and-issue-source.md), [0021](decisions/0021-first-release-scope.md), [0022](decisions/0022-embedding-index-repair.md), [0023](decisions/0023-loop-workspace.md),
-[0024](decisions/0024-project-identity-and-local-database.md), [0025](decisions/0025-run-records.md).
+[0024](decisions/0024-project-identity-and-local-database.md), [0025](decisions/0025-run-records.md),
+[0026](decisions/0026-work-level-and-state-names.md).

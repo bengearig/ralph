@@ -2,21 +2,26 @@
 
 Status: draft
 
-Terms are defined here once and linked from other docs. The vocabulary for the work model is deliberately unnamed: the
-PoC's names were wrong and replacements are undecided. Until they are chosen, units are identified by role. See
-[0004](decisions/0004-work-model.md).
+Terms are defined here once and linked from other docs. The work model's levels are named Brief, Slice and Task. Where it
+helps to explain the mapping, the docs also use the role words: top-level, middle and bottom unit. See
+[0004](decisions/0004-work-model.md) and [0026](decisions/0026-work-level-and-state-names.md).
 
 ## Work units
 
 Work is organized in a fixed set of levels, each tied to a git artifact.
 
-| Role | Git artifact | Meaning |
-| --- | --- | --- |
-| Top-level unit | None | A received instruction, such as a feature, broken down into slices. It groups the branches and pull requests of its middle units. |
-| Middle unit | Branch and pull request | A slice of work that leaves the result stable and usable when merged. |
-| Bottom unit | Commit | The smallest unit of work done. The level most naturally mapped to a ticket in a task manager. |
+| Role | Name | Git artifact | Meaning |
+| --- | --- | --- | --- |
+| Top-level unit | Brief | None | A received instruction, such as a feature, broken down into slices. It groups the branches and pull requests of its middle units. |
+| Middle unit | Slice | Branch and pull request | A slice of work that leaves the result stable and usable when merged. |
+| Bottom unit | Task | Commit | The smallest unit of work done. The level most naturally mapped to a ticket in a task manager. |
 
 "Result" means whatever is being developed: an application, documentation, and so on.
+
+A Brief is a received instruction broken down into slices. A Slice is a part of a brief that leaves the result stable and
+usable when merged. A Task is the smallest unit of work done. IDs are a letter prefix and a per-project number counted
+per level, such as `B-1`, `S-3` and `T-12`. Only tasks store a state; a slice and a brief derive their status from their
+children. See [0026](decisions/0026-work-level-and-state-names.md).
 
 Parent and child rules:
 - A top-level unit has one or more middle units. A single middle unit is valid and preferred over splitting work into
@@ -27,7 +32,7 @@ Parent and child rules:
 
 ### Orphan task
 
-A bottom unit that belongs to no middle or top-level unit. Used for work that needs no breakdown, such as a bugfix or
+A task with no slice, so a bottom unit that belongs to no middle or top-level unit. Used for work that needs no breakdown, such as a bugfix or
 "change the accent color to a given value". It is not limited to bugfixes.
 
 By default an orphan task gets its own branch and pull request. This must be implemented so it can become configurable
