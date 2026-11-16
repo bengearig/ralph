@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/bengearig/ralph/internal/naming"
 )
 
 // Scope says which files may set a setting.
@@ -196,6 +198,24 @@ func DefaultRegistry() *Registry {
 				}
 				return nil
 			},
+		},
+		Setting{
+			Path:        "git.branch_template",
+			Description: "Template for branch names; fields ID, Level, Number, Title, Slug, ParentID; functions lower, upper, trunc",
+			Default:     "ralph/{{lower .ID}}-{{.Slug}}",
+			Validate:    naming.ValidateBranchTemplate,
+		},
+		Setting{
+			Path:        "git.commit_template",
+			Description: "Template for commit subjects; fields ID, Level, Number, Title, Slug, ParentID; functions lower, upper, trunc",
+			Default:     "{{.ID}}: {{.Title}}",
+			Validate:    naming.ValidateSubjectTemplate,
+		},
+		Setting{
+			Path:        "git.commit_trailer",
+			Description: "Whether commits carry a Ralph-Task trailer naming their task",
+			Default:     "true",
+			Allowed:     []string{"true", "false"},
 		},
 		Setting{
 			Path:        "project.id",
