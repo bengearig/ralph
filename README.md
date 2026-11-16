@@ -9,6 +9,7 @@ The project is under construction. The design is in [docs/](docs/README.md).
 
 - `ralph init` sets ralph up in the current git repository.
 - `ralph status` shows briefs, slices and tasks with their statuses.
+- `ralph mcp` serves ralph's records to an agent over the Model Context Protocol on standard input and output.
 
 ## Development
 
