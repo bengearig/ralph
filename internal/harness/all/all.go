@@ -1,0 +1,33 @@
+// Package all lists every adapter ralph ships.
+package all
+
+import (
+	"sort"
+
+	"github.com/bengearig/ralph/internal/harness"
+)
+
+// Adapters returns every adapter; add one line per adapter.
+func Adapters() []harness.Adapter {
+	return []harness.Adapter{}
+}
+
+// ByName finds an adapter by its name.
+func ByName(name string) (harness.Adapter, bool) {
+	for _, a := range Adapters() {
+		if a.Name() == name {
+			return a, true
+		}
+	}
+	return nil, false
+}
+
+// Names returns the adapter names, sorted.
+func Names() []string {
+	names := make([]string, 0)
+	for _, a := range Adapters() {
+		names = append(names, a.Name())
+	}
+	sort.Strings(names)
+	return names
+}
