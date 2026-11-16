@@ -200,6 +200,12 @@ func TestAdapterConformance(t *testing.T) {
 	harnesstest.Check(t, New())
 }
 
+func TestCommandFilesStillUseClaudeToolNames(t *testing.T) {
+	if got := string(statusArtifact(t).Content); !strings.Contains(got, "mcp__ralph__status") {
+		t.Errorf("command file lacks mcp__ralph__status:\n%s", got)
+	}
+}
+
 func sectionArtifact(t *testing.T, in harness.Inputs) harness.Artifact {
 	t.Helper()
 	arts, err := New().Artifacts(in)
@@ -218,12 +224,19 @@ func sectionArtifact(t *testing.T, in harness.Inputs) harness.Artifact {
 	return found[0]
 }
 
+func TestSectionArtifactUsesNeutralNotes(t *testing.T) {
+	in := inputs(t)
+	if got, want := string(sectionArtifact(t, in).Content), workflow.ProjectNotes(in.Instructions); got != want {
+		t.Errorf("section = %q, want %q", got, want)
+	}
+}
+
 func TestSectionArtifact(t *testing.T) {
 	a := sectionArtifact(t, inputs(t))
 	if a.Path != "CLAUDE.md" || a.Scope != harness.ScopeProject || a.Label != "section in CLAUDE.md" {
 		t.Errorf("artifact = %+v", a)
 	}
-	for _, want := range []string{"/ralph:status", "mcp__ralph__"} {
+	for _, want := range []string{"/ralph:status", "/ralph/status"} {
 		if !strings.Contains(string(a.Content), want) {
 			t.Errorf("content lacks %q:\n%s", want, a.Content)
 		}

@@ -24,7 +24,7 @@ type Outdated struct {
 
 // InputsFor returns what adapters render their artifacts from for the project
 // at root.
-func InputsFor(_ string) (harness.Inputs, error) {
+func InputsFor(root string) (harness.Inputs, error) {
 	instructions, err := workflow.All()
 	if err != nil {
 		return harness.Inputs{}, err
@@ -32,6 +32,7 @@ func InputsFor(_ string) (harness.Inputs, error) {
 	return harness.Inputs{
 		Instructions: instructions,
 		MCP:          harness.MCPServer{Name: "ralph", Command: "ralph", Args: []string{"mcp"}},
+		Project:      os.DirFS(root),
 	}, nil
 }
 

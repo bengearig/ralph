@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -171,4 +172,22 @@ type errAdapter struct{ fakeAdapter }
 func (*errAdapter) Name() string { return "fake" }
 func (*errAdapter) Artifacts(harness.Inputs) ([]harness.Artifact, error) {
 	return nil, errors.New("boom")
+}
+
+func TestInputsForSetsProject(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte("hi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	in, err := InputsFor(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if in.Project == nil {
+		t.Fatal("Project is nil")
+	}
+	got, err := fs.ReadFile(in.Project, "AGENTS.md")
+	if err != nil || string(got) != "hi" {
+		t.Errorf("read = %q, %v", got, err)
+	}
 }

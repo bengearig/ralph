@@ -3,6 +3,8 @@ package all
 import (
 	"sort"
 	"testing"
+
+	"github.com/bengearig/ralph/internal/harness/harnesstest"
 )
 
 func TestAdaptersRegistry(t *testing.T) {
@@ -22,4 +24,8 @@ func TestAdaptersRegistry(t *testing.T) {
 	if a, ok := ByName("no-such-harness"); ok || a != nil {
 		t.Errorf("ByName(unknown) = %v, %v; want not found", a, ok)
 	}
+}
+
+func TestCheckAllOnRegisteredAdapters(t *testing.T) {
+	harnesstest.CheckAll(t, Adapters())
 }

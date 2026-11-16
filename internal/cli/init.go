@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"slices"
+	"sort"
 	"strings"
 
 	"github.com/bengearig/ralph/internal/config"
@@ -15,6 +18,9 @@ import (
 	"github.com/bengearig/ralph/internal/version"
 	"github.com/spf13/cobra"
 )
+
+// initAdapters lists the adapters init considers; tests replace it.
+var initAdapters = all.Adapters
 
 func newInitCommand() *cobra.Command {
 	var harnessNames []string
@@ -35,7 +41,7 @@ func newInitCommand() *cobra.Command {
 				return err
 			}
 
-			named, err := namedAdapters(harnessNames)
+			named, err := namedAdapters(cmd.Context(), root, harnessNames)
 			if err != nil {
 				return err
 			}
@@ -89,14 +95,23 @@ func newInitCommand() *cobra.Command {
 	return cmd
 }
 
-func namedAdapters(names []string) ([]harness.Adapter, error) {
+func namedAdapters(ctx context.Context, root string, names []string) ([]harness.Adapter, error) {
+	known := initAdapters()
 	var adapters []harness.Adapter
 	for _, n := range names {
-		a, ok := all.ByName(n)
-		if !ok {
-			return nil, fmt.Errorf("unknown harness %q; known harnesses: %s", n, strings.Join(all.Names(), ", "))
+		i := slices.IndexFunc(known, func(a harness.Adapter) bool { return a.Name() == n })
+		if i < 0 {
+			knownNames := make([]string, len(known))
+			for j, a := range known {
+				knownNames[j] = a.Name()
+			}
+			sort.Strings(knownNames)
+			return nil, fmt.Errorf("unknown harness %q; known harnesses: %s", n, strings.Join(knownNames, ", "))
 		}
-		adapters = append(adapters, a)
+		if d := known[i].Detect(ctx, root); d.Unsupported != "" {
+			return nil, fmt.Errorf("%s: unsupported: %s", n, d.Unsupported)
+		}
+		adapters = append(adapters, known[i])
 	}
 	return adapters, nil
 }
@@ -108,8 +123,12 @@ func installIntegration(cmd *cobra.Command, root string, named []harness.Adapter
 	detections := map[string]harness.Detection{}
 	selected := named
 	if len(selected) == 0 {
-		for _, a := range all.Adapters() {
+		for _, a := range initAdapters() {
 			d := a.Detect(cmd.Context(), root)
+			if d.Found && d.Unsupported != "" {
+				_, _ = fmt.Fprintf(out, "%s: unsupported: %s\n", a.Name(), d.Unsupported)
+				continue
+			}
 			if d.Found {
 				selected = append(selected, a)
 				detections[a.Name()] = d

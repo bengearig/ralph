@@ -37,7 +37,7 @@ func (adapter) Artifacts(in harness.Inputs) ([]harness.Artifact, error) {
 	}
 	notes := in.ProjectNotes
 	if notes == "" {
-		notes = workflow.ProjectNotes(in.Instructions, toolName(in.MCP.Name))
+		notes = workflow.ProjectNotes(in.Instructions)
 	}
 	arts = append(arts, harness.Artifact{
 		Kind:    harness.KindSection,
