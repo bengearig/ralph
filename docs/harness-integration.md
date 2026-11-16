@@ -38,7 +38,9 @@ Used by the loop. See [workflow.md](workflow.md).
 - The adapter defines the command, the permission mode, the budget cap and the handling of output.
 - Permissions default to restricted, a scoped allowlist. An auto mode defers to the harness's own automatic mode and
   is never accepted from a committed project file. See [0017](decisions/0017-integration-files-and-headless-permissions.md).
-- Ralph checks the result itself after the process exits and does not rely on what the agent reports.
+- Ralph checks the result itself after the process exits and does not rely on what the agent reports. A harness can
+  exit successfully after denying an action, so the adapter reads denied actions from the harness's output, not from
+  the exit code.
 - A session that hits the budget cap, or fails verification, counts as a failed iteration for the Stall Statute.
 
 ## Installation

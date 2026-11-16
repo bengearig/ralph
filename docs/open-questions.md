@@ -59,9 +59,10 @@ Status: draft
 | Which secret sources beyond environment variables are supported, and when? | configuration |
 | Which of the settings in the decisions so far are user-only? | configuration |
 | Should semantic search come before the loop? | first-release |
-| The installed OpenCode's `run --help` confirms a non-interactive run with model, agent, `--format json` and `--auto` flags. Still untested: its exit codes, what an unmatched permission does without `--auto`, and the structure of its JSON output. | first-release |
-| The installed OpenCode's `run` has no cost, token, step or turn limit flag. Does ralph enforce a budget itself for adapters that lack one (a time limit, or counting from the harness's output), or does the adapter declare the capability missing? | harness-integration |
-| OpenCode's default permission rule allows most actions, so a restricted allowlist must start from a deny-everything rule. Does the adapter interface let an adapter state that, and how is the allowlist tested against a real run? | harness-integration |
+| OpenCode's headless runs were tested for the loop's needs, with a free model in a scratch repository. The same checks have not been run against Claude Code. Which of them become automated adapter tests? | first-release |
+| OpenCode has no cost limit flag, but each step's JSON event reports cost and tokens. Does ralph enforce the budget itself by counting them, for any adapter whose harness reports them, and what does an adapter without either do? | harness-integration |
+| In OpenCode a rejected edit is worked around through the shell, so a restricted allowlist must constrain shell commands, not only file edits. How does the adapter interface express an allowlist so each adapter can apply it, and how is it tested against a real run? | harness-integration |
+| OpenCode exits with success after denying an action, so denials are found only in its output. How does each adapter report denied actions to the loop for the run record? | harness-integration |
 | OpenCode keeps its MCP servers and commands in a JSON configuration file the user may also edit. How does ralph manage only its own entries there (see 0017)? | harness-integration |
 | A different, older project is also named OpenCode and uses other flags. How does ralph detect which one is installed? | harness-integration |
 | How many pre-migration backups are kept, and how are old ones removed? | local-state |
