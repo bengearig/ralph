@@ -143,6 +143,10 @@ type Service interface {
 	// Version returns version n of a document of any status: the current
 	// content when n is the current version, otherwise a kept earlier version.
 	Version(ctx context.Context, id string, n int) (DocumentVersion, error)
+	// Purge removes earlier versions chosen by opts when opts.Apply is set,
+	// and otherwise reports what it would remove. It never touches a
+	// document's current content.
+	Purge(ctx context.Context, opts PurgeOptions) (PurgeResult, error)
 }
 
 var _ Service = (*Store)(nil)
