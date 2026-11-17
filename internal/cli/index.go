@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os/signal"
 	"strings"
@@ -40,10 +41,36 @@ type indexStatus struct {
 	BuiltWith    *embed.Fingerprint `json:"built_with,omitempty"`
 	State        string             `json:"state"`
 	StaleReasons []string           `json:"stale_reasons,omitempty"`
+	Rebuild      *rebuildStatus     `json:"rebuild,omitempty"`
 }
 
+type rebuildStatus struct {
+	Done  int `json:"done"`
+	Total int `json:"total"`
+}
+
+type rebuildPlanJSON struct {
+	Reasons    []string `json:"reasons"`
+	Records    int      `json:"records"`
+	Chunks     int      `json:"chunks"`
+	Done       int      `json:"done"`
+	Resuming   bool     `json:"resuming"`
+	Discarding bool     `json:"discarding"`
+	Model      string   `json:"model"`
+	URL        string   `json:"url"`
+}
+
+type rebuildResultJSON struct {
+	Records int    `json:"records"`
+	Chunks  int    `json:"chunks"`
+	Model   string `json:"model"`
+	URL     string `json:"url"`
+}
+
+const rebuildContinue = "run ralph index --rebuild --yes to continue"
+
 func newIndexCommand(a *app) *cobra.Command {
-	var status, asJSON bool
+	var status, asJSON, rebuild, yes bool
 	cmd := &cobra.Command{
 		Use:   "index",
 		Short: "Embed the records for semantic search, or show the state of the index",
@@ -52,8 +79,14 @@ func newIndexCommand(a *app) *cobra.Command {
 			"With --status nothing is embedded: it shows the provider, the model and how much of the index is up to date.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if asJSON && !status {
-				return errors.New("--json is for --status; a plain run prints progress lines")
+			if rebuild && status {
+				return errors.New("--rebuild and --status cannot be used together")
+			}
+			if yes && !rebuild {
+				return errors.New("--yes is for --rebuild")
+			}
+			if asJSON && !status && !rebuild {
+				return errors.New("--json is for --status and --rebuild; a plain run prints progress lines")
 			}
 			ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 			defer stop()
@@ -72,6 +105,9 @@ func newIndexCommand(a *app) *cobra.Command {
 			}
 			if provider == nil {
 				return errors.New(errNoProvider)
+			}
+			if rebuild {
+				return runRebuild(ctx, cmd, a, d, provider, settings, yes, asJSON)
 			}
 			if !status {
 				release, err := semantic.LockIndex(project.RalphDir(a.root))
@@ -101,7 +137,9 @@ func newIndexCommand(a *app) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&status, "status", false, "embed nothing; show the provider, the model and what is indexed")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "with --status, print one JSON object")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "with --status or --rebuild, print one JSON object")
+	cmd.Flags().BoolVar(&rebuild, "rebuild", false, "build a new index with the current configuration; the old index stays in use until the new one is complete")
+	cmd.Flags().BoolVar(&yes, "yes", false, "with --rebuild, start the rebuild; without it the plan is printed and nothing changes")
 	return cmd
 }
 
@@ -168,6 +206,14 @@ func runIndexStatus(ctx context.Context, cmd *cobra.Command, a *app, deps semant
 		st.BuiltWith = &finding.Recorded
 	}
 
+	done, total, ok, err := semantic.RebuildProgress(ctx, deps.DB, project.RalphDir(a.root))
+	if err != nil {
+		return err
+	}
+	if ok {
+		st.Rebuild = &rebuildStatus{Done: done, Total: total}
+	}
+
 	out := cmd.OutOrStdout()
 	if asJSON {
 		return writeJSON(out, st)
@@ -208,5 +254,80 @@ func runIndexStatus(ctx context.Context, cmd *cobra.Command, a *app, deps semant
 	} else {
 		_, _ = fmt.Fprintf(out, "state: %s\n", st.State)
 	}
+	if st.Rebuild != nil {
+		_, _ = fmt.Fprintf(out, "rebuild: %d of %d records\n", st.Rebuild.Done, st.Rebuild.Total)
+	}
+	return nil
+}
+
+func runRebuild(ctx context.Context, cmd *cobra.Command, a *app, d *db.DB, provider embed.Provider, settings embed.Settings, yes, asJSON bool) error {
+	out := cmd.OutOrStdout()
+	deps := semantic.RebuildDeps{
+		DB: d, Dir: project.RalphDir(a.root), Provider: provider, Settings: settings,
+		Describer: semantic.NewDescriber(provider, time.Now), Now: time.Now,
+	}
+	plan, err := semantic.PlanRebuild(ctx, deps)
+	if err != nil {
+		return err
+	}
+	if !yes {
+		return printRebuildPlan(out, plan, asJSON)
+	}
+
+	done := plan.Done
+	deps.Report = func(line string) {
+		if asJSON {
+			return
+		}
+		if strings.HasPrefix(line, "embedding ") {
+			done++
+			line = fmt.Sprintf("[%d/%d] %s", done, plan.Records, line)
+		}
+		_, _ = fmt.Fprintln(out, line)
+	}
+	res, err := semantic.Rebuild(ctx, deps)
+	switch {
+	case ctx.Err() != nil && errors.Is(err, ctx.Err()):
+		_, _ = fmt.Fprintln(out, "interrupted; "+rebuildContinue)
+		return &exitStatusError{status: exitInterrupted, err: err}
+	case errors.Is(err, semantic.ErrIndexBusy):
+		return err
+	case err != nil:
+		return fmt.Errorf("%w\n%s", err, rebuildContinue)
+	}
+	if asJSON {
+		return writeJSON(out, rebuildResultJSON{Records: res.Records, Chunks: res.Chunks, Model: settings.Model, URL: settings.URL})
+	}
+	_, _ = fmt.Fprintf(out, "rebuilt %d records (%d chunks); semantic search now uses %s\n", res.Records, res.Chunks, settings.Model)
+	return nil
+}
+
+func printRebuildPlan(out io.Writer, plan semantic.RebuildPlan, asJSON bool) error {
+	if asJSON {
+		reasons := plan.Reasons
+		if reasons == nil {
+			reasons = []string{}
+		}
+		return writeJSON(out, rebuildPlanJSON{
+			Reasons: reasons, Records: plan.Records, Chunks: plan.Chunks, Done: plan.Done,
+			Resuming: plan.Resuming, Discarding: plan.Discarding, Model: plan.Model, URL: plan.URL,
+		})
+	}
+	_, _ = fmt.Fprintln(out, "rebuild plan")
+	if len(plan.Reasons) > 0 {
+		_, _ = fmt.Fprintf(out, "reason: %s\n", strings.Join(plan.Reasons, "; "))
+	} else {
+		_, _ = fmt.Fprintln(out, "reason: no change in configuration; a rebuild was asked for")
+	}
+	_, _ = fmt.Fprintf(out, "records: %d (about %d chunks)\n", plan.Records, plan.Chunks)
+	_, _ = fmt.Fprintf(out, "model: %s at %s\n", plan.Model, plan.URL)
+	if plan.Resuming {
+		_, _ = fmt.Fprintf(out, "done already: %d records, will continue\n", plan.Done)
+	}
+	if plan.Discarding {
+		_, _ = fmt.Fprintln(out, "starting again: the earlier rebuild used a different configuration")
+	}
+	_, _ = fmt.Fprintln(out, "the current index stays in use until the new one is complete")
+	_, _ = fmt.Fprintln(out, "run again with --yes to start")
 	return nil
 }
