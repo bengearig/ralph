@@ -66,6 +66,9 @@ func (adapter) Headless(req harness.HeadlessRequest) (harness.Invocation, error)
 	if req.Model != "" {
 		args = append(args, "--model", req.Model)
 	}
+	if req.BudgetUSD > 0 {
+		args = append(args, "--max-budget-usd", strconv.FormatFloat(req.BudgetUSD, 'f', -1, 64))
+	}
 	permissionMode := "dontAsk"
 	if req.Mode == harness.PermissionAuto {
 		permissionMode = "auto"
@@ -136,12 +139,23 @@ type toolUse struct {
 }
 
 type event struct {
-	Type      string          `json:"type"`
-	Subtype   string          `json:"subtype"`
-	SessionID string          `json:"session_id"`
-	IsError   bool            `json:"is_error"`
-	Result    string          `json:"result"`
-	Errors    []string        `json:"errors"`
+	Type      string   `json:"type"`
+	Subtype   string   `json:"subtype"`
+	SessionID string   `json:"session_id"`
+	IsError   bool     `json:"is_error"`
+	Result    string   `json:"result"`
+	Errors    []string `json:"errors"`
+	Terminal  string   `json:"terminal_reason"`
+	Cost      *float64 `json:"total_cost_usd"`
+	Usage     struct {
+		Input      int `json:"input_tokens"`
+		Output     int `json:"output_tokens"`
+		CacheRead  int `json:"cache_read_input_tokens"`
+		CacheWrite int `json:"cache_creation_input_tokens"`
+		Details    struct {
+			Thinking int `json:"thinking_tokens"`
+		} `json:"output_tokens_details"`
+	} `json:"usage"`
 	ToolName  string          `json:"tool_name"`
 	ToolUseID string          `json:"tool_use_id"`
 	Message   json.RawMessage `json:"message"`
@@ -237,6 +251,19 @@ func (p *parser) Line(b []byte) {
 					Reason: "denied by the permission mode",
 				})
 			}
+		}
+		p.out.Usage = harness.Usage{
+			InputTokens:      e.Usage.Input,
+			OutputTokens:     e.Usage.Output,
+			ReasoningTokens:  e.Usage.Details.Thinking,
+			CacheReadTokens:  e.Usage.CacheRead,
+			CacheWriteTokens: e.Usage.CacheWrite,
+		}
+		if e.Cost != nil {
+			p.out.Usage.CostUSD, p.out.Usage.CostReported = *e.Cost, true
+		}
+		if e.Subtype == "error_max_budget_usd" || e.Terminal == "budget_exhausted" {
+			p.out.BudgetExceeded = true
 		}
 		p.out.Text = e.Result
 		p.out.Success = e.Subtype == "success" && !e.IsError

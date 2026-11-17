@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/url"
 	"path"
@@ -304,6 +305,33 @@ func DefaultRegistry() *Registry {
 			Default:     "restricted",
 			Allowed:     []string{"restricted", "auto"},
 			Scope:       ScopeUser,
+		},
+		Setting{
+			Path:        "headless.budget_usd",
+			Description: "Caps the cost of one headless run in US dollars; 0 means no cap. For OpenCode the step that crosses the cap has already been paid for, so the recorded cost can exceed it, and a harness that reports no cost cannot be checked",
+			Default:     "0",
+			Validate: func(v string) error {
+				f, err := strconv.ParseFloat(v, 64)
+				if err != nil || math.IsNaN(f) || math.IsInf(f, 0) || f < 0 {
+					return errors.New("must be a number of at least 0, such as 5 or 0.25")
+				}
+				return nil
+			},
+		},
+		Setting{
+			Path:        "headless.timeout",
+			Description: "How long one headless run may take, a duration greater than zero",
+			Default:     "30m",
+			Validate: func(v string) error {
+				d, err := time.ParseDuration(v)
+				if err != nil {
+					return errors.New("must be a duration such as 30m")
+				}
+				if d <= 0 {
+					return errors.New("must be greater than zero")
+				}
+				return nil
+			},
 		},
 		Setting{
 			Path:        "verify.timeout",

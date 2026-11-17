@@ -132,13 +132,23 @@ type event struct {
 	Type      string `json:"type"`
 	SessionID string `json:"sessionID"`
 	Part      struct {
-		ID     string `json:"id"`
-		PartID string `json:"partID"`
-		CallID string `json:"callID"`
-		Tool   string `json:"tool"`
-		Text   string `json:"text"`
-		Reason string `json:"reason"`
-		State  struct {
+		ID     string  `json:"id"`
+		PartID string  `json:"partID"`
+		CallID string  `json:"callID"`
+		Tool   string  `json:"tool"`
+		Text   string  `json:"text"`
+		Reason string  `json:"reason"`
+		Cost   float64 `json:"cost"`
+		Tokens struct {
+			Input     int `json:"input"`
+			Output    int `json:"output"`
+			Reasoning int `json:"reasoning"`
+			Cache     struct {
+				Read  int `json:"read"`
+				Write int `json:"write"`
+			} `json:"cache"`
+		} `json:"tokens"`
+		State struct {
 			Status string          `json:"status"`
 			Input  json.RawMessage `json:"input"`
 			Error  string          `json:"error"`
@@ -168,6 +178,14 @@ func (p *parser) Line(b []byte) {
 	case "text":
 		p.out.Text = e.Part.Text
 	case "step_finish":
+		u := &p.out.Usage
+		u.CostUSD += e.Part.Cost
+		u.CostReported = u.CostReported || e.Part.Cost > 0
+		u.InputTokens += e.Part.Tokens.Input
+		u.OutputTokens += e.Part.Tokens.Output
+		u.ReasoningTokens += e.Part.Tokens.Reasoning
+		u.CacheReadTokens += e.Part.Tokens.Cache.Read
+		u.CacheWriteTokens += e.Part.Tokens.Cache.Write
 		if e.Part.Reason == "stop" {
 			p.out.Finished = true
 		}

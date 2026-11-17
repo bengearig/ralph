@@ -1,7 +1,11 @@
 package headless
 
 import (
+	"fmt"
+	"math"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bengearig/ralph/internal/config"
 	"github.com/bengearig/ralph/internal/harness"
@@ -95,6 +99,13 @@ func NewRequest(cfg *config.Config, root, prompt string, mcp harness.MCPServer) 
 		Mode:   mode,
 		Allow:  Restricted(verify.FromConfig(cfg, root).Commands, extra),
 	}
+	if v, ok := cfg.Get("headless.budget_usd"); ok {
+		f, err := strconv.ParseFloat(v.Value, 64)
+		if err != nil || math.IsNaN(f) || math.IsInf(f, 0) || f < 0 {
+			return harness.HeadlessRequest{}, fmt.Errorf("headless.budget_usd: %q is not a number of at least 0", v.Value)
+		}
+		req.BudgetUSD = f
+	}
 	if mode == harness.PermissionAuto {
 		req.Allow.Commands = nil
 		req.Allow.Tools = nil
@@ -103,4 +114,18 @@ func NewRequest(cfg *config.Config, root, prompt string, mcp harness.MCPServer) 
 		return harness.HeadlessRequest{}, err
 	}
 	return req, nil
+}
+
+// NewOptions reads the run limits from the configuration; the caller adds
+// Stdout. The cost cap travels in the request and Execute copies it.
+func NewOptions(cfg *config.Config) (Options, error) {
+	v, ok := cfg.Get("headless.timeout")
+	if !ok {
+		return Options{}, fmt.Errorf("headless.timeout: not set")
+	}
+	d, err := time.ParseDuration(v.Value)
+	if err != nil || d <= 0 {
+		return Options{}, fmt.Errorf("headless.timeout: %q is not a duration greater than zero", v.Value)
+	}
+	return Options{Timeout: d}, nil
 }

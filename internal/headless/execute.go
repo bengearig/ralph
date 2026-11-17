@@ -15,5 +15,7 @@ func Execute(ctx context.Context, a harness.Adapter, req harness.HeadlessRequest
 	if err != nil {
 		return Result{}, err
 	}
+	opt.BudgetUSD = req.BudgetUSD
+	opt.NativeBudget = a.Capabilities().NativeBudget
 	return Run(ctx, inv, a.NewParser(), opt)
 }

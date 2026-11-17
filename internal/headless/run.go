@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bengearig/ralph/internal/harness"
@@ -25,6 +26,10 @@ const (
 	readBuffer   = 64 << 10
 )
 
+// NoteBudgetNotChecked is the note added when a cap is set and the harness
+// reported no cost.
+const NoteBudgetNotChecked = "budget not checked: the harness reported no cost"
+
 // maxLine is the longest output line passed to the parser; a variable so
 // tests can lower it.
 var maxLine = 32 << 20
@@ -36,6 +41,11 @@ type Options struct {
 	// Grace is how long a terminated process group has before it is killed;
 	// zero means 5 seconds.
 	Grace time.Duration
+	// BudgetUSD caps the cost of the run; zero means none.
+	BudgetUSD float64
+	// NativeBudget is set when the harness stops itself at the cap, so ralph
+	// only checks the final cost.
+	NativeBudget bool
 	// Stdout, when set, receives every byte of standard output unchanged.
 	Stdout io.Writer
 }
@@ -109,12 +119,26 @@ func Run(ctx context.Context, inv harness.Invocation, p harness.Parser, opt Opti
 	}
 
 	var res Result
+	var budgetStopped atomic.Bool
 	var skipped int
 	var writeErr error
+	overBudget := make(chan struct{})
+	var onLine func()
+	if opt.BudgetUSD > 0 && !opt.NativeBudget {
+		var once sync.Once
+		onLine = func() {
+			if p.Usage().CostUSD > opt.BudgetUSD {
+				once.Do(func() {
+					budgetStopped.Store(true)
+					close(overBudget)
+				})
+			}
+		}
+	}
 	outDone := make(chan struct{})
 	go func() {
 		defer close(outDone)
-		skipped, writeErr = readLines(outR, opt.Stdout, p)
+		skipped, writeErr = readLines(outR, opt.Stdout, p, onLine)
 	}()
 	tail := &tailBuffer{max: stderrKept}
 	errDone := make(chan struct{})
@@ -140,6 +164,7 @@ func Run(ctx context.Context, inv harness.Invocation, p harness.Parser, opt Opti
 			res.Canceled = true
 		case <-expire:
 			res.TimedOut = true
+		case <-overBudget:
 		}
 		terminateGroup(cmd)
 		g := time.NewTimer(grace)
@@ -177,6 +202,15 @@ func Run(ctx context.Context, inv harness.Invocation, p harness.Parser, opt Opti
 	res.SkippedLines = skipped
 	res.Stderr = tail.String()
 	res.Outcome = p.Outcome()
+	res.BudgetStopped = budgetStopped.Load()
+	if opt.BudgetUSD > 0 {
+		if res.BudgetStopped || res.Outcome.Usage.CostUSD > opt.BudgetUSD {
+			res.Outcome.BudgetExceeded = true
+		}
+		if !res.Outcome.Usage.CostReported && !res.Outcome.BudgetExceeded {
+			res.Notes = append(res.Notes, NoteBudgetNotChecked)
+		}
+	}
 	if writeErr != nil {
 		return res, fmt.Errorf("headless: writing output: %w", writeErr)
 	}
@@ -212,7 +246,7 @@ func mergeEnv(base, additions []string) []string {
 // readLines passes each non-empty line to p and copies every byte to w. A
 // write error stops further writes but not the reading, so the process is
 // never blocked on a full pipe.
-func readLines(r io.Reader, w io.Writer, p harness.Parser) (int, error) {
+func readLines(r io.Reader, w io.Writer, p harness.Parser, after func()) (int, error) {
 	br := bufio.NewReaderSize(r, readBuffer)
 	var (
 		line    []byte
@@ -229,6 +263,9 @@ func readLines(r io.Reader, w io.Writer, p harness.Parser) (int, error) {
 				skipped++
 			} else if len(line) > 0 {
 				p.Line(line)
+				if after != nil {
+					after()
+				}
 			}
 		}
 		line, over = line[:0], false

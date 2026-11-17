@@ -2,6 +2,7 @@ package opencode
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -125,7 +126,8 @@ func fixture(t *testing.T, name string) string {
 
 func TestOpenCodeParserSuccessStream(t *testing.T) {
 	out := parse(fixture(t, "success.jsonl"))
-	want := harness.Outcome{Finished: true, Success: true, Text: "All done.", SessionID: "ses_1", Denials: []harness.Denial{}}
+	want := harness.Outcome{Finished: true, Success: true, Text: "All done.", SessionID: "ses_1", Denials: []harness.Denial{},
+		Usage: harness.Usage{InputTokens: 389, OutputTokens: 131}}
 	if !reflect.DeepEqual(out, want) {
 		t.Errorf("Outcome = %+v, want %+v", out, want)
 	}
@@ -159,3 +161,39 @@ func TestOpenCodeParserLatestTextWins(t *testing.T) {
 		t.Errorf("Text = %q", out.Text)
 	}
 }
+
+func stepFinish(cost string, in, out, reasoning, read, write int) string {
+	return fmt.Sprintf(`{"type":"step_finish","sessionID":"s","part":{"type":"step-finish","reason":"tool-calls","cost":%s,"tokens":{"input":%d,"output":%d,"reasoning":%d,"cache":{"read":%d,"write":%d}}}}`, cost, in, out, reasoning, read, write)
+}
+
+func TestOpenCodeParserUsageSumsSteps(t *testing.T) {
+	out := parse(lines(stepFinish("0.25", 10, 20, 1, 100, 5), `{"type":"text","part":{"text":"hi"}}`, stepFinish("0.5", 1, 2, 3, 4, 5)))
+	want := harness.Usage{CostUSD: 0.75, CostReported: true, InputTokens: 11, OutputTokens: 22, ReasoningTokens: 4, CacheReadTokens: 104, CacheWriteTokens: 10}
+	if out.Usage != want {
+		t.Errorf("Usage = %+v, want %+v", out.Usage, want)
+	}
+}
+
+func TestOpenCodeParserCostReportedNeedsPositiveCost(t *testing.T) {
+	out := parse(lines(stepFinish("0", 189, 111, 0, 0, 0), stepFinish("0", 1, 1, 0, 0, 0)))
+	if out.Usage.CostReported || out.Usage.CostUSD != 0 || out.Usage.InputTokens != 190 || out.Usage.OutputTokens != 112 {
+		t.Errorf("Usage = %+v", out.Usage)
+	}
+}
+
+func TestOpenCodeParserUsageLiveAfterEachStep(t *testing.T) {
+	p := New().NewParser()
+	if p.Usage() != (harness.Usage{}) {
+		t.Fatalf("Usage = %+v", p.Usage())
+	}
+	p.Line([]byte(stepFinish("0.25", 1, 1, 0, 0, 0)))
+	if u := p.Usage(); u.CostUSD != 0.25 || !u.CostReported {
+		t.Errorf("after one step: %+v", u)
+	}
+	p.Line([]byte(stepFinish("0.25", 1, 1, 0, 0, 0)))
+	if u := p.Usage(); u.CostUSD != 0.5 || u.InputTokens != 2 {
+		t.Errorf("after two steps: %+v", u)
+	}
+}
+
+func lines(l ...string) string { return strings.Join(l, "\n") }

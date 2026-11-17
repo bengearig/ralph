@@ -31,7 +31,7 @@ func TestExecuteRunsAdapterAgainstFakeHarness(t *testing.T) {
 		dir     string
 		errText string
 	}{
-		{claudecode.New(), "claude", "claudecode", "maximum budget"},
+		{claudecode.New(), "claude", "claudecode", "budget exceeded"},
 		{opencode.New(), "opencode", "opencode", "Free usage limit"},
 	}
 	for _, c := range cases {

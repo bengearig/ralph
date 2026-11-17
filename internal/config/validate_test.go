@@ -2,6 +2,8 @@ package config
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -219,6 +221,59 @@ func TestStorageBackupsKeepValidation(t *testing.T) {
 	for _, v := range []string{"1", "5", "20"} {
 		if err := s.Validate(v); err != nil {
 			t.Errorf("Validate(%q) = %v", v, err)
+		}
+	}
+}
+
+func TestHeadlessBudgetSetting(t *testing.T) {
+	s, ok := DefaultRegistry().Lookup("headless.budget_usd")
+	if !ok || s.Default != "0" || s.Scope != ScopeProject || s.Description == "" {
+		t.Fatalf("headless.budget_usd = %+v, %v", s, ok)
+	}
+	for _, v := range []string{"0", "5", "0.25"} {
+		if err := s.Validate(v); err != nil {
+			t.Errorf("%q rejected: %v", v, err)
+		}
+	}
+	for _, v := range []string{"-1", "abc", "NaN", "Inf", "-Inf", ""} {
+		if err := s.Validate(v); err == nil {
+			t.Errorf("%q accepted", v)
+		}
+	}
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".ralph"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".ralph", "project.yaml"), []byte("headless:\n  budget_usd: 0.25\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(Options{
+		Registry:    DefaultRegistry(),
+		UserFile:    filepath.Join(t.TempDir(), "user.yaml"),
+		ProjectRoot: root,
+		Getenv:      func(string) (string, bool) { return "", false },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := cfg.Get("headless.budget_usd"); !ok || v.Value != "0.25" || v.Layer != LayerProject || len(cfg.Warnings()) != 0 {
+		t.Errorf("value = %+v, %v, warnings %v", v, ok, cfg.Warnings())
+	}
+}
+
+func TestHeadlessTimeoutSetting(t *testing.T) {
+	s, ok := DefaultRegistry().Lookup("headless.timeout")
+	if !ok || s.Default != "30m" || s.Scope != ScopeProject || s.Description == "" {
+		t.Fatalf("headless.timeout = %+v, %v", s, ok)
+	}
+	for _, v := range []string{"90s", "30m", "1ns"} {
+		if err := s.Validate(v); err != nil {
+			t.Errorf("%q rejected: %v", v, err)
+		}
+	}
+	for _, v := range []string{"0", "0s", "-5m", "soon", ""} {
+		if err := s.Validate(v); err == nil {
+			t.Errorf("%q accepted", v)
 		}
 	}
 }
