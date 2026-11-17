@@ -474,3 +474,160 @@ func TestSyncRateLimitedPushStopsPass(t *testing.T) {
 		t.Fatalf("second pass err = %v", err)
 	}
 }
+
+func TestSyncMoveSetsMappedStatusAfterMove(t *testing.T) {
+	e := newEnv(t)
+	e.mapTasks()
+	_, _, tk := e.tree()
+	e.mustSync()
+	e.setState(tk.ID, units.StateTodo, units.StateInProgress)
+	e.mustSync()
+	row := e.row(tk.ID)
+	if row.PushedStatus != "In Progress" || row.MappedStatus != "In Progress" {
+		t.Fatalf("row = %+v", row)
+	}
+	e.sys.moveEnds = map[string]string{"ABC-3": "Review"}
+	e.setState(tk.ID, units.StateDone)
+	e.mustSync()
+	if row := e.row(tk.ID); row.PushedStatus != "Review" || row.MappedStatus != "Done" {
+		t.Fatalf("row after a move that ends elsewhere: %+v", row)
+	}
+}
+
+func TestSyncMoveFailureKeepsMappedStatus(t *testing.T) {
+	e := newEnv(t)
+	e.mapTasks()
+	_, _, tk := e.tree()
+	e.mustSync()
+	e.setState(tk.ID, units.StateTodo, units.StateInProgress, units.StateDone)
+	e.mustSync()
+	row := e.row(tk.ID)
+	if row.FailedStep != "move" || row.PushedStatus != "To Do" || row.MappedStatus != "" {
+		t.Fatalf("row = %+v", row)
+	}
+}
+
+func TestSyncMoveNewRowUsesPushedStatusWhenMappedEmpty(t *testing.T) {
+	e := newEnv(t)
+	e.mapTasks()
+	_, _, tk := e.tree()
+	e.direct()
+	e.mustSync()
+	if row := e.row(tk.ID); row.MappedStatus != "" || row.PushedStatus != "To Do" {
+		t.Fatalf("created row = %+v", row)
+	}
+	e.setState(tk.ID, units.StateTodo, units.StateInProgress)
+	e.mustSync()
+	if got := e.ticket("ABC-3").Status; got != "In Progress" {
+		t.Fatalf("status = %q", got)
+	}
+}
+
+func TestSyncMoveOlderRowBehavesAsBefore(t *testing.T) {
+	e := newEnv(t)
+	e.mapTasks()
+	_, _, tk := e.tree()
+	e.direct()
+	e.mustSync()
+	e.setState(tk.ID, units.StateTodo)
+	e.mustSync()
+	row := e.row(tk.ID)
+	row.MappedStatus = ""
+	if err := e.store.Put(e.ctx, row); err != nil {
+		t.Fatal(err)
+	}
+	before := e.count("Move")
+	e.mustSync()
+	if e.count("Move") != before {
+		t.Fatalf("an unchanged unit was moved: %q", e.fake.Calls())
+	}
+	e.setState(tk.ID, units.StateInProgress)
+	e.mustSync()
+	if got := e.ticket("ABC-3").Status; got != "In Progress" {
+		t.Fatalf("status = %q", got)
+	}
+}
+
+// acceptedStatus syncs a task, has a person move its ticket to Done, and accepts that.
+func (e *env) acceptedStatus() (unit, key string) {
+	e.t.Helper()
+	e.mapTasks()
+	_, _, tk := e.tree()
+	e.direct()
+	e.mustSync()
+	e.setState(tk.ID, units.StateTodo)
+	e.mustSync()
+	key = e.row(tk.ID).Key
+	e.fake.ForceStatus(key, "Done")
+	if _, err := Check(e.ctx, e.deps, ObserveOptions{}); err != nil {
+		e.t.Fatal(err)
+	}
+	if err := e.resolve(tk.ID, ActionAccept, "status"); err != nil {
+		e.t.Fatal(err)
+	}
+	return tk.ID, key
+}
+
+func TestSyncMoveHoldsAfterAcceptedStatus(t *testing.T) {
+	e := newEnv(t)
+	id, key := e.acceptedStatus()
+	before := e.count("Move")
+	e.mustSync()
+	e.mustSync()
+	if e.count("Move") != before {
+		t.Fatalf("moves after accept: %d, before %d", e.count("Move"), before)
+	}
+	if got := e.ticket(key).Status; got != "Done" {
+		t.Fatalf("status = %q", got)
+	}
+	if row := e.row(id); row.PushedStatus != "Done" || row.MappedStatus != "To Do" {
+		t.Fatalf("row = %+v", row)
+	}
+}
+
+func TestSyncMoveAfterAcceptWhenUnitStateChanges(t *testing.T) {
+	e := newEnv(t)
+	id, key := e.acceptedStatus()
+	e.setState(id, units.StateInProgress)
+	e.mustSync()
+	if got := e.ticket(key).Status; got != "In Progress" {
+		t.Fatalf("status = %q", got)
+	}
+	if row := e.row(id); row.PushedStatus != "In Progress" || row.MappedStatus != "In Progress" {
+		t.Fatalf("row = %+v", row)
+	}
+}
+
+func TestSyncMoveAfterAcceptWhenStatesSettingChanges(t *testing.T) {
+	e := newEnv(t)
+	id, key := e.acceptedStatus()
+	e.deps.Settings.States = map[string]string{"TODO": "In Progress"}
+	e.mustSync()
+	if got := e.ticket(key).Status; got != "In Progress" {
+		t.Fatalf("status = %q", got)
+	}
+	if row := e.row(id); row.MappedStatus != "In Progress" {
+		t.Fatalf("row = %+v", row)
+	}
+}
+
+func TestSyncMoveAfterOverwriteStatus(t *testing.T) {
+	e := newEnv(t)
+	e.direct()
+	_, s, _ := e.tree()
+	e.mustSync()
+	key := e.row(s.ID).Key
+	e.fake.ForceStatus(key, "Done")
+	if _, err := Check(e.ctx, e.deps, ObserveOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.resolve(s.ID, ActionOverwrite, "status"); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.ticket(key).Status; got != "To Do" {
+		t.Fatalf("status = %q", got)
+	}
+	if row := e.row(s.ID); row.PushedStatus != "To Do" || row.MappedStatus != "To Do" {
+		t.Fatalf("row = %+v", row)
+	}
+}

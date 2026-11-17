@@ -1,6 +1,11 @@
 package tickets
 
-import "github.com/bengearig/ralph/internal/taskmanager"
+import (
+	"context"
+	"fmt"
+
+	"github.com/bengearig/ralph/internal/taskmanager"
+)
 
 var defaultStatuses = map[string]string{
 	"EMPTY":           "To Do",
@@ -22,4 +27,14 @@ func StatusFor(s taskmanager.Settings, state string) (string, bool) {
 	}
 	status, ok := defaultStatuses[state]
 	return status, ok
+}
+
+// WantedStatus returns the ticket status the unit's derived status or task state maps to now, empty when none.
+func WantedStatus(ctx context.Context, d Deps, unitID string) (string, error) {
+	states, err := d.Units.Statuses(ctx, []string{unitID})
+	if err != nil {
+		return "", fmt.Errorf("tickets: status of %s: %w", unitID, err)
+	}
+	status, _ := StatusFor(d.Settings, string(states[unitID]))
+	return status, nil
 }

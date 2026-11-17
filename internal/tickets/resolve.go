@@ -243,6 +243,11 @@ func accept(ctx context.Context, d Deps, store *Store, row Row, p ResolvePlan) e
 	}
 	if hasStatus {
 		row.PushedStatus = status.To
+		wanted, err := WantedStatus(ctx, d, p.Unit)
+		if err != nil {
+			return err
+		}
+		row.MappedStatus = wanted
 	}
 	if hasDeleted {
 		err := d.Units.RemoveLink(ctx, p.Unit, units.LinkExternal, linkPrefix+row.Key)
@@ -269,7 +274,7 @@ func overwrite(ctx context.Context, d Deps, store *Store, row Row, p ResolvePlan
 		row.PushedBody = ""
 	}
 	if _, ok := change(p, "status"); ok {
-		row.PushedStatus = ""
+		row.PushedStatus, row.MappedStatus = "", ""
 	}
 	settle(&row, p)
 	return store.Put(ctx, row)

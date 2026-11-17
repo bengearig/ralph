@@ -286,3 +286,7 @@ CREATE TABLE ticket_state (
 	value TEXT NOT NULL
 );
 `
+
+const addMappedStatusSQL = `
+ALTER TABLE tickets ADD COLUMN mapped_status TEXT NOT NULL DEFAULT '';
+`

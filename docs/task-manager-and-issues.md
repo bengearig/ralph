@@ -149,6 +149,8 @@ neither runs on its own:
 - `ralph tickets accept <unit>` imports Jira's values: the title is set, the body is set from the ticket's description
   converted back to Markdown, a different status is acknowledged without moving anything, and a deleted ticket is
   detached. The unit changes like any edit, a note records what was accepted, and what was pushed follows.
+  Accepting a status leaves the ticket where it is until the unit's mapped status changes (the unit's state changes,
+  or `jira.states` maps the same state elsewhere); overwriting a status moves the ticket to the mapped status.
 - `ralph tickets overwrite <unit>` pushes ralph's title, body and status over Jira's. A deleted ticket is created again
   with a new key.
 

@@ -456,3 +456,79 @@ func TestResolveOverwriteAddsNote(t *testing.T) {
 		t.Fatalf("notes = %q", got)
 	}
 }
+
+func (e *env) driftedStatus() (unit, key string) {
+	e.t.Helper()
+	e.direct()
+	_, s, _ := e.tree()
+	e.mustSync()
+	key = e.row(s.ID).Key
+	e.fake.ForceStatus(key, "Done")
+	if _, err := Check(e.ctx, e.deps, ObserveOptions{}); err != nil {
+		e.t.Fatal(err)
+	}
+	return s.ID, key
+}
+
+func TestResolveAcceptStatusSetsPushedAndMapped(t *testing.T) {
+	e := newEnv(t)
+	id, _ := e.driftedStatus()
+	if err := e.resolve(id, ActionAccept); err != nil {
+		t.Fatal(err)
+	}
+	if row := e.row(id); row.PushedStatus != "Done" || row.MappedStatus != "To Do" {
+		t.Fatalf("row = %+v", row)
+	}
+}
+
+func TestResolveAcceptStatusUnmappedStateLeavesMappedEmpty(t *testing.T) {
+	e := newEnv(t)
+	e.mapTasks()
+	_, _, tk := e.tree()
+	e.direct()
+	e.mustSync()
+	e.setState(tk.ID, units.StateTodo, units.StateBlocked)
+	key := e.row(tk.ID).Key
+	e.fake.ForceStatus(key, "Done")
+	if _, err := Check(e.ctx, e.deps, ObserveOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.resolve(tk.ID, ActionAccept, "status"); err != nil {
+		t.Fatal(err)
+	}
+	if row := e.row(tk.ID); row.PushedStatus != "Done" || row.MappedStatus != "" {
+		t.Fatalf("row = %+v", row)
+	}
+}
+
+func TestResolveOverwriteStatusClearsBoth(t *testing.T) {
+	e := newEnv(t)
+	id, _ := e.driftedStatus()
+	row := e.row(id)
+	row.MappedStatus = "To Do"
+	if err := e.store.Put(e.ctx, row); err != nil {
+		t.Fatal(err)
+	}
+	e.sys.moveFails[row.Key] = errors.New("down")
+	_ = e.resolve(id, ActionOverwrite)
+	if row := e.row(id); row.PushedStatus != "" || row.MappedStatus != "" {
+		t.Fatalf("row = %+v", row)
+	}
+}
+
+func TestResolveAcceptTitleLeavesStatusColumnsAlone(t *testing.T) {
+	e := newEnv(t)
+	id, key := e.driftedStatus()
+	e.fake.Edit(key, taskmanager.Fields{Title: "Renamed", Body: "body of Slice"})
+	if _, err := Check(e.ctx, e.deps, ObserveOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	before := e.row(id)
+	if err := e.resolve(id, ActionAccept, "title"); err != nil {
+		t.Fatal(err)
+	}
+	row := e.row(id)
+	if row.PushedStatus != before.PushedStatus || row.MappedStatus != before.MappedStatus {
+		t.Fatalf("before %+v, after %+v", before, row)
+	}
+}

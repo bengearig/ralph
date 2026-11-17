@@ -146,3 +146,30 @@ func TestTicketsCommandResolveLongValuesCut(t *testing.T) {
 		t.Fatalf("out %q", out)
 	}
 }
+
+func TestTicketsCommandAcceptPlanShowsStaysLine(t *testing.T) {
+	f := newTicketsFixture(t)
+	f.syncedTickets()
+	f.srv.Edit("RAL-2", taskmanager.Fields{Title: "Edited in Jira", Body: "body of First slice"})
+	f.pushedStatus("S-1", "In Progress")
+	if code, _, stderr := run(t, "tickets", "check"); code != 0 {
+		t.Fatalf("check: %d %q", code, stderr)
+	}
+	code, out, stderr := run(t, "tickets", "accept", "S-1")
+	want := "accept S-1 from RAL-2\n" +
+		"  title: \"First slice\" -> \"Edited in Jira\"\n" +
+		"  status: In Progress -> To Do\n" +
+		"  the ticket stays at To Do until ralph maps the unit to another status\n" +
+		"run again with --yes to apply\n"
+	if code != 0 || out != want || stderr != "" {
+		t.Fatalf("code %d\nout  %q\nwant %q\nstderr %q", code, out, want, stderr)
+	}
+	code, out, stderr = run(t, "tickets", "accept", "S-1", "--field", "title")
+	if code != 0 || strings.Contains(out, "stays at") || stderr != "" {
+		t.Fatalf("title only: code %d out %q stderr %q", code, out, stderr)
+	}
+	code, out, _ = run(t, "tickets", "overwrite", "S-1")
+	if code != 0 || strings.Contains(out, "stays at") {
+		t.Fatalf("overwrite: code %d out %q", code, out)
+	}
+}

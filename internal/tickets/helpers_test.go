@@ -23,6 +23,8 @@ type flaky struct {
 	scheduleFails map[string]error
 	updateFails   map[string]error
 	moveFails     map[string]error
+	// moveEnds makes a move report that the ticket ended at this status.
+	moveEnds map[string]string
 }
 
 func (f *flaky) Update(ctx context.Context, key string, fields taskmanager.Fields) error {
@@ -36,7 +38,11 @@ func (f *flaky) Move(ctx context.Context, key, status string, flow []string) (ta
 	if err := f.moveFails[key]; err != nil {
 		return taskmanager.Move{}, err
 	}
-	return f.Fake.Move(ctx, key, status, flow)
+	m, err := f.Fake.Move(ctx, key, status, flow)
+	if to := f.moveEnds[key]; err == nil && to != "" {
+		m.To = to
+	}
+	return m, err
 }
 
 func (f *flaky) Create(ctx context.Context, n taskmanager.New) (taskmanager.Ticket, error) {

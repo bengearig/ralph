@@ -453,10 +453,15 @@ func (p *pass) pushFields(ctx context.Context, u units.Unit, want Desired) (held
 	return false, nil
 }
 
-// pushStatus moves the ticket to the status the unit's state maps to when that is not where it was last put.
+// pushStatus moves the ticket to the status the unit's state maps to when that differs from the status ralph last
+// mapped and acted on.
 func (p *pass) pushStatus(ctx context.Context, u units.Unit, want Desired) error {
 	row := p.byID[u.ID]
-	if want.Status == "" || strings.EqualFold(want.Status, row.PushedStatus) || p.deferred(u, row, stepMove) {
+	last := row.MappedStatus
+	if last == "" {
+		last = row.PushedStatus
+	}
+	if want.Status == "" || strings.EqualFold(want.Status, last) || p.deferred(u, row, stepMove) {
 		return nil
 	}
 	moved, err := p.d.System.Move(ctx, row.Key, want.Status, p.d.Settings.Flow)
@@ -469,7 +474,7 @@ func (p *pass) pushStatus(ctx context.Context, u units.Unit, want Desired) error
 	if moved.To == "" {
 		moved.To = want.Status
 	}
-	row.PushedStatus = moved.To
+	row.PushedStatus, row.MappedStatus = moved.To, want.Status
 	clearFailure(&row, stepMove)
 	row.SyncedAt = p.d.now()
 	if err := p.put(ctx, row); err != nil {

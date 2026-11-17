@@ -445,6 +445,9 @@ func writeResolvePlan(out io.Writer, plan tickets.ResolvePlan) error {
 			line = fmt.Sprintf("body: %d characters -> %d characters", utf8.RuneCountInString(c.From), utf8.RuneCountInString(c.To))
 		case "status":
 			line = fmt.Sprintf("status: %s -> %s", c.From, c.To)
+			if plan.Action == tickets.ActionAccept {
+				line += fmt.Sprintf("\n  the ticket stays at %s until ralph maps the unit to another status", c.To)
+			}
 		case "deleted":
 			line = "deleted: " + c.To
 		default:

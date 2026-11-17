@@ -879,3 +879,30 @@ func TestE2ETicketsMigration(t *testing.T) {
 		t.Errorf("status after migrating: %s", r.stderr)
 	}
 }
+
+func TestTicketsCommandAcceptStatusThenSyncMovesNothing(t *testing.T) {
+	j := newJiraE2E(t, false, "")
+	cs := j.connect(t, io.Discard)
+	b := e2eCreate(t, cs, "brief", "", "Ship it", "Why.")
+	s := e2eCreate(t, cs, "slice", b, "A slice", "Body.")
+	waitFor(t, "the tickets", func() bool { return e2eLinksCount(t, cs, b, s) == 2 })
+	key := strings.TrimPrefix(e2eLinks(t, cs, s)[0], "jira:")
+
+	j.moveInJira(t, key, "In Progress")
+	if r := j.mustRun(t, "tickets", "check"); !strings.Contains(r.stdout, s+" "+key+": status differ in Jira") {
+		t.Fatalf("check:\n%s", r.stdout)
+	}
+	j.srv.ResetRequests()
+	r := j.mustRun(t, "tickets", "accept", s, "--yes")
+	if !strings.HasPrefix(r.stdout, "accepted "+s+" status") {
+		t.Fatalf("accept:\n%s", r.stdout)
+	}
+	j.mustRun(t, "tickets", "sync")
+	j.mustRun(t, "tickets", "sync")
+	if n := j.requestsMatching(http.MethodPost, "/transitions"); n != 0 {
+		t.Errorf("%d transitions after the accept", n)
+	}
+	if got := j.status(t, key); got != "In Progress" {
+		t.Errorf("status = %q", got)
+	}
+}
