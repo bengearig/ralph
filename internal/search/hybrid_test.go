@@ -28,6 +28,8 @@ type stubSemantic struct {
 
 func (s *stubSemantic) CatchUp(context.Context, int) (int, error) { return 0, nil }
 
+func (s *stubSemantic) Stale(context.Context) (string, error) { return "", nil }
+
 func (s *stubSemantic) Empty(context.Context) (bool, error) { return false, nil }
 
 func (s *stubSemantic) Query(_ context.Context, q SemanticQuery) ([]SemanticHit, error) {

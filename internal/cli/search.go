@@ -41,7 +41,7 @@ func newSearchService(a *app, d *db.DB) (search.Service, func(), error) {
 	if err != nil {
 		return nil, noop, err
 	}
-	searcher := semantic.NewSearcher(semantic.SearcherDeps{DB: d, Index: idx, Provider: provider, Settings: settings})
+	searcher := semantic.NewSearcher(semantic.SearcherDeps{DB: d, Index: idx, Provider: provider, Settings: settings, Describer: semantic.NewDescriber(provider, time.Now)})
 	return search.NewHybrid(keyword, searcher, search.HybridOptions{Timeout: min(settings.Timeout, maxSearchTimeout)}), func() { _ = idx.Close() }, nil
 }
 

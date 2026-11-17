@@ -13,6 +13,7 @@ import (
 
 	"github.com/bengearig/ralph/internal/db"
 	"github.com/bengearig/ralph/internal/embed"
+	"github.com/bengearig/ralph/internal/embed/core"
 	"github.com/bengearig/ralph/internal/embed/embedtest"
 	"github.com/bengearig/ralph/internal/search"
 	"github.com/bengearig/ralph/internal/semantic"
@@ -176,6 +177,7 @@ func TestHybridFallbackOnDimensionMismatch(t *testing.T) {
 	e.task("lemur feeding", "fruit")
 	e.sync()
 	other := embedtest.NewFake(8)
+	other.SetInfo(core.Info{Digest: "fake", Dimensions: 16})
 	s := semantic.NewSearcher(semantic.SearcherDeps{DB: e.d, Index: e.index, Provider: other, Settings: e.settings})
 	h := search.NewHybrid(search.New(e.d), s, search.HybridOptions{Now: e.clock})
 	e.task("lemur again", "new")

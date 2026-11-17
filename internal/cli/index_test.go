@@ -65,13 +65,21 @@ func TestIndexCommandUpToDate(t *testing.T) {
 	if code, _, stderr := run(t, "index"); code != 0 {
 		t.Fatal(stderr)
 	}
-	before := len(srv.Requests())
+	embeds := func() (n int) {
+		for _, r := range srv.Requests() {
+			if r.Path == "/api/embed" {
+				n++
+			}
+		}
+		return n
+	}
+	before := embeds()
 	code, out, stderr := run(t, "index")
 	if want := "indexed 0 records (0 chunks), removed 0\nindex is up to date\n"; code != 0 || out != want || stderr != "" {
 		t.Fatalf("code %d out %q stderr %q", code, out, stderr)
 	}
-	if len(srv.Requests()) != before {
-		t.Error("an up to date index called the provider")
+	if embeds() != before {
+		t.Error("an up to date index embedded something")
 	}
 }
 
@@ -107,7 +115,7 @@ func TestIndexCommandStatus(t *testing.T) {
 	check := func(out string, want ...string) {
 		t.Helper()
 		lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
-		if len(lines) != len(want)+1 || !file.MatchString(lines[len(lines)-1]) {
+		if len(lines) < len(want)+1 || !file.MatchString(lines[len(want)]) {
 			t.Fatalf("output %q", out)
 		}
 		for i, w := range want {

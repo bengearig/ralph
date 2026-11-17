@@ -29,6 +29,8 @@ type Semantic interface {
 	CatchUp(ctx context.Context, maxRecords int) (waiting int, err error)
 	// Empty reports whether the index holds no vectors.
 	Empty(ctx context.Context) (bool, error)
+	// Stale returns why the index cannot be searched because another configuration built it, or an empty string.
+	Stale(ctx context.Context) (reason string, err error)
 }
 
 // SemanticQuery asks for at most Depth hits.
@@ -132,6 +134,10 @@ func rankOrLast(r int) int {
 
 var errEmptyIndex = errors.New("the semantic index is empty")
 
+type staleError struct{ reason string }
+
+func (e staleError) Error() string { return "the semantic index is stale: " + e.reason }
+
 const (
 	defaultHybridTimeout = 5 * time.Second
 	defaultCatchUp       = 5
@@ -216,6 +222,16 @@ func (h *hybrid) fallback(ctx context.Context, q Query, reason string) (Result, 
 	return res, nil
 }
 
+func (h *hybrid) staleFallback(ctx context.Context, q Query, reason string) (Result, error) {
+	res, err := h.keyword.Search(ctx, q)
+	if err != nil {
+		return Result{}, err
+	}
+	res.Mode = ModeKeywordFallback
+	res.Notice = fmt.Sprintf("semantic search is off: the index was built with a different embedding configuration (%s); to rebuild it run \"ralph index --rebuild\"", reason)
+	return res, nil
+}
+
 func (h *hybrid) Search(ctx context.Context, q Query) (Result, error) {
 	_, limit, err := validate(q)
 	if err != nil {
@@ -230,6 +246,10 @@ func (h *hybrid) Search(ctx context.Context, q Query) (Result, error) {
 	}
 	if ctx.Err() != nil {
 		return Result{}, err
+	}
+	var stale staleError
+	if errors.As(err, &stale) {
+		return h.staleFallback(ctx, q, stale.reason)
 	}
 	if errors.Is(err, errEmptyIndex) {
 		return h.fallback(ctx, q, emptyReason)
@@ -249,6 +269,13 @@ func (h *hybrid) semanticSearch(ctx context.Context, q Query, limit int) (Result
 
 	cctx, cancel := context.WithTimeout(ctx, h.opts.Timeout)
 	defer cancel()
+	reason, err := h.sem.Stale(cctx)
+	if err != nil {
+		return Result{}, err
+	}
+	if reason != "" {
+		return Result{}, staleError{reason}
+	}
 	waiting, err := h.sem.CatchUp(cctx, h.opts.CatchUpRecords)
 	if err != nil {
 		return Result{}, err

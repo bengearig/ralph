@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/bengearig/ralph/internal/db"
 	"github.com/bengearig/ralph/internal/embed"
@@ -20,6 +22,8 @@ type SearcherDeps struct {
 	Index    *vecindex.Store
 	Provider embed.Provider
 	Settings embed.Settings
+	// Describer caches the provider's description of its model; nil makes one over Provider.
+	Describer *Describer
 }
 
 // Searcher finds records by meaning. It reads the index and the store and writes neither.
@@ -30,7 +34,21 @@ type Searcher struct {
 var _ search.Semantic = (*Searcher)(nil)
 
 // NewSearcher returns a Searcher over the index.
-func NewSearcher(d SearcherDeps) *Searcher { return &Searcher{d: d} }
+func NewSearcher(d SearcherDeps) *Searcher {
+	if d.Describer == nil && d.Provider != nil {
+		d.Describer = NewDescriber(d.Provider, time.Now)
+	}
+	return &Searcher{d: d}
+}
+
+// Stale returns why the index cannot be searched, or an empty string when it can.
+func (s *Searcher) Stale(ctx context.Context) (string, error) {
+	f, err := Verify(ctx, VerifyDeps{Index: s.d.Index, Describer: s.d.Describer, Settings: s.d.Settings, Now: time.Now})
+	if err != nil || !f.Stale {
+		return "", err
+	}
+	return strings.Join(f.Reasons, "; "), nil
+}
 
 // current is a record as the store has it now.
 type current struct {

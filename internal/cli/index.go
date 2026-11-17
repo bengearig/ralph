@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io/fs"
 	"os/signal"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/bengearig/ralph/internal/db"
 	"github.com/bengearig/ralph/internal/embed"
@@ -34,6 +36,10 @@ type indexStatus struct {
 	Gone       int    `json:"gone"`
 	File       string `json:"file"`
 	Bytes      int64  `json:"bytes"`
+
+	BuiltWith    *embed.Fingerprint `json:"built_with,omitempty"`
+	State        string             `json:"state"`
+	StaleReasons []string           `json:"stale_reasons,omitempty"`
 }
 
 func newIndexCommand(a *app) *cobra.Command {
@@ -76,6 +82,13 @@ func newIndexCommand(a *app) *cobra.Command {
 			deps := semantic.SyncDeps{DB: d, Index: idx, Provider: provider, Settings: settings}
 			if status {
 				return runIndexStatus(ctx, cmd, a, deps, asJSON)
+			}
+			finding, err := semantic.Verify(ctx, semantic.VerifyDeps{Index: idx, Describer: semantic.NewDescriber(provider, time.Now), Settings: settings, Now: time.Now})
+			if err != nil {
+				return err
+			}
+			if finding.Stale {
+				return fmt.Errorf("the semantic index was built with a different embedding configuration (%s); run \"ralph index --rebuild\" to rebuild it", strings.Join(finding.Reasons, "; "))
 			}
 			return runIndex(ctx, cmd, deps)
 		},
@@ -133,6 +146,21 @@ func runIndexStatus(ctx context.Context, cmd *cobra.Command, a *app, deps semant
 	st.Total, st.Waiting, st.Gone = len(records), len(waiting), len(gone)
 	st.Indexed = st.Total - st.Waiting
 
+	finding, err := semantic.Inspect(ctx, deps.Index, deps.Settings)
+	if err != nil {
+		return err
+	}
+	st.State = "ok"
+	switch {
+	case finding.Stale:
+		st.State, st.StaleReasons = "stale", finding.Reasons
+	case finding.Records == 0:
+		st.State = "empty"
+	}
+	if finding.HasRecorded {
+		st.BuiltWith = &finding.Recorded
+	}
+
 	out := cmd.OutOrStdout()
 	if asJSON {
 		return writeJSON(out, st)
@@ -155,5 +183,23 @@ func runIndexStatus(ctx context.Context, cmd *cobra.Command, a *app, deps semant
 	}
 	_, _ = fmt.Fprintf(out, "records: %d of %d indexed, %d waiting, %d to remove\n", st.Indexed, st.Total, st.Waiting, st.Gone)
 	_, _ = fmt.Fprintf(out, "file: %s (%s)\n", st.File, formatSize(st.Bytes))
+	switch {
+	case finding.Records == 0:
+		_, _ = fmt.Fprintln(out, "built with: nothing indexed yet")
+	case !finding.HasRecorded:
+		_, _ = fmt.Fprintln(out, "built with: not recorded")
+	default:
+		b := finding.Recorded
+		digest := "-"
+		if b.Digest != "" {
+			digest = b.Digest[:min(len(b.Digest), digestChars)]
+		}
+		_, _ = fmt.Fprintf(out, "built with: %s %s %d dimensions, chunk size %d\n", b.Model, digest, b.Dimensions, b.ChunkChars)
+	}
+	if st.State == "stale" {
+		_, _ = fmt.Fprintf(out, "state: stale (%s)\n", strings.Join(st.StaleReasons, "; "))
+	} else {
+		_, _ = fmt.Fprintf(out, "state: %s\n", st.State)
+	}
 	return nil
 }
