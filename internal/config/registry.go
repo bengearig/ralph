@@ -22,6 +22,9 @@ import (
 // import the adapters, which would make a cycle; TestLoopHarnessNamesMatchAdapters keeps it in step.
 var harnessNames = []string{"claude-code", "opencode"}
 
+// followUpAutoKinds are the entries follow_up.auto accepts.
+var followUpAutoKinds = []string{"close", "feedback"}
+
 // Scope says which files may set a setting.
 type Scope int
 
@@ -248,6 +251,18 @@ func DefaultRegistry() *Registry {
 			Description: "Which branches ralph deletes after a pull request is merged: local deletes only the local branch, both also deletes the remote one, none deletes nothing; a branch is deleted only when its tip is the commit the merged pull request had",
 			Default:     "local",
 			Allowed:     []string{"local", "both", "none"},
+		},
+		Setting{
+			Path:        "follow_up.auto",
+			Description: "The kinds of follow-up that ralph apply with no flags, and ralph monitor --watch --apply, apply by themselves: close and feedback; each kind is applied with the same checks as when a flag names it",
+			Kind:        KindList,
+			Scope:       ScopeUser,
+			ValidateItem: func(v string) error {
+				if !slices.Contains(followUpAutoKinds, v) {
+					return fmt.Errorf("must be one of %s", strings.Join(followUpAutoKinds, ", "))
+				}
+				return nil
+			},
 		},
 		Setting{
 			Path:        "plan.confirm_outline",

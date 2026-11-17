@@ -127,6 +127,11 @@ func listProblem(s Setting, v string) string {
 		switch {
 		case strings.Trim(item, " \t") == "":
 			msg = "must not be blank"
+			if s.ValidateItem != nil {
+				if err := s.ValidateItem(item); err != nil {
+					msg = err.Error()
+				}
+			}
 		case len(item) > maxListItemBytes:
 			msg = fmt.Sprintf("must be at most %d bytes", maxListItemBytes)
 		case strings.ContainsRune(item, 0):

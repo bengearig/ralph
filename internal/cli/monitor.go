@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -23,8 +24,8 @@ var (
 )
 
 type monitorFlags struct {
-	all, watch, noPoll, asJSON bool
-	interval                   time.Duration
+	all, watch, noPoll, asJSON, apply bool
+	interval                          time.Duration
 }
 
 func newMonitorCommand(a *app) *cobra.Command {
@@ -36,12 +37,16 @@ func newMonitorCommand(a *app) *cobra.Command {
 each slice and the follow-ups that apply would make. The host is asked about
 open pull requests unless --no-poll is given. Nothing is changed: the view
 writes no state, note, branch or lock, and it exits 0 when the host cannot be
-used.`,
+used. With --watch --apply each round also applies the kinds named by the
+follow_up.auto setting, as ralph apply does, before showing the view.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := ""
 			if len(args) == 1 {
 				id = strings.ToUpper(strings.TrimSpace(args[0]))
+			}
+			if f.apply && !f.watch {
+				return errors.New("--apply needs --watch; use ralph apply for one run")
 			}
 			if !f.watch && cmd.Flags().Changed("interval") {
 				return errors.New("--interval needs --watch")
@@ -57,6 +62,7 @@ used.`,
 	cmd.Flags().BoolVar(&f.all, "all", false, "include finished briefs and slices")
 	cmd.Flags().BoolVar(&f.watch, "watch", false, "repeat until interrupted")
 	cmd.Flags().DurationVar(&f.interval, "interval", defaultMonitorInterval, "time between rounds with --watch (at least 10s)")
+	cmd.Flags().BoolVar(&f.apply, "apply", false, "with --watch, apply the follow-ups named by follow_up.auto each round")
 	cmd.Flags().BoolVar(&f.noPoll, "no-poll", false, "show only the recorded state, without asking the host")
 	cmd.Flags().BoolVar(&f.asJSON, "json", false, "print the view as JSON")
 	return cmd
@@ -76,14 +82,19 @@ func runMonitor(cmd *cobra.Command, a *app, id string, f monitorFlags) error {
 		return err
 	}
 	defer func() { _ = d.Close() }()
-	deps, err := prDeps(cmd, a, d)
+	fd, err := followupDeps(cmd, a, d)
 	if err != nil {
 		return err
 	}
-	fd := followup.Deps{PR: deps, Units: deps.Units, Workspace: deps.Workspace, Provider: deps.Provider}
 	out := cmd.OutOrStdout()
 	opt := followup.ViewOptions{ID: id, All: f.all, Poll: !f.noPoll, Now: monitorNow}
+	kinds := autoKinds(a)
 	for {
+		if f.apply {
+			if err := applyRound(a.actorContext(ctx, cmd), out, fd, kinds); err != nil && ctx.Err() != nil {
+				return nil
+			}
+		}
 		view, err := followup.BuildView(ctx, fd, opt)
 		if err != nil {
 			if ctx.Err() != nil {
@@ -111,6 +122,18 @@ func runMonitor(cmd *cobra.Command, a *app, id string, f monitorFlags) error {
 		case <-timer.C:
 		}
 	}
+}
+
+func applyRound(ctx context.Context, out io.Writer, fd followup.Deps, kinds []followup.Kind) error {
+	res, err := followup.Apply(ctx, fd, followup.ApplyOptions{Kinds: kinds})
+	if err != nil {
+		_, _ = fmt.Fprintf(out, "apply failed: %v\n", err)
+		return err
+	}
+	for _, l := range res.Lines {
+		_, _ = fmt.Fprintln(out, l)
+	}
+	return nil
 }
 
 func writeMonitor(out io.Writer, v followup.View) error {
