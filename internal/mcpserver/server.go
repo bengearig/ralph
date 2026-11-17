@@ -7,6 +7,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/bengearig/ralph/internal/db"
 	"github.com/bengearig/ralph/internal/documents"
 	"github.com/bengearig/ralph/internal/search"
 	"github.com/bengearig/ralph/internal/units"
@@ -36,6 +37,9 @@ type Options struct {
 	// Search supplies the search service on the first search call; nil leaves
 	// the search tool out.
 	Search func(ctx context.Context) (search.Service, error)
+	// AfterWrite is called, without being waited for, after a tool that is not read-only has committed a write.
+	// Its context outlives the call; nil does nothing.
+	AfterWrite func(ctx context.Context)
 }
 
 type server struct {
@@ -54,6 +58,9 @@ type server struct {
 	searchMu sync.Mutex
 	search   search.Service
 
+	toolsMu  sync.Mutex
+	readOnly map[string]bool
+
 	noticeMu sync.Mutex
 	seen     map[Notice]struct{}
 	queued   []Notice
@@ -61,8 +68,9 @@ type server struct {
 
 // New builds a server with ralph's tools registered.
 func New(opts Options) *mcp.Server {
-	s := &server{opts: opts}
+	s := &server{opts: opts, readOnly: map[string]bool{}}
 	srv := mcp.NewServer(&mcp.Implementation{Name: opts.Name, Version: opts.Version}, nil)
+	srv.AddReceivingMiddleware(s.afterWrite)
 	s.addStatusTool(srv)
 	s.addUnitTools(srv)
 	s.addQuickTools(srv)
@@ -70,6 +78,35 @@ func New(opts Options) *mcp.Server {
 	s.addSearchTool(srv)
 	s.addPlanningTool(srv)
 	return srv
+}
+
+// noteTool records whether a tool is marked read-only.
+func (s *server) noteTool(t *mcp.Tool) {
+	s.toolsMu.Lock()
+	defer s.toolsMu.Unlock()
+	s.readOnly[t.Name] = t.Annotations != nil && t.Annotations.ReadOnlyHint
+}
+
+func (s *server) isReadOnly(name string) bool {
+	s.toolsMu.Lock()
+	defer s.toolsMu.Unlock()
+	return s.readOnly[name]
+}
+
+// afterWrite calls AfterWrite once a tool call that is not read-only has changed the write count.
+func (s *server) afterWrite(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+		call, ok := req.(*mcp.CallToolRequest)
+		if s.opts.AfterWrite == nil || method != "tools/call" || !ok || call.Params == nil || s.isReadOnly(call.Params.Name) {
+			return next(ctx, method, req)
+		}
+		before := db.Writes()
+		res, err := next(ctx, method, req)
+		if db.Writes() != before {
+			go s.opts.AfterWrite(context.WithoutCancel(ctx))
+		}
+		return res, err
+	}
 }
 
 // openError marks a failure to open the service, as opposed to one raised by a
@@ -111,6 +148,7 @@ func addTool[In any](s *server, srv *mcp.Server, t *mcp.Tool, fn handle[In]) {
 	if sc, ok := t.OutputSchema.(*jsonschema.Schema); ok {
 		withNoticesSchema(sc)
 	}
+	s.noteTool(t)
 	mcp.AddTool(srv, t, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
 		ctx = units.WithActor(ctx, s.opts.Actor)
 		res, out := callTool(ctx, s, fn, in)

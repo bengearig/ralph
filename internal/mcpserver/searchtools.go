@@ -46,7 +46,7 @@ func (s *server) addSearchTool(srv *mcp.Server) {
 	withNoticesSchema(out)
 	one := 1.0
 	hundred := 100.0
-	mcp.AddTool(srv, &mcp.Tool{
+	tool := &mcp.Tool{
 		Name:        "search",
 		Description: searchText,
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
@@ -55,7 +55,9 @@ func (s *server) addSearchTool(srv *mcp.Server) {
 			p["limit"].Minimum, p["limit"].Maximum = &one, &hundred
 		}),
 		OutputSchema: out,
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, in searchInput) (*mcp.CallToolResult, any, error) {
+	}
+	s.noteTool(tool)
+	mcp.AddTool(srv, tool, func(ctx context.Context, _ *mcp.CallToolRequest, in searchInput) (*mcp.CallToolResult, any, error) {
 		ctx = units.WithActor(ctx, s.opts.Actor)
 		res, o := s.runSearch(ctx, in)
 		return s.deliver(ctx, res, o)

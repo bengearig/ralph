@@ -354,3 +354,57 @@ func TestOpenNoMigrateStillChecksOwnership(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestWritesCountsCommittedTransactions(t *testing.T) {
+	d := newTable(t)
+	before := Writes()
+	for i := 0; i < 3; i++ {
+		err := d.WriteTx(context.Background(), func(tx *sql.Tx) error {
+			_, err := tx.Exec("INSERT INTO t VALUES (?)", i)
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := Writes() - before; got != 3 {
+		t.Errorf("writes counted = %d, want 3", got)
+	}
+}
+
+func TestWritesNotCountedOnRollback(t *testing.T) {
+	d := newTable(t)
+	before := Writes()
+	_ = d.WriteTx(context.Background(), func(tx *sql.Tx) error { return errors.New("boom") })
+	func() {
+		defer func() { _ = recover() }()
+		_ = d.WriteTx(context.Background(), func(tx *sql.Tx) error { panic("kaboom") })
+	}()
+	if got := Writes() - before; got != 0 {
+		t.Errorf("writes counted = %d, want 0", got)
+	}
+}
+
+func TestWritesConcurrent(t *testing.T) {
+	d := newTable(t)
+	before := Writes()
+	const writers, perWriter = 6, 10
+	var wg sync.WaitGroup
+	for w := 0; w < writers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < perWriter; i++ {
+				_ = d.WriteTx(context.Background(), func(tx *sql.Tx) error {
+					_, err := tx.Exec("INSERT INTO t VALUES (?)", i)
+					return err
+				})
+				_ = Writes()
+			}
+		}()
+	}
+	wg.Wait()
+	if got := Writes() - before; got != writers*perWriter {
+		t.Errorf("writes counted = %d, want %d", got, writers*perWriter)
+	}
+}

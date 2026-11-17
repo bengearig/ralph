@@ -20,6 +20,9 @@ import (
 // ErrSyncBusy means another ticket sync holds the lock.
 var ErrSyncBusy = errors.New("another ticket sync is running")
 
+// ErrPaused means a rate limit has paused ticket sync.
+var ErrPaused = errors.New("ticket sync is paused")
+
 const (
 	linkPrefix        = "jira:"
 	stateBlockedUntil = "blocked_until"
@@ -138,7 +141,7 @@ func (p *pass) checkPaused(ctx context.Context, force bool) error {
 		return err
 	}
 	if until, perr := time.Parse(time.RFC3339, v); perr == nil && until.After(p.d.now()) && !force {
-		return fmt.Errorf("ticket sync is paused until %s (rate limited)", until.UTC().Format(time.RFC3339))
+		return fmt.Errorf("%w until %s (rate limited)", ErrPaused, until.UTC().Format(time.RFC3339))
 	}
 	return p.store.SetState(ctx, stateBlockedUntil, "")
 }

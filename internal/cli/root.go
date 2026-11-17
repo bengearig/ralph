@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/bengearig/ralph/internal/config"
+	"github.com/bengearig/ralph/internal/db"
 	"github.com/bengearig/ralph/internal/project"
 	"github.com/spf13/cobra"
 )
@@ -21,6 +22,8 @@ type app struct {
 	cfg  *config.Config
 
 	actor string
+	// writes is the count of committed write transactions when the command began.
+	writes uint64
 }
 
 func NewRootCommand() *cobra.Command {
@@ -31,10 +34,15 @@ func NewRootCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			a.writes = db.Writes()
 			if skipsConfig(cmd) {
 				return nil
 			}
 			return a.load(cmd)
+		},
+		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
+			a.autoSyncAfterRun(cmd)
+			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()

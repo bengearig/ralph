@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/bengearig/ralph/internal/db"
 	"github.com/bengearig/ralph/internal/documents"
@@ -16,6 +18,7 @@ import (
 	"github.com/bengearig/ralph/internal/mcpserver"
 	"github.com/bengearig/ralph/internal/quick"
 	"github.com/bengearig/ralph/internal/search"
+	"github.com/bengearig/ralph/internal/tickets"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/version"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -97,11 +100,35 @@ func runMCP(ctx context.Context, a *app, t mcp.Transport) error {
 		return d, nil
 	}
 
+	var (
+		syncOnce   sync.Once
+		syncRunner *tickets.Runner
+	)
+	autoSync := func(ctx context.Context) {
+		if !a.autoSyncWanted() {
+			return
+		}
+		syncOnce.Do(func() {
+			d, err := store(ctx)
+			if err != nil {
+				slog.Debug("automatic ticket sync skipped", "error", err)
+				return
+			}
+			if r, _, ok := a.autoRunner(ctx, d); ok {
+				syncRunner = r
+			}
+		})
+		if syncRunner != nil {
+			syncRunner.Trigger()
+		}
+	}
+
 	srv := mcpserver.New(mcpserver.Options{
 		Name:        "ralph",
 		Version:     version.String(),
 		Actor:       identity.Resolve(ctx, a.root),
 		Planning:    mcpserver.PlanningSettings{ConfirmOutline: a.setting("plan.confirm_outline") == "true"},
+		AfterWrite:  autoSync,
 		Sources:     []mcpserver.NoticeSource{integrationNotice(a.root), semanticNotice(a, store)},
 		UnitSources: []func(units.Service) mcpserver.NoticeSource{quickNotice},
 		Quick: func(ctx context.Context, svc units.Service) (mcpserver.Quick, error) {
@@ -137,6 +164,12 @@ func runMCP(ctx context.Context, a *app, t mcp.Transport) error {
 		},
 	})
 	err := srv.Run(ctx, t)
+	syncOnce.Do(func() {})
+	if syncRunner != nil {
+		waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		syncRunner.Wait(waitCtx)
+		cancel()
+	}
 	if err == nil || errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
 		return nil
 	}

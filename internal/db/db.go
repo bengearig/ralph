@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -115,6 +116,11 @@ func (d *DB) Path() string { return d.path }
 
 func (d *DB) Close() error { return d.sql.Close() }
 
+var writes atomic.Uint64
+
+// Writes returns how many write transactions this process has committed.
+func Writes() uint64 { return writes.Load() }
+
 // WriteTx runs fn in a transaction begun with BEGIN IMMEDIATE. It commits when
 // fn returns nil and rolls back on an error or a panic, which it re-raises.
 func (d *DB) WriteTx(ctx context.Context, fn func(*sql.Tx) error) (err error) {
@@ -137,6 +143,7 @@ func (d *DB) WriteTx(ctx context.Context, fn func(*sql.Tx) error) (err error) {
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("db: commit: %w", err)
 	}
+	writes.Add(1)
 	return nil
 }
 

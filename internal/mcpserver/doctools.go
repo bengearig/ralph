@@ -170,6 +170,7 @@ func addDocTool[In any](s *server, srv *mcp.Server, t *mcp.Tool, fn docHandle[In
 	if sc, ok := t.OutputSchema.(*jsonschema.Schema); ok {
 		withNoticesSchema(sc)
 	}
+	s.noteTool(t)
 	mcp.AddTool(srv, t, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
 		ctx = units.WithActor(ctx, s.opts.Actor)
 		res, out := callDocTool(ctx, s, fn, in)
