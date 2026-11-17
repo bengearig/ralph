@@ -36,7 +36,10 @@ The project is under construction. The design is in [docs/](docs/README.md).
 - `ralph index` embeds the records for semantic search, and `ralph index --status` shows the provider, the model and what
   is indexed. Semantic search is off until `embeddings.provider` is set to `ollama`; it and the other `embeddings.*`
   settings are user-only, and the vectors are kept in the local file `.ralph/index.db`. When the provider fails, search
-  falls back to keyword search and says so. `RALPH_OLLAMA_LIVE=1` runs the checks against a real Ollama.
+  falls back to keyword search and says so. When the model or another embedding setting changes the index is stale and
+  semantic search stays off until `ralph index --rebuild --yes` builds it again (without `--yes` it prints the plan).
+  `RALPH_OLLAMA_LIVE=1` runs the checks against a real Ollama; `RALPH_OLLAMA_MODEL2` names a second model for the
+  rebuild check.
 - `ralph mcp` serves ralph's records to an agent over the Model Context Protocol on standard input and output.
 - `ralph loop <slice>` works a slice's ready tasks in order on its own branch, one verified commit per task and nothing
   pushed; it retries a failed attempt and blocks the task after `loop.max_failures`. `--dry-run` prints the plan.

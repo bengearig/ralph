@@ -21,9 +21,6 @@ results with no error.
   harness hook is required.
 - An unreachable provider is not a stale index and triggers no rebuild.
 
-The fallback with a notice when the provider fails is in place; recording and checking the configuration, and the
-rebuild, are not yet.
-
 ## Alternatives rejected
 
 - Searching a mismatched index anyway: wrong results that look right.
@@ -40,4 +37,7 @@ rebuild, are not yet.
 - A rebuild keeps two indexes at once for a while, so it needs room for both.
 - Whether a provider reports a model version, so that a silently updated model under the same name is noticed, depends on
   the provider. Where it does not, only a manual rebuild repairs it.
+- Recording and checking the configuration, the fallback, the resumable rebuild with its dry run and the notice in ralph's
+  commands and the MCP server are in place. Nothing rebuilds on its own: `ralph index --rebuild --yes` is always run by
+  the user or after they agree.
 - Documents and work records are the source and the index is derived, so a rebuild can always be done and loses nothing.

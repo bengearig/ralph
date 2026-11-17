@@ -4,10 +4,7 @@ Status: draft
 
 | Question | Blocks |
 | --- | --- |
-| What is the rebuild command's name, and does it also cover rebuilding the keyword index? | documents |
-| Which parts of the embedding configuration make an index stale, and which changes, such as a timeout, do not? | documents |
 | How does ralph notice a model updated under the same name when the provider reports no version? | documents |
-| How does ralph show progress and an estimate for a rebuild, and what happens when one fails partway? | documents |
 | Should search cover tickets and issues after the first release? | documents |
 | Is the fixed set of levels right, or should nesting be arbitrary? | concepts, workflow |
 | Does the same in-session option apply to feature work, or only to orphan tasks? | workflow |

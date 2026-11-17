@@ -31,8 +31,10 @@ in [0006](decisions/0006-shared-state-and-concurrency.md).
 
 Semantic search keeps its vectors in `.ralph/index.db`, a second SQLite file next to the database, made when a provider
 is configured. It is derived from the records, so it is excluded from version control, the database's backup does not
-contain it, and it can be deleted and filled again with `ralph index`. See
-[documents-and-search.md](documents-and-search.md).
+contain it, and it can be deleted and filled again with `ralph index`. A rebuild builds the new index in
+`.ralph/index.rebuild.db` beside it and replaces it when complete, and a lock file `.ralph/index.lock` keeps two index
+runs from writing at once. Both are excluded from version control, and the rebuild file can be deleted to start a
+rebuild again. See [documents-and-search.md](documents-and-search.md).
 
 ## Upgrades
 

@@ -30,6 +30,12 @@ whether it was found by keyword, by meaning or both, and a `notice`, when presen
 as the reason for a fallback or that the index is behind. The tool's text repeats the notice so an agent can relay it. See
 [documents-and-search.md](documents-and-search.md).
 
+When the semantic index was built with another embedding configuration, the MCP server adds a notice with the code
+`semantic_index_stale` to the result of a tool call, once for each change of the index files, without calling the
+provider. It names what differs and asks the agent to put the question to the user, because a rebuild takes time and can
+cost money. The project instruction entries that ralph writes say that a notice can ask for a decision: the agent
+relays it, asks the user, and does nothing until they answer.
+
 The MCP server covers only what agents need. The CLI covers what people run, such as installing integration files and
 monitoring. Actions an agent needs to finish its own work, such as finalizing quick work, are MCP tools, and
 [0007](decisions/0007-orphan-task-delivery.md) also names a CLI form for it. Quick start and finish are both a command

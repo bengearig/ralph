@@ -163,6 +163,16 @@ func (s *Store) acquire(ctx context.Context) (*sql.DB, func(), error) {
 	}, nil
 }
 
+// readRetrying runs a read again once when it failed, because a read in flight when a rebuild swaps the file in can
+// fail on the write-ahead files removed under it. A read changes nothing, so running it twice is safe.
+func (s *Store) readRetrying(ctx context.Context, read func() error) error {
+	err := read()
+	if err == nil || ctx.Err() != nil {
+		return err
+	}
+	return read()
+}
+
 func (s *Store) retire(h *handle) {
 	h.retired = true
 	s.closeIfIdle(h)
@@ -219,7 +229,15 @@ func (s *Store) Meta(ctx context.Context, key string) (string, bool, error) {
 	return s.meta(ctx, key)
 }
 
-func (s *Store) meta(ctx context.Context, key string) (string, bool, error) {
+func (s *Store) meta(ctx context.Context, key string) (v string, ok bool, err error) {
+	err = s.readRetrying(ctx, func() error {
+		v, ok, err = s.metaOnce(ctx, key)
+		return err
+	})
+	return v, ok, err
+}
+
+func (s *Store) metaOnce(ctx context.Context, key string) (string, bool, error) {
 	db, done, err := s.acquire(ctx)
 	if err != nil {
 		return "", false, err
@@ -418,7 +436,15 @@ func (s *Store) Delete(ctx context.Context, kind, ref string) (err error) {
 }
 
 // Records lists what the index holds.
-func (s *Store) Records(ctx context.Context) (map[Key]RecordInfo, error) {
+func (s *Store) Records(ctx context.Context) (out map[Key]RecordInfo, err error) {
+	err = s.readRetrying(ctx, func() error {
+		out, err = s.recordsOnce(ctx)
+		return err
+	})
+	return out, err
+}
+
+func (s *Store) recordsOnce(ctx context.Context) (map[Key]RecordInfo, error) {
 	db, done, err := s.acquire(ctx)
 	if err != nil {
 		return nil, err
@@ -445,7 +471,15 @@ func (s *Store) Records(ctx context.Context) (map[Key]RecordInfo, error) {
 }
 
 // Stats counts the records and chunks and measures the file.
-func (s *Store) Stats(ctx context.Context) (Stats, error) {
+func (s *Store) Stats(ctx context.Context) (st Stats, err error) {
+	err = s.readRetrying(ctx, func() error {
+		st, err = s.statsOnce(ctx)
+		return err
+	})
+	return st, err
+}
+
+func (s *Store) statsOnce(ctx context.Context) (Stats, error) {
 	db, done, err := s.acquire(ctx)
 	if err != nil {
 		return Stats{}, err
@@ -496,7 +530,15 @@ func (h *minHeap) Pop() any {
 }
 
 // Search returns the limit chunks whose vectors have the highest dot product with query, best first.
-func (s *Store) Search(ctx context.Context, query []float32, limit int) ([]ChunkHit, error) {
+func (s *Store) Search(ctx context.Context, query []float32, limit int) (hits []ChunkHit, err error) {
+	err = s.readRetrying(ctx, func() error {
+		hits, err = s.searchOnce(ctx, query, limit)
+		return err
+	})
+	return hits, err
+}
+
+func (s *Store) searchOnce(ctx context.Context, query []float32, limit int) ([]ChunkHit, error) {
 	db, done, err := s.acquire(ctx)
 	if err != nil {
 		return nil, err

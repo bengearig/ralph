@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/bengearig/ralph/internal/search"
@@ -61,5 +62,60 @@ func TestLiveSemanticSearch(t *testing.T) {
 	e.env = append(e.env, "RALPH_EMBEDDINGS_PROVIDER=none")
 	if kw := e.searchJSON(t, query); !kw.Relaxed {
 		t.Errorf("keyword search found a record with every word of the query: %+v", kw.Hits)
+	}
+}
+
+func TestLiveRebuild(t *testing.T) {
+	if os.Getenv("RALPH_OLLAMA_LIVE") != "1" {
+		t.Skip("set RALPH_OLLAMA_LIVE=1 and RALPH_OLLAMA_MODEL2 to run the rebuild against a real Ollama (RALPH_OLLAMA_URL, RALPH_OLLAMA_MODEL)")
+	}
+	second := os.Getenv("RALPH_OLLAMA_MODEL2")
+	if second == "" {
+		t.Skip("set RALPH_OLLAMA_MODEL2 to a second embedding model installed in the Ollama to run the live rebuild")
+	}
+	first := liveEnv("RALPH_OLLAMA_MODEL", "nomic-embed-text")
+	if second == first {
+		t.Skip("RALPH_OLLAMA_MODEL2 must name a model other than RALPH_OLLAMA_MODEL")
+	}
+	e := newE2EEnv(t)
+	e.init(t)
+	cs := e.connect(t, io.Discard)
+	backoff := e2eOK(t, cs, "doc_create", map[string]any{
+		"kind":  "design",
+		"title": "Retry failed payments with exponential backoff",
+		"body": "When the card processor rejects a charge, wait before trying again and make each wait longer than the last. " +
+			"Add random jitter to every delay so that many clients do not retry at the same moment, and stop after a fixed number of attempts.",
+	})["id"].(string)
+	e2eOK(t, cs, "doc_create", map[string]any{
+		"kind":  "reference",
+		"title": "Brand colours",
+		"body":  "The palette uses a deep teal, a warm orange and a pale grey. Headings are teal and buttons are orange.",
+	})
+	_ = cs.Close()
+
+	url := liveEnv("RALPH_OLLAMA_URL", "http://localhost:11434")
+	e.env = append(e.env, "RALPH_EMBEDDINGS_PROVIDER=ollama", "RALPH_EMBEDDINGS_URL="+url, "RALPH_EMBEDDINGS_MODEL="+first)
+	if r := e.run(t, "index"); r.code != 0 {
+		t.Fatalf("index with %s: exit %d: %s", first, r.code, r.stderr)
+	}
+	const query = "how do we handle a payment that keeps failing"
+	if res := e.searchJSON(t, query); res.Mode != search.ModeHybrid {
+		t.Fatalf("before the switch: mode %q notice %q", res.Mode, res.Notice)
+	}
+
+	e.env = append(e.env, "RALPH_EMBEDDINGS_MODEL="+second)
+	res := e.searchJSON(t, query)
+	if res.Mode != search.ModeKeywordFallback || !strings.Contains(res.Notice, "model "+first+" -> "+second) || !strings.Contains(res.Notice, "ralph index --rebuild") {
+		t.Fatalf("after the switch: mode %q notice %q", res.Mode, res.Notice)
+	}
+	if r := e.run(t, "index", "--rebuild", "--yes"); r.code != 0 || !strings.Contains(r.stdout, "semantic search now uses "+second) {
+		t.Fatalf("rebuild: exit %d out %q err %q", r.code, r.stdout, r.stderr)
+	}
+	res = e.searchJSON(t, query)
+	if res.Mode != search.ModeHybrid || res.Notice != "" {
+		t.Fatalf("after the rebuild: mode %q notice %q", res.Mode, res.Notice)
+	}
+	if h, ok := findHit(res, backoff); !ok || !slices.Contains(h.Sources, "semantic") {
+		t.Errorf("the backoff document is not found by meaning with %s: %+v", second, res.Hits)
 	}
 }

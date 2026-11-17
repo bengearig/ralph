@@ -84,7 +84,9 @@ cover tickets and issues in the first release.
   that order, and removes entries of records that are gone. It continues where an interrupted run stopped, and says when
   the index is up to date. `ralph index --status` embeds nothing: it shows the provider, the model and its digest,
   whether the provider is reachable, the size of the vectors and how many records are indexed, waiting and to remove
-  (`--json` prints the same as one object).
+  (`--json` prints the same as one object). It also shows the configuration the index was built with and its state:
+  `ok`, `empty` or `stale` with the reasons, and the progress of an unfinished rebuild. `ralph index --rebuild` is
+  described under Keeping the semantic index valid.
 - Before a search, ralph catches the index up with a few of the records that are waiting, so a record just written is
   found in the same search. What is still waiting is reported in a notice that gives the count and says to run
   `ralph index`; the search still returns results.
@@ -121,30 +123,42 @@ task's acceptance criteria.
 
 ## Keeping the semantic index valid
 
-This stage does not yet check the configuration: the index is used as it is, and a change of model, prefix or chunk size
-is not noticed. What follows is the design for the next stage.
-
 Embeddings from different configurations cannot be compared. Changing the model, or anything else that changes what a
 stored vector means, makes the existing embeddings wrong for the new configuration. See
 [0022](decisions/0022-embedding-index-repair.md).
 
-- The index records the embedding configuration that produced it: the provider, the model including its version where
-  the provider reports one, the vector size, the prefix settings, and the chunking settings.
-- Ralph compares the recorded configuration with the current one wherever it uses the index, and at startup. A mismatch
-  is a stale index.
-- While the index is stale, semantic search is off. Search falls back to keyword search and says so. It does not return
-  results from the mismatched vectors.
-- A command rebuilds the index from the current records using the current configuration. It can resume after an
-  interruption. The old index stays in use until the new one is complete, so search keeps working during a rebuild. The
-  command's name is open.
+- The index records the embedding configuration that produced it: the provider, the model without a `:latest` tag, the
+  model's digest and the vector size where the provider reports them, the document and query prefixes as they are
+  used, and the chunk size. A prefix left empty and the same prefix written out by hand are one configuration.
+- Settings that do not change a vector are not part of it: the address of the service and the timeout. Moving the same
+  model to another address does not make the index stale.
+- Ralph compares the recorded configuration with the current one wherever it uses the index. Settings are compared
+  without calling the provider. The model's digest is compared with what the provider reports, asked for at most once
+  every ten minutes by a process, and a difference is saved in the index so that commands that do not call the provider
+  still show it. An index made before the configuration was recorded is stale. A mismatch is a stale index.
+- A provider that cannot be reached is a different case. The index is not stale. Semantic search is unavailable for
+  that moment, search falls back to keyword search and says so, and nothing is rebuilt. A finding saved earlier is kept.
+- While the index is stale, semantic search is off. Search returns the keyword results with `mode` set to
+  `keyword-fallback` and a notice that names what differs, such as `model a -> b`, and the command to run. It does not
+  return results from the mismatched vectors, and `ralph index` refuses to add to a stale index.
+- `ralph index --rebuild` builds a new index from the current records with the current configuration. Without `--yes` it
+  prints the plan and changes nothing: why the index is stale, how many records and about how many chunks, the model
+  and where it runs. With `--yes` it builds the new index in `.ralph/index.rebuild.db`, printing a running count, and
+  when it is complete it replaces the old index and prints that semantic search now uses the model.
+- The old index stays in use until the new one is complete, so search keeps working during a rebuild, and a process that
+  is already running, such as the MCP server, follows the new index without a restart. A rebuild that stops, because
+  of an error or an interruption (exit status 130), leaves the new file, and running the command again embeds only the
+  records that are missing. If the configuration changed since, the earlier work is discarded and the plan says so.
+  `--json` prints the plan or the result as one object.
+- One `ralph index` run writes at a time, guarded by a lock file. A second run, of a plain index or a rebuild, stops
+  with a message that another run is in progress. Search and the other commands do not need the lock.
 - Ralph never rebuilds on its own. A rebuild costs time, and with a hosted provider it can cost money, so the user
   confirms first.
-- Ralph tells the user the index is stale in the places it already speaks to them: the output of its own commands, the
-  project status, and `ralph monitor`. Inside a harness session, the same notice is part of what the MCP server returns,
-  and the project instruction entries tell the agent to relay it and ask the user whether to rebuild. This does not
-  rely on any harness hook.
-- A provider that cannot be reached is a different case. The index is not stale. Semantic search is unavailable for
-  that moment, search falls back to keyword search and says so, and nothing is rebuilt.
+- Ralph tells the user the index is stale in the places it already speaks to them: the output of its own commands,
+  `ralph status`, which also shows the progress of an unfinished rebuild, and `ralph monitor`; `ralph index --status`
+  shows the state and the configuration the index was built with. Inside a harness session, the same notice is part of
+  what the MCP server returns, once for each change of the index, and the project instruction entries tell the agent to
+  relay it and ask the user whether to rebuild. This does not rely on any harness hook.
 
 ## Retrieval for the loop
 
