@@ -423,3 +423,33 @@ func TestGuardErrorsIs(t *testing.T) {
 		}
 	}
 }
+
+func TestWorkspaceLogOldestFirstWithMessages(t *testing.T) {
+	r, w := newRepo(t)
+	if err := w.CreateBranch(ctx, "feature"); err != nil {
+		t.Fatal(err)
+	}
+	r.WriteFile("a.txt", "a")
+	first := r.Commit("first subject\n\nbody line\n\nRalph-Task: T-1")
+	r.WriteFile("b.txt", "b")
+	second := r.Commit("second subject")
+	got, err := w.Log(ctx, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Commit{
+		{Hash: first, Message: "first subject\n\nbody line\n\nRalph-Task: T-1"},
+		{Hash: second, Message: "second subject"},
+	}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("Log = %+v, want %+v", got, want)
+	}
+}
+
+func TestWorkspaceLogEmptyOnBase(t *testing.T) {
+	_, w := newRepo(t)
+	got, err := w.Log(ctx, "main")
+	if err != nil || len(got) != 0 {
+		t.Fatalf("Log = %+v, %v", got, err)
+	}
+}

@@ -12,6 +12,10 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	cmd.SetOut(stdout)
 	cmd.SetErr(stderr)
 	if err := cmd.Execute(); err != nil {
+		var exit *exitStatusError
+		if errors.As(err, &exit) {
+			return exit.status
+		}
 		var reported *reportedError
 		if errors.As(err, &reported) {
 			return 1
@@ -21,3 +25,12 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	}
 	return 0
 }
+
+// exitStatusError ends a command with an exit status after it printed its own message.
+type exitStatusError struct {
+	status int
+	err    error
+}
+
+func (e *exitStatusError) Error() string { return e.err.Error() }
+func (e *exitStatusError) Unwrap() error { return e.err }

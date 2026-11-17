@@ -16,6 +16,11 @@ type State struct {
 	Changes []string
 }
 
+// Commit is a commit with its full message.
+type Commit struct {
+	Hash, Message string
+}
+
 type Workspace interface {
 	State(ctx context.Context) (State, error)
 	BranchExists(ctx context.Context, name string) (bool, error)
@@ -27,6 +32,9 @@ type Workspace interface {
 	Push(ctx context.Context, remote, branch string) error
 	// CommitsAhead counts commits reachable from HEAD and not from the local branch base.
 	CommitsAhead(ctx context.Context, base string) (int, error)
+	// Log lists the commits reachable from HEAD and not from the local branch
+	// base, oldest first.
+	Log(ctx context.Context, base string) ([]Commit, error)
 	// AheadOfRemote counts commits on the local branch that its remote-tracking
 	// branch lacks; tracked is false when that remote-tracking branch does not exist.
 	AheadOfRemote(ctx context.Context, remote, branch string) (n int, tracked bool, err error)

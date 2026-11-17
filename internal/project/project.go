@@ -24,6 +24,10 @@ const (
 
 	StoreFile     = "store.db"
 	BackupDirName = "backups"
+
+	// RunsDirName holds the loop's run records; LoopLockFile is its lock.
+	RunsDirName  = "runs"
+	LoopLockFile = "loop.lock"
 )
 
 var (

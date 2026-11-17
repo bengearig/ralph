@@ -249,6 +249,23 @@ func (l *Local) CommitsAhead(ctx context.Context, base string) (int, error) {
 	return l.count(ctx, "HEAD", "^refs/heads/"+base)
 }
 
+func (l *Local) Log(ctx context.Context, base string) ([]Commit, error) {
+	res, err := l.ok(ctx, "", "log", "--reverse", "--topo-order", "--format=%H%x1f%B%x1e", "HEAD", "^refs/heads/"+base)
+	if err != nil {
+		return nil, err
+	}
+	var commits []Commit
+	for _, rec := range strings.Split(res.stdout, "\x1e") {
+		rec = strings.TrimLeft(rec, "\n")
+		hash, msg, ok := strings.Cut(rec, "\x1f")
+		if !ok {
+			continue
+		}
+		commits = append(commits, Commit{Hash: hash, Message: strings.TrimRight(msg, "\n")})
+	}
+	return commits, nil
+}
+
 func (l *Local) AheadOfRemote(ctx context.Context, remote, branch string) (int, bool, error) {
 	tracking := "refs/remotes/" + remote + "/" + branch
 	tracked, err := l.refExists(ctx, tracking)

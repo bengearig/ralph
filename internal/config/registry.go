@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"path"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,6 +17,10 @@ import (
 
 	"github.com/bengearig/ralph/internal/naming"
 )
+
+// harnessNames are the adapter names loop.harness accepts. The registry cannot
+// import the adapters, which would make a cycle; TestLoopHarnessNamesMatchAdapters keeps it in step.
+var harnessNames = []string{"claude-code", "opencode"}
 
 // Scope says which files may set a setting.
 type Scope int
@@ -368,6 +373,31 @@ func DefaultRegistry() *Registry {
 				n, err := strconv.Atoi(v)
 				if err != nil || n < 1 {
 					return errors.New("must be a whole number of at least 1, such as 3")
+				}
+				return nil
+			},
+		},
+		Setting{
+			Path:        "loop.harness",
+			Description: "The harness the loop runs, by adapter name; empty means the one installed harness, and several installed is an error",
+			Validate: func(v string) error {
+				if v == "" || slices.Contains(harnessNames, v) {
+					return nil
+				}
+				return errors.New("must be one of " + strings.Join(harnessNames, ", ") + ", or empty")
+			},
+		},
+		Setting{
+			Path:        "loop.model",
+			Description: "The model the loop asks the harness for; empty means the harness default",
+			Validate: func(v string) error {
+				if strings.HasPrefix(v, "-") {
+					return errors.New(`must not start with "-"`)
+				}
+				for _, c := range v {
+					if unicode.IsSpace(c) || unicode.IsControl(c) {
+						return errors.New("must not contain a space or control character")
+					}
 				}
 				return nil
 			},
