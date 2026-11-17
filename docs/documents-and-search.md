@@ -18,6 +18,23 @@ is its source. Documents are project-wide or tied to a top-level unit.
 - Documents can be exported to files in the repository, so they can be reviewed through a pull request. Export is
   one-way, from the store to files, in the first release. There is no import, so there is no conflict to resolve. The
   exported files are copies; an edit to one does not change the document.
+- `ralph docs export` writes one markdown file for each active document into the directory of the
+  `documents.export.dir` setting, `docs/ralph` by default. A file is named `<ID>-<slug>.md`, such as
+  `D-12-storage-layout.md`, from the document's ID and a slug of its title. It starts with the line
+  `<!-- ralph:generated document=D-n version=N -->`, which is what marks a file as ralph's, and then holds the title as
+  a heading, a visible notice that the file is generated and that the next export overwrites it, the kind and the brief
+  if the document is tied to one, and the body. The notice and the marker make the document the winner: an edited
+  file is overwritten by the next export.
+- Export owns only files in that directory whose name has the form `D-n-<slug>.md` and whose first line is a marker. It
+  never changes any other file. If a document's file name is taken by a file ralph did not write, that name is reported
+  as a conflict, the other documents are still exported, and the command exits 1. A generated file whose document is
+  archived, superseded or renamed, or no longer exists, is stale and is removed; each creation, update and removal is
+  reported. A file whose content is already right is left alone, so its modification time does not change.
+- `ralph docs export --check` writes nothing and exits 1 if an export would change a file or conflict, and `--json`
+  prints the result as one JSON object. Nothing is committed, and no actor, time or fingerprint is written to a file, so
+  the files change in a commit only when a document does and a pull request shows only the documents that changed.
+  The setting must name a directory inside the project and outside `.git` and `.ralph`; otherwise every ralph command
+  reports a configuration error.
 - A document can be archived or superseded. An archived document is no longer in use. A superseded document has been
   replaced by another and must point to its replacement, which has to be an active document other than itself; there is
   no superseding without a replacement. An archived or superseded document cannot be edited until it is restored, which

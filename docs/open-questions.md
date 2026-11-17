@@ -11,7 +11,6 @@ Status: draft
 | How does ralph read feedback from a pull request, and which feedback becomes a bottom unit? | workflow |
 | Does verification run after each bottom unit, after each middle unit, or both? | workflow |
 | How is a failed iteration retried, and what is the stall threshold's default? | workflow |
-| Where do exported document files go, how are they named, and how does a file say it is generated? | documents |
 | How much can the loop push into a prompt, and what is dropped first when the limit is hit? | documents |
 | How are chunk size and boundaries chosen, and what Ollama models are supported or required? | documents |
 | How are keyword and semantic results combined in one ranking? | documents |

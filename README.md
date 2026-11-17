@@ -26,6 +26,9 @@ The project is under construction. The design is in [docs/](docs/README.md).
 - `ralph docs purge` removes earlier document versions: give `--keep N`, `--older-than DURATION` or both, and it lists
   what it would remove unless `--yes` is given. The `documents.versions.keep` setting limits how many earlier versions
   of each document are kept; the default keeps all.
+- `ralph docs export` writes each active document to a generated markdown file in the directory of the
+  `documents.export.dir` setting (default `docs/ralph`), removes generated files that are stale and never touches other
+  files; `--check` writes nothing and exits 1 if the files are out of step. Nothing is committed.
 - `ralph search <words>` finds documents, briefs, slices, tasks and notes by their words; `--kind` and `--limit` narrow
   the results and `--all` includes archived and superseded documents and cancelled tasks.
 - `ralph mcp` serves ralph's records to an agent over the Model Context Protocol on standard input and output.
