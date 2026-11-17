@@ -33,6 +33,10 @@ The project is under construction. The design is in [docs/](docs/README.md).
   the link, and `ralph docs links <id>` shows a document's units or a unit's documents. A tie to a brief is not a link.
 - `ralph search <words>` finds documents, briefs, slices, tasks and notes by their words; `--kind` and `--limit` narrow
   the results and `--all` includes archived and superseded documents and cancelled tasks.
+- `ralph index` embeds the records for semantic search, and `ralph index --status` shows the provider, the model and what
+  is indexed. Semantic search is off until `embeddings.provider` is set to `ollama`; it and the other `embeddings.*`
+  settings are user-only, and the vectors are kept in the local file `.ralph/index.db`. When the provider fails, search
+  falls back to keyword search and says so. `RALPH_OLLAMA_LIVE=1` runs the checks against a real Ollama.
 - `ralph mcp` serves ralph's records to an agent over the Model Context Protocol on standard input and output.
 - `ralph loop <slice>` works a slice's ready tasks in order on its own branch, one verified commit per task and nothing
   pushed; it retries a failed attempt and blocks the task after `loop.max_failures`. `--dry-run` prints the plan.

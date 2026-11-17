@@ -40,3 +40,8 @@ user's own words on concurrent edits ([0006](0006-shared-state-and-concurrency.m
 - Semantic search brings an embedding provider, chunking and index maintenance into the first release.
 - The linking between documents and units must be defined before the loop can push documents.
 - A project without an embedding provider degrades to keyword search and does not fail.
+- Vectors live in a separate local file, not in the database, because they are derived from the records, can be large
+  and are rebuilt from them. They are neither committed nor part of the database's backup, and the database never needs
+  a migration for them.
+- The embedding settings are user-only, because document text is sent to the address they name and a committed file
+  must not choose it.

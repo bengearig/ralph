@@ -61,11 +61,43 @@ cover tickets and issues in the first release.
 - Semantic search needs an embedding provider, configured like any other service. Ollama is the provider in the first
   release. It can run on the user's machine, or be hosted alongside the API and MCP server for a shared instance. Other
   providers are later.
-- Content is split into chunks for indexing. Chunk size and boundaries are open.
+- The provider is chosen by `embeddings.provider`, which is `none` by default. The other settings are
+  `embeddings.url`, `embeddings.model`, `embeddings.document_prefix` and `embeddings.query_prefix` (the text put
+  before a chunk and before a query; empty means the model's built-in prefix and `none` means no prefix),
+  `embeddings.chunk_chars` and `embeddings.timeout`.
+- All of these settings are user-only. A chunk of a document is sent to the address in `embeddings.url`, so a committed
+  file must not be able to choose where a user's text goes. In the committed project file they are ignored with a
+  warning, as in [configuration.md](configuration.md); the user file, the project-local file and the environment
+  (`RALPH_EMBEDDINGS_PROVIDER`) set them.
+- Content is split into chunks for indexing. A record is cut at its headings and blank lines, with a fenced code block
+  kept whole, and a block that is too long is cut at sentence ends, into pieces of about `embeddings.chunk_chars`
+  characters (1200 by default, from 200 to 6000). Each chunk is embedded
+  with its title and the headings above it, so a piece far down a long document still says what it belongs to. A
+  record with no text is embedded by its title.
+- The vectors are kept in a separate local file in the ralph directory, `.ralph/index.db`, not in the database. It is
+  derived from the records, so it is excluded from version control and from the database's backup, and deleting it
+  loses nothing but the time to embed again.
 - The index follows the records. When a document or work record changes, its index entries are updated, and a stale
-  entry never outlives its record.
-- How keyword and semantic results are combined in one ranking is open.
-- A project with no embedding provider configured has keyword search only.
+  entry never outlives its record: an entry made from text the record no longer has is ignored when a search reads it,
+  and `ralph index` removes it.
+- `ralph index` embeds every brief, slice, task, document and note that is missing from the index or has changed, in
+  that order, and removes entries of records that are gone. It continues where an interrupted run stopped, and says when
+  the index is up to date. `ralph index --status` embeds nothing: it shows the provider, the model and its digest,
+  whether the provider is reachable, the size of the vectors and how many records are indexed, waiting and to remove
+  (`--json` prints the same as one object).
+- Before a search, ralph catches the index up with a few of the records that are waiting, so a record just written is
+  found in the same search. What is still waiting is reported in a notice that gives the count and says to run
+  `ralph index`; the search still returns results.
+- Keyword and semantic results are combined in one ranking by reciprocal rank fusion: each list is ranked best first,
+  and a record scores the sum of one over a constant plus its rank in each list. A record found both ways therefore
+  ranks above one found one way. The result's `mode` is `hybrid`, and each hit's `sources` says how it was found:
+  `keyword`, `semantic` or both. A hybrid score is a rank score and cannot be compared with a keyword score.
+- When the provider cannot be used, search does not fail. It returns the keyword results with `mode` set to
+  `keyword-fallback` and a notice that gives the reason, such as the provider being unreachable, a model that is not
+  installed (with the command to install it), or an index with no vectors yet. After a failure ralph does not ask the
+  provider again for a short time, so each search is not slowed by waiting for it.
+- A project with no embedding provider configured has keyword search only: `mode` is `keyword`, there are no
+  `sources`, and no index file is made.
 
 Keyword search covers a document's current content and the briefs, slices, tasks and notes of the plan, including a
 task's acceptance criteria.
@@ -88,6 +120,9 @@ task's acceptance criteria.
   of results, and both can include inactive records.
 
 ## Keeping the semantic index valid
+
+This stage does not yet check the configuration: the index is used as it is, and a change of model, prefix or chunk size
+is not noticed. What follows is the design for the next stage.
 
 Embeddings from different configurations cannot be compared. Changing the model, or anything else that changes what a
 stored vector means, makes the existing embeddings wrong for the new configuration. See

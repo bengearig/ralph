@@ -27,6 +27,13 @@ The local database is SQLite, in the ralph directory, and is excluded from versi
 at once, such as the loop and an interactive session, so it uses write-ahead logging and writes carry a fingerprint, as
 in [0006](decisions/0006-shared-state-and-concurrency.md).
 
+## Semantic index
+
+Semantic search keeps its vectors in `.ralph/index.db`, a second SQLite file next to the database, made when a provider
+is configured. It is derived from the records, so it is excluded from version control, the database's backup does not
+contain it, and it can be deleted and filled again with `ralph index`. See
+[documents-and-search.md](documents-and-search.md).
+
 ## Upgrades
 
 - The database stores its schema version.

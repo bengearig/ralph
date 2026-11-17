@@ -4,8 +4,6 @@ Status: draft
 
 | Question | Blocks |
 | --- | --- |
-| How are chunk size and boundaries chosen, and what Ollama models are supported or required? | documents |
-| How are keyword and semantic results combined in one ranking? | documents |
 | What is the rebuild command's name, and does it also cover rebuilding the keyword index? | documents |
 | Which parts of the embedding configuration make an index stale, and which changes, such as a timeout, do not? | documents |
 | How does ralph notice a model updated under the same name when the provider reports no version? | documents |

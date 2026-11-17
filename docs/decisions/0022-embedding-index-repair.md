@@ -21,6 +21,9 @@ results with no error.
   harness hook is required.
 - An unreachable provider is not a stale index and triggers no rebuild.
 
+The fallback with a notice when the provider fails is in place; recording and checking the configuration, and the
+rebuild, are not yet.
+
 ## Alternatives rejected
 
 - Searching a mismatched index anyway: wrong results that look right.

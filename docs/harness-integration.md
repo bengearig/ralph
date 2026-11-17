@@ -24,6 +24,12 @@ Used for the phases where the user works with the agent: Receive, Articulate, an
   ralph and never touches storage directly. In remote mode the MCP server is a client of the instance.
 - Entries in the harness's project instruction file make every session aware of the workflow.
 
+The `search` tool reads the project's records. When an embedding provider is configured its result says which search ran
+in `mode` (`hybrid`, `keyword`, or `keyword-fallback` when the provider could not be used), each hit's `sources` says
+whether it was found by keyword, by meaning or both, and a `notice`, when present, says something about the search, such
+as the reason for a fallback or that the index is behind. The tool's text repeats the notice so an agent can relay it. See
+[documents-and-search.md](documents-and-search.md).
+
 The MCP server covers only what agents need. The CLI covers what people run, such as installing integration files and
 monitoring. Actions an agent needs to finish its own work, such as finalizing quick work, are MCP tools, and
 [0007](decisions/0007-orphan-task-delivery.md) also names a CLI form for it. Quick start and finish are both a command
