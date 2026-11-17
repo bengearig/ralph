@@ -67,7 +67,49 @@ func (adapter) Headless(req harness.HeadlessRequest) (harness.Invocation, error)
 		args = append(args, "--model", req.Model)
 	}
 	args = append(args, "--permission-mode", "dontAsk", "--permission-prompts", "none")
+	settings, err := restrictedSettings(req)
+	if err != nil {
+		return harness.Invocation{}, err
+	}
+	args = append(args, "--settings", settings)
 	return harness.Invocation{Command: "claude", Args: args, Dir: req.Dir, Stdin: req.Prompt}, nil
+}
+
+var ownProtected = []string{".claude/", ".mcp.json"}
+
+type permissionSettings struct {
+	Permissions struct {
+		Allow []string `json:"allow"`
+		Deny  []string `json:"deny"`
+	} `json:"permissions"`
+}
+
+// restrictedSettings is the --settings JSON of a restricted run. There is
+// deliberately no bare Edit or Read rule: a bare allow also covers paths
+// outside the project.
+func restrictedSettings(req harness.HeadlessRequest) (string, error) {
+	var s permissionSettings
+	p := &s.Permissions
+	p.Allow = []string{"Edit(./**)"}
+	for _, c := range req.Allow.Commands {
+		p.Allow = append(p.Allow, "Bash("+c+")")
+	}
+	for _, t := range req.Allow.Tools {
+		p.Allow = append(p.Allow, "mcp__"+req.MCP.Name+"__"+t)
+	}
+	p.Deny = []string{}
+	for _, path := range append(append([]string(nil), req.Allow.Protected...), ownProtected...) {
+		if dir, ok := strings.CutSuffix(path, "/"); ok {
+			p.Deny = append(p.Deny, "Edit("+dir+"/**)")
+		} else {
+			p.Deny = append(p.Deny, "Edit("+path+")")
+		}
+	}
+	b, err := json.Marshal(s)
+	if err != nil {
+		return "", fmt.Errorf("permission settings: %w", err)
+	}
+	return string(b), nil
 }
 
 func (adapter) NewParser() harness.Parser { return &parser{} }

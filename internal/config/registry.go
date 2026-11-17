@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/bengearig/ralph/internal/naming"
 )
@@ -275,6 +276,24 @@ func DefaultRegistry() *Registry {
 			ValidateItem: func(v string) error {
 				if strings.TrimSpace(v) == "" {
 					return errors.New("must not be blank")
+				}
+				return nil
+			},
+		},
+		Setting{
+			Path:        "headless.allow",
+			Description: "Shell command patterns the headless agent may run in restricted mode; * matches any text, a pattern ending in ` *` also matches the command with no arguments, and a backslash takes the next character literally",
+			Kind:        KindList,
+			Scope:       ScopeUser,
+			ValidateItem: func(v string) error {
+				if strings.TrimSpace(v) == "" {
+					return errors.New("must not be blank")
+				}
+				if strings.ContainsFunc(v, unicode.IsControl) {
+					return errors.New("must not contain a newline or other control character")
+				}
+				if utf8.RuneCountInString(v) > 500 {
+					return errors.New("must be at most 500 characters")
 				}
 				return nil
 			},

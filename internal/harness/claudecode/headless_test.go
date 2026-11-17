@@ -18,6 +18,8 @@ func headlessReq() harness.HeadlessRequest {
 	}
 }
 
+const wantMinimalSettings = `{"permissions":{"allow":["Edit(./**)"],"deny":["Edit(.claude/**)","Edit(.mcp.json)"]}}`
+
 const wantMCPConfig = `{"mcpServers":{"ralph":{"args":["mcp","--x"],"command":"/bin/ralph","type":"stdio"}}}`
 
 func TestClaudeHeadlessArgsExact(t *testing.T) {
@@ -28,7 +30,7 @@ func TestClaudeHeadlessArgsExact(t *testing.T) {
 	}
 	want := []string{"-p", "--output-format", "stream-json", "--verbose", "--no-session-persistence",
 		"--setting-sources", "user,local", "--strict-mcp-config", "--mcp-config", wantMCPConfig,
-		"--permission-mode", "dontAsk", "--permission-prompts", "none"}
+		"--permission-mode", "dontAsk", "--permission-prompts", "none", "--settings", wantMinimalSettings}
 	if !reflect.DeepEqual(inv.Args, want) {
 		t.Errorf("Args =\n%q\nwant\n%q", inv.Args, want)
 	}
@@ -43,7 +45,7 @@ func TestClaudeHeadlessArgsExact(t *testing.T) {
 	}
 	want = []string{"-p", "--output-format", "stream-json", "--verbose", "--no-session-persistence",
 		"--setting-sources", "user,local", "--strict-mcp-config", "--mcp-config", wantMCPConfig,
-		"--model", "claude-opus-5-5", "--permission-mode", "dontAsk", "--permission-prompts", "none"}
+		"--model", "claude-opus-5-5", "--permission-mode", "dontAsk", "--permission-prompts", "none", "--settings", wantMinimalSettings}
 	if !reflect.DeepEqual(inv.Args, want) {
 		t.Errorf("Args with model =\n%q\nwant\n%q", inv.Args, want)
 	}

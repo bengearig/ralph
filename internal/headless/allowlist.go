@@ -1,0 +1,97 @@
+package headless
+
+import (
+	"strings"
+
+	"github.com/bengearig/ralph/internal/config"
+	"github.com/bengearig/ralph/internal/harness"
+	"github.com/bengearig/ralph/internal/verify"
+)
+
+// ReadOnlyTools are the ralph tools a restricted run may call, by bare name.
+var ReadOnlyTools = []string{
+	"status", "unit_get", "unit_list", "planning_settings",
+	"doc_get", "doc_list", "doc_versions", "search",
+}
+
+// ReadOnlyGit are the git command patterns a restricted run may run.
+var ReadOnlyGit = []string{
+	"git status *", "git diff *", "git log *", "git show *", "git rev-parse *", "git ls-files *",
+}
+
+// protectedPaths are what a headless run may never edit; a trailing slash
+// marks a directory.
+var protectedPaths = []string{".git/", ".ralph/"}
+
+// SimpleCommands splits a shell command line at &&, ||, ;, |, & and newlines,
+// without regard to quoting, and drops empty parts.
+func SimpleCommands(command string) []string {
+	parts := strings.FieldsFunc(command, func(r rune) bool {
+		return r == '&' || r == '|' || r == ';' || r == '\n' || r == '\r'
+	})
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// EscapePattern turns a literal command into a pattern that matches only it.
+func EscapePattern(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r == '\\' || r == '*' {
+			b.WriteByte('\\')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// Restricted is the allowlist of a restricted run: read-only ralph tools,
+// read-only git, each verification command whole and in parts, and extra.
+func Restricted(verifyCommands, extra []string) harness.Allowlist {
+	seen := map[string]bool{}
+	var commands []string
+	add := func(p string) {
+		if !seen[p] {
+			seen[p] = true
+			commands = append(commands, p)
+		}
+	}
+	for _, p := range ReadOnlyGit {
+		add(p)
+	}
+	for _, c := range verifyCommands {
+		add(EscapePattern(c))
+		for _, part := range SimpleCommands(c) {
+			add(EscapePattern(part))
+		}
+	}
+	for _, p := range extra {
+		add(p)
+	}
+	return harness.Allowlist{
+		Tools:     append([]string(nil), ReadOnlyTools...),
+		Commands:  commands,
+		Protected: append([]string(nil), protectedPaths...),
+	}
+}
+
+// NewRequest builds a restricted headless request for the project at root.
+func NewRequest(cfg *config.Config, root, prompt string, mcp harness.MCPServer) (harness.HeadlessRequest, error) {
+	extra, _ := cfg.List("headless.allow")
+	req := harness.HeadlessRequest{
+		Dir:    root,
+		Prompt: prompt,
+		MCP:    mcp,
+		Mode:   harness.PermissionRestricted,
+		Allow:  Restricted(verify.FromConfig(cfg, root).Commands, extra),
+	}
+	if err := req.Validate(); err != nil {
+		return harness.HeadlessRequest{}, err
+	}
+	return req, nil
+}

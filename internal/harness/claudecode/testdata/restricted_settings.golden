@@ -1,0 +1,1 @@
+{"permissions":{"allow":["Edit(./**)","Bash(git status *)","Bash(go test \\*)","Bash(echo (hi))","mcp__ralph__status","mcp__ralph__unit_get"],"deny":["Edit(.git/**)","Edit(.ralph/**)","Edit(secrets.txt)","Edit(.claude/**)","Edit(.mcp.json)"]}}

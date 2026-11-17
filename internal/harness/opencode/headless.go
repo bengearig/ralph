@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/bengearig/ralph/internal/harness"
 )
@@ -30,6 +31,57 @@ type configContent struct {
 	Permissions []permissionRule `json:"permissions"`
 }
 
+var ownProtected = []string{".opencode/", "opencode.json", "opencode.jsonc"}
+
+// restrictedRules are ordered because the last matching rule wins: the
+// protected-path denies must follow the edit allow.
+func restrictedRules(req harness.HeadlessRequest) []permissionRule {
+	rules := []permissionRule{
+		{"*", "*", "deny"},
+		{"read", "*", "allow"},
+		{"glob", "*", "allow"},
+		{"grep", "*", "allow"},
+		{"edit", "*", "allow"},
+	}
+	for _, path := range append(append([]string(nil), req.Allow.Protected...), ownProtected...) {
+		if dir, ok := strings.CutSuffix(path, "/"); ok {
+			rules = append(rules,
+				permissionRule{"edit", dir + "/*", "deny"},
+				permissionRule{"edit", "*/" + dir + "/*", "deny"})
+		} else {
+			rules = append(rules,
+				permissionRule{"edit", path, "deny"},
+				permissionRule{"edit", "*/" + path, "deny"})
+		}
+	}
+	for _, c := range req.Allow.Commands {
+		rules = append(rules, permissionRule{"shell", unescapePattern(c), "allow"})
+	}
+	for _, t := range req.Allow.Tools {
+		rules = append(rules, permissionRule{req.MCP.Name + "_" + t, "*", "allow"})
+	}
+	return rules
+}
+
+// unescapePattern drops each backslash and keeps the character after it;
+// OpenCode has no literal-star form, so the result can be slightly broader.
+func unescapePattern(p string) string {
+	var b strings.Builder
+	escaped := false
+	for _, r := range p {
+		if r == '\\' && !escaped {
+			escaped = true
+			continue
+		}
+		escaped = false
+		b.WriteRune(r)
+	}
+	if escaped {
+		b.WriteRune('\\')
+	}
+	return b.String()
+}
+
 func (adapter) Headless(req harness.HeadlessRequest) (harness.Invocation, error) {
 	if err := req.Validate(); err != nil {
 		return harness.Invocation{}, err
@@ -41,7 +93,7 @@ func (adapter) Headless(req harness.HeadlessRequest) (harness.Invocation, error)
 	cfg.MCP.Servers = map[string]mcpEntry{
 		req.MCP.Name: {Type: "local", Command: append([]string{req.MCP.Command}, req.MCP.Args...)},
 	}
-	cfg.Permissions = []permissionRule{{Action: "*", Resource: "*", Effect: "deny"}}
+	cfg.Permissions = restrictedRules(req)
 	content, err := json.Marshal(cfg)
 	if err != nil {
 		return harness.Invocation{}, fmt.Errorf("config content: %w", err)
