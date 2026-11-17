@@ -47,7 +47,13 @@ type Subject struct {
 	// Plan is a plan Schedule accepts; the check that needs one is skipped
 	// when it is empty.
 	Plan string
+	// Without names the methods the system does not implement yet, Move or
+	// Schedule: the checks of those methods skip and the checks that call
+	// every method leave them out.
+	Without []string
 }
+
+func (s Subject) lacks(method string) bool { return slices.Contains(s.Without, method) }
 
 func (s Subject) ticketType() string { return orDefault(s.Type, "Task") }
 func (s Subject) parentType() string { return orDefault(s.ParentType, "Feature") }
@@ -165,6 +171,11 @@ func run(t runT, s Subject) {
 			if s.System == nil {
 				t.Fatal("Subject.System is nil")
 			}
+			for _, m := range s.Without {
+				if strings.HasPrefix(c.name, m) {
+					t.Skipf("subject does not implement %s yet", m)
+				}
+			}
 			for _, need := range c.needs {
 				if missing(s, need) {
 					t.Skipf("subject control %s is not set", need)
@@ -182,7 +193,7 @@ var (
 
 func ref(name string) string {
 	counter++
-	return fmt.Sprintf("conformance-%s-%d-%d", name, time.Now().UnixNano(), counter)
+	return fmt.Sprintf("ralph-conformance-%s-%d-%d", name, time.Now().UnixNano(), counter)
 }
 
 const longTitle = "Conformance title " +
@@ -466,9 +477,13 @@ func everyOperation(t runT, s Subject, key string, verify func(op string, err er
 	verify("Update", s.System.Update(ctx, key, taskmanager.Fields{Title: "x"}))
 	_, err = s.System.Get(ctx, []string{key})
 	verify("Get", err)
-	_, err = s.System.Move(ctx, key, s.statuses()[1], nil)
-	verify("Move", err)
-	verify("Schedule", s.System.Schedule(ctx, key, "conformance"))
+	if !s.lacks("Move") {
+		_, err = s.System.Move(ctx, key, s.statuses()[1], nil)
+		verify("Move", err)
+	}
+	if !s.lacks("Schedule") {
+		verify("Schedule", s.System.Schedule(ctx, key, "conformance"))
+	}
 }
 
 func rejectedCredential(t runT, s Subject) {
