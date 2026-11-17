@@ -150,7 +150,7 @@ func TestSyncAdoptFromLinkWithoutRow(t *testing.T) {
 		t.Fatalf("calls = %q", e.fake.Calls())
 	}
 	row := e.row(b.ID)
-	want := Row{UnitID: b.ID, System: "fake", Key: "ABC-77", LinkConfirmed: true}
+	want := Row{UnitID: b.ID, System: "fake", Key: "ABC-77", LinkConfirmed: true, Scheduled: true}
 	row.SyncedAt = time.Time{}
 	if row != want {
 		t.Fatalf("row = %+v", row)
@@ -313,7 +313,43 @@ func TestSyncScheduleFailureKeepsTicketAndRetries(t *testing.T) {
 	wantKeys(t, r.Scheduled, s.ID+"=ABC-2")
 }
 
-func TestSyncScheduleNotForAdopted(t *testing.T) {
+func TestSyncScheduleNotForAdoptedFromLink(t *testing.T) {
+	e := newEnv(t)
+	b := e.unit(units.LevelBrief, "", "Brief")
+	pre, err := e.fake.Create(e.ctx, taskmanager.New{Type: "Feature", Title: "Written in Jira"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.svc.AddLink(e.ctx, b.ID, units.LinkExternal, "jira:"+pre.Key); err != nil {
+		t.Fatal(err)
+	}
+	e.useSprint("Sprint 42")
+	e.deps.Settings.SprintLevels = []string{"brief"}
+	for i := 0; i < 3; i++ {
+		e.mustSync()
+	}
+	if e.count("Schedule") != 0 || e.count("Update") == 0 || !e.row(b.ID).Scheduled || e.row(b.ID).PushedTitle == "" {
+		t.Fatalf("calls = %q, row = %+v", e.fake.Calls(), e.row(b.ID))
+	}
+}
+
+func TestSyncScheduleNotForAdoptedByReference(t *testing.T) {
+	e := newEnv(t)
+	b := e.unit(units.LevelBrief, "", "Brief")
+	if _, err := e.fake.Create(e.ctx, taskmanager.New{Type: "Feature", Title: "Brief", Ref: Ref("proj", b.ID)}); err != nil {
+		t.Fatal(err)
+	}
+	e.useSprint("Sprint 42")
+	e.deps.Settings.SprintLevels = []string{"brief"}
+	for i := 0; i < 3; i++ {
+		e.mustSync()
+	}
+	if e.count("Schedule") != 0 || !e.row(b.ID).Scheduled || e.row(b.ID).PushedTitle == "" {
+		t.Fatalf("calls = %q, row = %+v", e.fake.Calls(), e.row(b.ID))
+	}
+}
+
+func TestSyncScheduleAdoptedRowIsMarkedScheduled(t *testing.T) {
 	e := newEnv(t)
 	b := e.unit(units.LevelBrief, "", "Brief")
 	b2 := e.unit(units.LevelBrief, "", "Other")
@@ -323,11 +359,61 @@ func TestSyncScheduleNotForAdopted(t *testing.T) {
 	if _, err := e.fake.Create(e.ctx, taskmanager.New{Type: "Feature", Title: "Other", Ref: Ref("proj", b2.ID)}); err != nil {
 		t.Fatal(err)
 	}
+	e.mustSync()
+	if !e.row(b.ID).Scheduled || !e.row(b2.ID).Scheduled {
+		t.Fatalf("rows = %+v, %+v", e.row(b.ID), e.row(b2.ID))
+	}
+}
+
+func TestSyncScheduleStillForCreatedTickets(t *testing.T) {
+	e := newEnv(t)
+	b := e.unit(units.LevelBrief, "", "Brief")
 	e.useSprint("Sprint 42")
 	e.deps.Settings.SprintLevels = []string{"brief"}
+	r := e.mustSync()
+	if len(r.Created) != 1 || len(r.Scheduled) != 1 || !e.row(b.ID).Scheduled || e.count("Schedule") != 1 {
+		t.Fatalf("report = %+v, calls = %q", r, e.fake.Calls())
+	}
+}
+
+func TestSyncScheduleFailureStillRetried(t *testing.T) {
+	e := newEnv(t)
+	b := e.unit(units.LevelBrief, "", "Brief")
+	e.deps.Settings.Sprint = "Sprint 42"
+	e.deps.Settings.SprintLevels = []string{"brief"}
+	e.mustSync()
+	if row := e.row(b.ID); row.Scheduled || row.FailedStep != "schedule" {
+		t.Fatalf("row = %+v", row)
+	}
+	e.fake.SetPlans("Sprint 42")
+	e.mustSync()
+	if row := e.row(b.ID); !row.Scheduled || row.FailedStep != "" {
+		t.Fatalf("row = %+v", row)
+	}
+	if e.count("Schedule") != 2 {
+		t.Fatalf("calls = %q", e.fake.Calls())
+	}
+}
+
+func TestSyncScheduleOnlyConfiguredLevelsStillHolds(t *testing.T) {
+	e := newEnv(t)
+	e.mapTasks()
+	b, s, tk := e.tree()
+	e.useSprint("Sprint 42")
+	e.deps.Settings.SprintLevels = []string{"slice"}
 	e.mustSync()
 	e.mustSync()
-	if e.count("Schedule") != 0 || e.row(b.ID).Scheduled || e.row(b2.ID).Scheduled {
+	if e.row(b.ID).Scheduled || !e.row(s.ID).Scheduled || e.row(tk.ID).Scheduled || e.count("Schedule") != 1 {
+		t.Fatalf("calls = %q", e.fake.Calls())
+	}
+}
+
+func TestSyncScheduleNoSprintSettingNeverSchedules(t *testing.T) {
+	e := newEnv(t)
+	e.tree()
+	e.mustSync()
+	e.mustSync()
+	if e.count("Schedule") != 0 {
 		t.Fatalf("calls = %q", e.fake.Calls())
 	}
 }

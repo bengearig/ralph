@@ -713,6 +713,26 @@ func TestE2ETicketsAdoptAndDetach(t *testing.T) {
 	}
 }
 
+func TestTicketsCommandSyncAdoptedTicketNotInSprint(t *testing.T) {
+	j := newJiraE2E(t, true, "")
+	j.setEnv("RALPH_JIRA_AUTO_SYNC", "false")
+	cs := j.connect(t, io.Discard)
+	b := e2eCreate(t, cs, "brief", "", "Ship it", "Why.")
+	linked := e2eCreate(t, cs, "slice", b, "Linked slice", "Linked body.")
+	crashed := e2eCreate(t, cs, "slice", b, "Crashed slice", "Crashed body.")
+	existing := j.srv.Seed(jiratest.Issue{Key: "ABC-99", Type: "Task", Summary: "Written in Jira", Body: "Old body."})
+	e2eOK(t, cs, "link_add", map[string]any{"id": linked, "kind": "external", "target": "jira:" + existing})
+	leftover := j.srv.Seed(jiratest.Issue{Type: "Task", Summary: "Left by a crash", Labels: []string{"ralph", j.ref(crashed)}})
+
+	j.mustRun(t, "tickets", "sync")
+	j.mustRun(t, "tickets", "sync")
+	for _, key := range j.srv.SprintIssues(10) {
+		if key == existing || key == leftover {
+			t.Errorf("adopted ticket %s is in the sprint %v", key, j.srv.SprintIssues(10))
+		}
+	}
+}
+
 func appendFile(t *testing.T, path, text string) {
 	t.Helper()
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)

@@ -25,7 +25,8 @@ type Row struct {
 	PushedParent string
 	// MappedStatus is the status ralph last mapped for the unit and acted on; empty for a new or older row.
 	MappedStatus string
-	Scheduled    bool
+	// Scheduled is set once the sprint step is done or does not apply; adoption sets it.
+	Scheduled bool
 	// LinkConfirmed is set once the unit's external link is written; a row without it was cut short by a crash.
 	LinkConfirmed bool
 	Drift         string

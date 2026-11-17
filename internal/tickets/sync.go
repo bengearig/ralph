@@ -212,7 +212,7 @@ func (p *pass) put(ctx context.Context, r Row) error {
 }
 
 func (p *pass) adoptLink(ctx context.Context, u units.Unit, key string) error {
-	row := Row{UnitID: u.ID, System: p.d.System.Name(), Key: key, LinkConfirmed: true, SyncedAt: p.d.now()}
+	row := Row{UnitID: u.ID, System: p.d.System.Name(), Key: key, LinkConfirmed: true, Scheduled: true, SyncedAt: p.d.now()}
 	if err := p.put(ctx, row); err != nil {
 		return p.fail(ctx, u, stepCreate, err)
 	}
@@ -237,7 +237,7 @@ func (p *pass) create(ctx context.Context, u units.Unit) (done bool, err error) 
 		return true, p.fail(ctx, u, stepCreate, err)
 	}
 	if found != nil {
-		row := Row{UnitID: u.ID, System: p.d.System.Name(), Key: found.Key, ID: found.ID, SyncedAt: p.d.now()}
+		row := Row{UnitID: u.ID, System: p.d.System.Name(), Key: found.Key, ID: found.ID, Scheduled: true, SyncedAt: p.d.now()}
 		if err := p.confirm(ctx, u, row); err != nil {
 			return true, err
 		}
@@ -291,12 +291,12 @@ func (p *pass) skipped(u units.Unit, key, reason string) {
 	p.d.emit(Event{Kind: "skipped", Unit: u.ID, Key: key, Message: reason})
 }
 
-// schedule puts a ticket ralph created into the configured sprint. A row with no pushed title was adopted, and
-// adopted tickets are never scheduled.
+// schedule puts a ticket ralph created into the configured sprint. An adopted row is written already scheduled,
+// so adopted tickets never reach the sprint.
 func (p *pass) schedule(ctx context.Context, u units.Unit) error {
 	row, ok := p.byID[u.ID]
 	sprint := p.d.Settings.Sprint
-	if !ok || row.Scheduled || row.PushedTitle == "" || sprint == "" || !slices.Contains(p.d.Settings.SprintLevels, string(u.Level)) {
+	if !ok || row.Scheduled || sprint == "" || !slices.Contains(p.d.Settings.SprintLevels, string(u.Level)) {
 		return nil
 	}
 	if p.deferred(u, row, stepSchedule) {
