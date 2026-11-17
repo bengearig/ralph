@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"path"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -295,6 +296,127 @@ func DefaultRegistry() *Registry {
 				}
 				return nil
 			},
+		},
+		Setting{
+			Path:        "taskmanager.provider",
+			Description: "Which task manager ralph pushes briefs, slices and tasks to as tickets; none means no tickets are made",
+			Default:     "none",
+			Allowed:     []string{"none", "jira"},
+		},
+		Setting{
+			Path:        "jira.site",
+			Description: "Address of the Jira Cloud site, https or http on a loopback host, with no credentials, query or fragment; ticket text is sent to this site when taskmanager.provider is jira",
+			Scope:       ScopeUser,
+			Validate:    validateJiraSite,
+		},
+		Setting{
+			Path:        "jira.user",
+			Description: "Email of the Atlassian account that owns the API token; ticket text is sent to the site named by jira.site on its behalf",
+			Scope:       ScopeUser,
+			Validate:    validateJiraUser,
+		},
+		Setting{
+			Path:        "jira.token",
+			Description: "Reference to the Jira API token, of the form env:NAME; ticket text is sent to the site named by jira.site with it",
+			Default:     "env:JIRA_TOKEN",
+			Scope:       ScopeUser,
+			Kind:        KindSecret,
+		},
+		Setting{
+			Path:        "jira.project",
+			Description: "Key of the Jira project that receives the tickets, 2 to 20 characters: an uppercase letter, then uppercase letters, digits and underscores",
+			Validate:    validateJiraProject,
+		},
+		Setting{
+			Path:        "jira.type.brief",
+			Description: "Ticket type made for a brief; empty means briefs have no ticket",
+			Default:     "Feature",
+			Validate:    validateJiraName,
+		},
+		Setting{
+			Path:        "jira.type.slice",
+			Description: "Ticket type made for a slice; empty means slices have no ticket",
+			Default:     "Task",
+			Validate:    validateJiraName,
+		},
+		Setting{
+			Path:        "jira.type.task",
+			Description: "Ticket type made for a task; empty means tasks have no ticket",
+			Validate:    validateJiraName,
+		},
+		Setting{
+			Path:         "jira.states",
+			Description:  "Items STATE=Status that name the ticket status a ralph state maps to, replacing the built-in mapping; STATE is PROPOSED, TODO, IN_PROGRESS, BLOCKED, DONE, CANCELLED, EMPTY, ARTICULATING, READY, NEEDS_ATTENTION, IN_REVIEW or MERGED, and the later of two items for one state wins",
+			Kind:         KindList,
+			ValidateItem: validateJiraStateItem,
+		},
+		Setting{
+			Path:         "jira.flow",
+			Description:  "Status names in the order a ticket normally moves; a ticket with no direct transition to a status is stepped through the statuses between them",
+			Kind:         KindList,
+			ValidateItem: validateJiraStatus,
+		},
+		Setting{
+			Path:        "jira.sprint",
+			Description: "Name of the sprint new tickets are put in, at most 100 characters; empty means no sprint",
+			Validate: func(v string) error {
+				if utf8.RuneCountInString(v) > 100 {
+					return errors.New("must be at most 100 characters")
+				}
+				if strings.ContainsFunc(v, unicode.IsControl) {
+					return errors.New("must not contain a control character")
+				}
+				return nil
+			},
+		},
+		Setting{
+			Path:        "jira.board",
+			Description: "Id of the board that holds the sprint, only needed when the project has several boards; empty means the project's board",
+			Validate: func(v string) error {
+				if v == "" {
+					return nil
+				}
+				n, err := strconv.Atoi(v)
+				if err != nil || n < 1 || strconv.Itoa(n) != v {
+					return errors.New("must be a whole number of at least 1")
+				}
+				return nil
+			},
+		},
+		Setting{
+			Path:        "jira.sprint_levels",
+			Description: "The levels brief, slice and task whose tickets are put in jira.sprint; empty means slice and task",
+			Kind:        KindList,
+			ValidateItem: func(v string) error {
+				if !slices.Contains(jiraLevels, v) {
+					return fmt.Errorf("must be one of %s", strings.Join(jiraLevels, ", "))
+				}
+				return nil
+			},
+		},
+		Setting{
+			Path:        "jira.auto_sync",
+			Description: "Whether tickets are pushed automatically after a command or tool call that wrote something; false leaves it to ralph tickets sync",
+			Default:     "true",
+			Allowed:     []string{"true", "false"},
+		},
+		Setting{
+			Path:        "jira.poll_interval",
+			Description: "The least time between automatic reads of the tickets for edits made in Jira, from 1m to 24h",
+			Default:     "5m",
+			Validate:    durationBetween(time.Minute, 24*time.Hour, "5m"),
+		},
+		Setting{
+			Path:        "jira.sync_timeout",
+			Description: "The longest an automatic push to Jira may take, from 1s to 5m",
+			Default:     "15s",
+			Validate:    durationBetween(time.Second, 5*time.Minute, "15s"),
+		},
+		Setting{
+			Path:        "jira.timeout",
+			Description: "Per-request timeout for Jira, from 1s to 5m",
+			Default:     "30s",
+			Validate:    durationBetween(time.Second, 5*time.Minute, "30s"),
 		},
 		Setting{
 			Path:        "embeddings.provider",
@@ -618,6 +740,111 @@ func validateExportDir(v string) error {
 		return fmt.Errorf("must not be inside %s", elems[0])
 	}
 	return nil
+}
+
+var jiraLevels = []string{"brief", "slice", "task"}
+
+var jiraStates = []string{
+	"PROPOSED", "TODO", "IN_PROGRESS", "BLOCKED", "DONE", "CANCELLED",
+	"EMPTY", "ARTICULATING", "READY", "NEEDS_ATTENTION", "IN_REVIEW", "MERGED",
+}
+
+var jiraProjectKey = regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`)
+
+func durationBetween(lo, hi time.Duration, example string) func(string) error {
+	return func(v string) error {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return errors.New("must be a duration such as " + example)
+		}
+		if d < lo || d > hi {
+			return fmt.Errorf("must be between %s and %s", lo, hi)
+		}
+		return nil
+	}
+}
+
+func validateJiraSite(v string) error {
+	if v == "" {
+		return nil
+	}
+	u, err := url.Parse(v)
+	if err != nil || u.Hostname() == "" {
+		return errors.New("must be a URL such as https://example.atlassian.net")
+	}
+	if u.User != nil {
+		return errors.New("jira.site must not contain credentials")
+	}
+	if u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || strings.Contains(v, "#") {
+		return errors.New("must not contain a query or fragment")
+	}
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		if ip := net.ParseIP(u.Hostname()); u.Hostname() == "localhost" || (ip != nil && ip.IsLoopback()) {
+			return nil
+		}
+	}
+	return errors.New("must use https unless the host is a loopback address")
+}
+
+func validateJiraUser(v string) error {
+	switch {
+	case v == "":
+		return nil
+	case strings.ContainsFunc(v, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }):
+		return errors.New("must not contain whitespace or a control character")
+	case utf8.RuneCountInString(v) > 254:
+		return errors.New("must be at most 254 characters")
+	case !strings.Contains(v, "@"):
+		return errors.New("must be an email address")
+	}
+	return nil
+}
+
+func validateJiraProject(v string) error {
+	if v == "" {
+		return nil
+	}
+	if n := utf8.RuneCountInString(v); n < 2 || n > 20 || !jiraProjectKey.MatchString(v) {
+		return errors.New("must be 2 to 20 characters, start with an uppercase letter and contain only uppercase letters, digits and underscores")
+	}
+	return nil
+}
+
+// validateJiraName accepts an empty value or a ticket type name.
+func validateJiraName(v string) error {
+	switch {
+	case utf8.RuneCountInString(v) > 60:
+		return errors.New("must be at most 60 characters")
+	case strings.ContainsFunc(v, unicode.IsControl):
+		return errors.New("must not contain a control character")
+	case v != strings.TrimSpace(v):
+		return errors.New("must not start or end with a space")
+	}
+	return nil
+}
+
+func validateJiraStatus(v string) error {
+	if n := utf8.RuneCountInString(v); n < 1 || n > 60 {
+		return errors.New("must be 1 to 60 characters")
+	}
+	if strings.ContainsFunc(v, unicode.IsControl) {
+		return errors.New("must not contain a control character")
+	}
+	return nil
+}
+
+func validateJiraStateItem(v string) error {
+	state, status, ok := strings.Cut(v, "=")
+	if !ok {
+		return errors.New("must be of the form STATE=Status")
+	}
+	if !slices.Contains(jiraStates, state) {
+		return fmt.Errorf("state must be one of %s", strings.Join(jiraStates, ", "))
+	}
+	return validateJiraStatus(status)
 }
 
 func validateEmbeddingsURL(v string) error {
