@@ -23,7 +23,9 @@ A pull request has a number, a URL, a title, a body, a head, a base, a draft fla
 merged, the merge commit. The state is one of `open`, `closed` (closed without merging) and `merged`. The head commit is
 the tip of the head branch as the host last knew it for the pull request, which for a merged pull request is the commit
 that was merged; ralph compares a branch's tip with it to tell whether the branch holds anything the merge did not, and
-it is empty when the host does not report one.
+it is empty when the host does not report one. Closing a merged slice deletes its branch only when the branch's tip is the
+head commit, and keeps it otherwise, which also holds after a squash or rebase merge, where the branch's commits are
+not in the base.
 
 A piece of feedback has an identifier that is unique within the pull request, a kind (`review`, `inline` or `comment`),
 an author, a body, a path and line for an inline comment, a review state for a review, a time and a URL. A review state is
@@ -95,6 +97,7 @@ which permission is missing.
 | Open | `open` | `OPEN` |
 | Merged | closed with a merge time; the merge commit is read | `MERGED`; the merge commit is read |
 | Closed without merging | `closed` with no merge time | `DECLINED` and `SUPERSEDED` |
+| Head commit | the `sha` of the pull request's head | the hash of the source commit |
 | Create when one is open | 422 saying one already exists, a conflict | 400 saying one already exists, a conflict |
 | Rate limit | 403 with no requests left, or 429; resets at the time given | 429; resets after `Retry-After` |
 

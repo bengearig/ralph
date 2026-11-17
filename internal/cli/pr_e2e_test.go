@@ -32,6 +32,7 @@ type prE2E struct {
 	*loopE2E
 	gh   *fakeGitHub
 	bare string
+	q    *quickE2E
 }
 
 // newPRE2E builds a repository with a bare origin, a fake GitHub and a fake
@@ -64,7 +65,7 @@ func newPRE2E(t *testing.T) *prE2E {
 	q.repo.Git("commit", "-m", "Install ralph")
 	q.repo.Git("push", "origin", "main")
 	l := &loopE2E{e2eEnv: q.e2eEnv, fake: fake, cs: q.connect(t, &strings.Builder{})}
-	return &prE2E{loopE2E: l, gh: q.gh, bare: q.bare}
+	return &prE2E{loopE2E: l, gh: q.gh, bare: q.bare, q: q}
 }
 
 // deliver seeds B-1 and S-1 with two ready tasks and has the loop deliver them.

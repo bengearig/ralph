@@ -37,9 +37,17 @@ type fakeGitHub struct {
 	pulls    []*fakePull
 	feedback map[int][]fakeFeedback
 	nextID   int
+
+	// headSHA reports the tip of a branch on the origin; the head commit of an
+	// open pull request follows it and a merged or closed one keeps the tip it
+	// had when it ended.
+	headSHA func(branch string) string
 }
 
-type fakePull struct{ closed, merged bool }
+type fakePull struct {
+	closed, merged bool
+	sha            string
+}
 
 type fakeFeedback struct {
 	id         int
@@ -144,7 +152,7 @@ func (g *fakeGitHub) pull(n int) map[string]any {
 		"body":     in["body"],
 		"state":    state,
 		"draft":    in["draft"],
-		"head":     map[string]any{"ref": in["head"]},
+		"head":     map[string]any{"ref": in["head"], "sha": g.headOf(n)},
 		"base":     map[string]any{"ref": in["base"]},
 	}
 	if st.merged {
@@ -152,6 +160,17 @@ func (g *fakeGitHub) pull(n int) map[string]any {
 		out["merge_commit_sha"] = "0123456789abcdef0123456789abcdef01234567"
 	}
 	return out
+}
+
+func (g *fakeGitHub) headOf(n int) string {
+	if st := g.pulls[n-1]; st.sha != "" {
+		return st.sha
+	}
+	if g.headSHA == nil {
+		return ""
+	}
+	branch, _ := g.created[n-1]["head"].(string)
+	return g.headSHA(branch)
 }
 
 func (g *fakeGitHub) pullURL(n int) string {
@@ -212,6 +231,7 @@ func (g *fakeGitHub) AddReview(n int, user, body, state string) int {
 func (g *fakeGitHub) Close(n int) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	g.pulls[n-1].sha = g.headOf(n)
 	g.pulls[n-1].closed = true
 }
 
@@ -219,6 +239,7 @@ func (g *fakeGitHub) Close(n int) {
 func (g *fakeGitHub) Merge(n int) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	g.pulls[n-1].sha = g.headOf(n)
 	g.pulls[n-1].merged = true
 }
 
@@ -226,6 +247,19 @@ func (g *fakeGitHub) requestCount() int {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return len(g.requests)
+}
+
+// writeCount counts the requests that were not reads.
+func (g *fakeGitHub) writeCount() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	n := 0
+	for _, r := range g.requests {
+		if !strings.HasPrefix(r, http.MethodGet+" ") {
+			n++
+		}
+	}
+	return n
 }
 
 func (g *fakeGitHub) creates() []map[string]any {
@@ -263,7 +297,32 @@ func newQuickE2E(t *testing.T) *quickE2E {
 	e.repo.Git("init", "--bare", "-b", "main", bare)
 	e.repo.Git("remote", "add", "origin", bare)
 	e.repo.Git("push", "-u", "origin", "main")
+	gh.headSHA = func(branch string) string {
+		out, err := exec.Command("git", "-C", bare, "rev-parse", "--verify", "-q", "refs/heads/"+branch).Output()
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(string(out))
+	}
 	return &quickE2E{e2eEnv: e, gh: gh, bare: bare}
+}
+
+// squashMerge merges pull request n on the host the way a squash merge does:
+// the base on the origin gets one new commit with the tree of the branch, and
+// the branch's own commits are not ancestors of it.
+func (q *quickE2E) squashMerge(t *testing.T, n int) {
+	t.Helper()
+	branch, _ := q.gh.creates()[n-1]["head"].(string)
+	base, _ := q.gh.creates()[n-1]["base"].(string)
+	git := func(args ...string) string {
+		return q.repo.Git(append([]string{"-C", q.bare, "-c", "user.name=Host", "-c", "user.email=host@example.com"}, args...)...)
+	}
+	commit := git("commit-tree", "-p", "refs/heads/"+base, "-m", "Squash merge of #"+strconv.Itoa(n), "refs/heads/"+branch+"^{tree}")
+	if err := exec.Command("git", "-C", q.bare, "merge-base", "--is-ancestor", "refs/heads/"+branch, "refs/heads/"+base).Run(); err == nil {
+		t.Fatalf("%s is already part of %s: the merge would not be a squash", branch, base)
+	}
+	git("update-ref", "refs/heads/"+base, commit)
+	q.gh.Merge(n)
 }
 
 // run executes ralph and returns its exit code and output.

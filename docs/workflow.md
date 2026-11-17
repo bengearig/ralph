@@ -109,17 +109,37 @@ Input: a middle unit whose bottom units are ready.
   reviews that have text are eligible too; an approval never is. Tasks are only created while the pull request is open.
   See [0009](decisions/0009-review-feedback-and-verification.md).
 - Merges and other pull request changes are detected by polling, a webhook, or a user command. `ralph pr check <slice>`
-  is the user command: it reads the slice's latest pull request from the host and records what changed. `ralph monitor`
-  shows them, and a separate action applies the follow-up. See
-  [0010](decisions/0010-sequencing-and-merge-detection.md).
+  is the user command: it reads the slice's latest pull request from the host and records what changed. Every path
+  records through the same handler. See [0010](decisions/0010-sequencing-and-merge-detection.md).
+- `ralph monitor` shows every brief and slice that is not finished, with the pull request of each slice as recorded and,
+  unless `--no-poll` is given, as the host reports it now, and the follow-ups that would apply. It changes nothing and
+  exits 0 when the host cannot be used. `--watch` repeats it every `--interval` (at least 10 seconds) until interrupted,
+  `--all` includes finished work and `--json` prints the view as JSON.
+- `ralph apply [slice]` is the separate action: it records what the host reports and applies follow-ups of the kinds
+  named by flags. `--close` deletes the branch of a merged slice and updates the base branch, `--feedback` creates tasks
+  from review feedback as `ralph pr feedback --create` does, and `--continue` runs the loop for the next slice. With no
+  flags it applies the kinds named by the user-only setting `follow_up.auto`, which is empty by default, so a bare
+  `ralph apply` only records. `ralph monitor --watch --apply` applies those kinds each round before showing the view.
+  Viewing and acting never mix: without `--apply` the monitor writes nothing.
 - A pull request that was closed without merging stops the slice, which shows `NEEDS_ATTENTION`, and `ralph loop` and
   `ralph pr create` refuse it until a person chooses. `ralph pr reopen <slice>` opens a new pull request from the same
   branch, `ralph pr rearticulate <slice>` moves the unfinished tasks back to proposed so the plan is made again, and
   `ralph pr cancel <slice>` cancels the unfinished tasks, and with `--dependents` those of the slices waiting for it;
   without `--yes` it only says what it would do. Finished tasks and commits are never touched. See
   [0011](decisions/0011-after-merge-and-closed-pull-requests.md).
-- After a merge the units close and the branch is deleted. The next middle unit waits for the user to start the loop,
-  unless auto-continue is active. See [0011](decisions/0011-after-merge-and-closed-pull-requests.md).
+- A slice shows `IN_REVIEW` while its pull request is open and `MERGED` once the merge is recorded. A slice that waits
+  for another waits until that one is merged, and a brief whose slices are all merged is `DONE`. Closing a merged slice
+  with `ralph apply --close` deletes its local branch, and the remote one too when the setting `follow_up.delete_branches`
+  is `both` (`local` by default, `none` deletes nothing), and fast-forwards the base branch from the remote when the
+  checkout is on it with no changes. A branch is deleted only when its tip is the commit the merged pull request had, so
+  a squash merge is recognised and a branch with later commits, or one that is checked out, is kept with the reason
+  given. The close is noted on the slice.
+- The next middle unit waits for the user to start the loop, unless auto-continue is on: `continue` in `follow_up.auto`,
+  or `ralph apply --continue`. It runs the loop, with what the loop prints indented, for at most one next slice per run:
+  the nearest slice after the merged one in the brief that is ready, waits for nothing and was not started this way before. It starts only when
+  the checkout is on the base branch, with no changes and up to date with the remote, and says why when it does not. The
+  loop spends money, which is why it is opt-in and user-only. See
+  [0011](decisions/0011-after-merge-and-closed-pull-requests.md).
 
 ## Quick work
 

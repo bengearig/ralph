@@ -13,8 +13,8 @@ ambiguous: the approach may have been wrong, the work superseded, or the closure
 After a merge:
 - The merged middle unit and its bottom units are closed.
 - The branch is deleted.
-- The next middle unit waits for the user to start the loop, unless auto-continue is active. Auto-continue starts the next
-  middle unit by itself once the previous one merges. Its definition is open.
+- The next middle unit waits for the user to start the loop, unless auto-continue is on. Auto-continue starts the next
+  middle unit by itself once the previous one merges, and is the `continue` kind of follow-up, off by default.
 
 After a closure without merging:
 - Ralph records the closure and stops. The branch and commits are left untouched.
@@ -34,7 +34,26 @@ blocked. `ralph loop` and `ralph pr create` refuse the slice and name the three 
   only says what it would do; with `--dependents` it also cancels the unfinished tasks of the slices waiting for the
   slice, directly or through others, and without it lists them and they keep waiting.
 
-The merge side is still to come: a merge found by `ralph pr check` is recorded and noted, and nothing else changes.
+A merge is recorded the same way, by `ralph pr check`, `ralph apply` or `ralph monitor --watch --apply`: the record
+becomes merged and the slice gets a note. The slice's status is `IN_REVIEW` while its latest pull request is open and
+`MERGED` once it is merged, and a brief whose slices are all merged is `DONE`. A slice that waits for a merged slice
+stops waiting. Recording changes nothing else; what follows a merge is applied by `ralph apply` (see
+[0010](0010-sequencing-and-merge-detection.md)):
+- Close (`--close`) finishes a merged slice. It deletes the local branch, and the remote branch as well when
+  `follow_up.delete_branches` is `both`; the setting is `local` by default and `none` deletes nothing. It then
+  fast-forwards the base branch from the remote when the checkout is on it with no changes. What it did and what it
+  refused is reported and noted on the slice.
+- A branch is deleted only when its tip is the head commit of the merged pull request, the commit the host reports the
+  pull request's head branch had. A squash or rebase merge leaves the branch's commits outside the base, so ancestry
+  would call a merged branch unmerged; the head commit does not. A branch with later commits is kept, the checked out
+  branch is kept with `git switch` named as the way out, and nothing is deleted when the host does not report a head
+  commit.
+- Continue (`--continue`) is auto-continue as an opt-in follow-up kind. It runs the loop for the next slice of the
+  brief, at most one per run and never one started this way before, and only from a clean checkout on the base branch
+  that is up to date with the remote. Nothing starts it unless a flag or the user-only `follow_up.auto` names it, because
+  the loop spends money. A refusal says why and starts nothing.
+- Feedback (`--feedback`) creates the tasks of review feedback on an open pull request. A closure without merging is
+  never applied: `ralph apply` records it and reports that a person must choose.
 
 ## Alternatives rejected
 
@@ -44,7 +63,8 @@ The merge side is still to come: a merge found by `ralph pr check` is recorded a
 
 ## Consequences
 
-- Units need a closed state and a needs-attention state; names are open.
-- Branch deletion must refuse when the branch holds unmerged work, and must say what it did.
+- Slices need a state for review and one for merged, and a needs-attention state; the names are settled: `IN_REVIEW`,
+  `MERGED` and `NEEDS_ATTENTION`.
+- Branch deletion refuses when the branch holds work the merged pull request did not have, and says what it did.
 - The monitor and any auto-continue apply these results through the shared change handler, so they behave the same however
   a change was detected.

@@ -21,8 +21,9 @@ Work is organized in a fixed set of levels, each tied to a git artifact.
 A Brief is a received instruction broken down into slices. A Slice is a part of a brief that leaves the result stable and
 usable when merged. A Task is the smallest unit of work done. IDs are a letter prefix and a per-project number counted
 per level, such as `B-1`, `S-3` and `T-12`. Only tasks store a state; a slice and a brief derive their status from their
-children. A slice also has the status `NEEDS_ATTENTION` while its latest pull request was closed without merging and
-nobody has decided what to do, and a brief with such a slice shows it too. See
+children. A slice also has the status `IN_REVIEW` while its latest pull request is open, `MERGED` once that pull request
+is merged, and `NEEDS_ATTENTION` while it was closed without merging and nobody has decided what to do; a brief with a
+slice that needs attention shows it too, and a brief whose slices are all merged is `DONE`. See
 [0026](decisions/0026-work-level-and-state-names.md) and
 [0011](decisions/0011-after-merge-and-closed-pull-requests.md).
 
@@ -46,7 +47,7 @@ later. It is received and completed in the user's own session through a dedicate
 
 Middle units under one top-level unit are worked sequentially where order matters. It does not always matter. Where
 it does, the order is recorded as a dependency: a middle unit waits for another, and the dependency is satisfied when
-that unit is done. Any two middle units may be tied, including ones under different top-level units, and a cycle is
+that unit is merged, or done when it has no pull request. Any two middle units may be tied, including ones under different top-level units, and a cycle is
 rejected. A middle unit that waits is not started. Parallel
 work is avoided because of the complexity it adds. See [0004](decisions/0004-work-model.md).
 

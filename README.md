@@ -41,6 +41,12 @@ The project is under construction. The design is in [docs/](docs/README.md).
   inline comments and requests for changes into tasks for the loop. `ralph pr check <slice>` records a pull request
   closed without merging, which stops the slice until `ralph pr reopen`, `ralph pr rearticulate` or `ralph pr cancel`.
   Nothing is merged.
+- `ralph monitor` shows the briefs and slices that are not finished, with their pull requests as recorded and as the host
+  reports them and the follow-ups that would apply, and changes nothing (`--watch`, `--no-poll`, `--all`, `--json`).
+  `ralph apply` records what the host reports and applies follow-ups named by `--close`, `--feedback` and `--continue`,
+  or by the user-only setting `follow_up.auto`, which is empty by default; `follow_up.delete_branches` (`local` by
+  default, `both` or `none`) says which branches a close deletes, and only when the branch holds nothing the merged pull
+  request did not have.
 - `ralph runs purge` removes run records under `.ralph/runs/` (`--older-than DURATION`, `--slice <ID>`; it lists unless
   `--yes`), and a loop removes those older than `runs.keep_days` when it starts.
 - Headless runs, which the loop uses, are set by `headless.permissions` (user-only, `restricted` by default or `auto`),
