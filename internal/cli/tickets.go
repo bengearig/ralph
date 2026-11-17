@@ -45,9 +45,10 @@ func newTicketsSyncCommand(a *app) *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "sync",
-		Short: "Create the tickets of the units that have none",
+		Short: "Create the tickets of the units that have none and push what changed",
 		Long: "Create a ticket in the task manager for every brief, slice and task whose level has a ticket type and that has none yet,\n" +
-			"and put the new tickets in the configured sprint. Tickets that exist are not changed.\n" +
+			"and put the new tickets in the configured sprint. For the tickets that exist, push a changed title or body and move\n" +
+			"the ticket to the status the unit's state maps to. A ticket with a difference in Jira is held.\n" +
 			"The command exits 1 when anything failed or the pass stopped early.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -73,8 +74,9 @@ func newTicketsSyncCommand(a *app) *cobra.Command {
 					return err
 				}
 			} else {
-				_, _ = fmt.Fprintf(out, "tickets: %d created, %d adopted, %d scheduled, %d skipped, %d failed\n",
-					len(report.Created), len(report.Adopted), len(report.Scheduled), len(report.Skipped), len(report.Failed))
+				_, _ = fmt.Fprintf(out, "tickets: %d created, %d adopted, %d updated, %d moved, %d scheduled, %d held, %d skipped, %d failed\n",
+					len(report.Created), len(report.Adopted), len(report.Updated), len(report.Moved), len(report.Scheduled), len(report.Held),
+					len(report.Skipped), len(report.Failed))
 			}
 			if syncErr != nil {
 				return syncErr
@@ -113,6 +115,16 @@ func eventLine(ev tickets.Event) string {
 		return fmt.Sprintf("created %s %s", ev.Unit, ev.Key)
 	case "adopted":
 		return fmt.Sprintf("adopted %s %s (%s)", ev.Unit, ev.Key, ev.Message)
+	case "updated":
+		return fmt.Sprintf("updated %s %s (%s)", ev.Unit, ev.Key, ev.Message)
+	case "moved":
+		line := fmt.Sprintf("moved %s %s %s", ev.Unit, ev.Key, ev.Message)
+		if ev.Detail != "" {
+			line += fmt.Sprintf(" (via %s)", ev.Detail)
+		}
+		return line
+	case "held":
+		return fmt.Sprintf("held %s %s: differs in Jira (%s); run ralph tickets", ev.Unit, ev.Key, ev.Message)
 	case "scheduled":
 		return fmt.Sprintf("scheduled %s %s in sprint %q", ev.Unit, ev.Key, ev.Message)
 	case "skipped":
@@ -137,7 +149,11 @@ type failureJSON struct {
 type syncReportJSON struct {
 	Created   []itemJSON    `json:"created"`
 	Adopted   []itemJSON    `json:"adopted"`
+	Updated   []itemJSON    `json:"updated"`
+	Moved     []itemJSON    `json:"moved"`
 	Scheduled []itemJSON    `json:"scheduled"`
+	Held      []itemJSON    `json:"held"`
+	Deferred  []itemJSON    `json:"deferred"`
 	Skipped   []itemJSON    `json:"skipped"`
 	Failed    []failureJSON `json:"failed"`
 }
@@ -150,7 +166,10 @@ func syncJSON(r tickets.Report) syncReportJSON {
 		}
 		return out
 	}
-	out := syncReportJSON{Created: items(r.Created), Adopted: items(r.Adopted), Scheduled: items(r.Scheduled), Skipped: items(r.Skipped), Failed: make([]failureJSON, 0, len(r.Failed))}
+	out := syncReportJSON{
+		Created: items(r.Created), Adopted: items(r.Adopted), Updated: items(r.Updated), Moved: items(r.Moved), Scheduled: items(r.Scheduled),
+		Held: items(r.Held), Deferred: items(r.Deferred), Skipped: items(r.Skipped), Failed: make([]failureJSON, 0, len(r.Failed)),
+	}
 	for _, f := range r.Failed {
 		out.Failed = append(out.Failed, failureJSON(f))
 	}

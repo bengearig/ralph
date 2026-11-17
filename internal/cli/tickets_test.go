@@ -51,12 +51,14 @@ func TestTicketsCommandSyncOutputAndSummary(t *testing.T) {
 		"created S-1 RAL-2\n" +
 		"scheduled S-1 RAL-2 in sprint \"Sprint 42\"\n" +
 		"adopted S-2 RAL-9 (from its link)\n" +
-		"tickets: 2 created, 1 adopted, 1 scheduled, 0 skipped, 0 failed\n"
+		"tickets: 2 created, 1 adopted, 0 updated, 0 moved, 1 scheduled, 0 held, 0 skipped, 0 failed\n"
 	if code != 0 || out != want || stderr != "" {
 		t.Fatalf("code %d\nout %q\nwant %q\nstderr %q", code, out, want, stderr)
 	}
 	code, out, _ = run(t, "tickets", "sync")
-	if want := "tickets: 0 created, 0 adopted, 0 scheduled, 0 skipped, 0 failed\n"; code != 0 || out != want {
+	want = "held S-2 RAL-9: differs in Jira (deleted); run ralph tickets\n" +
+		"tickets: 0 created, 0 adopted, 0 updated, 0 moved, 0 scheduled, 1 held, 0 skipped, 0 failed\n"
+	if code != 0 || out != want {
 		t.Fatalf("second pass: code %d out %q", code, out)
 	}
 }
@@ -83,7 +85,7 @@ func TestTicketsCommandSyncExitsOneOnFailure(t *testing.T) {
 	f.srv.FailWith(400, `{"errorMessages":["bad request"]}`)
 	code, out, _ := run(t, "tickets", "sync")
 	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
-	if code != 1 || len(lines) != 2 || !strings.HasPrefix(lines[0], "failed B-1 create: ") || lines[1] != "tickets: 0 created, 0 adopted, 0 scheduled, 0 skipped, 1 failed" {
+	if code != 1 || len(lines) != 2 || !strings.HasPrefix(lines[0], "failed B-1 create: ") || lines[1] != "tickets: 0 created, 0 adopted, 0 updated, 0 moved, 0 scheduled, 0 held, 0 skipped, 1 failed" {
 		t.Fatalf("code %d out %q", code, out)
 	}
 }

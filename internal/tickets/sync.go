@@ -27,6 +27,10 @@ const (
 
 	stepCreate   = "create"
 	stepSchedule = "schedule"
+	stepFields   = "fields"
+	stepMove     = "move"
+
+	driftDeleted = "deleted"
 )
 
 // SyncOptions choose what a pass covers.
@@ -35,9 +39,11 @@ type SyncOptions struct {
 	Units []string
 	// Force runs a pass that a rate limit has paused.
 	Force bool
+	// Automatic marks a pass nobody asked for: it leaves alone a step that failed less than the poll interval ago.
+	Automatic bool
 }
 
-// Item is a unit a pass created, adopted, scheduled or skipped.
+// Item is a unit a pass created, adopted, updated, moved, scheduled, held, deferred or skipped.
 type Item struct{ Unit, Key, Reason string }
 
 // Failure is a step that failed for a unit.
@@ -45,8 +51,8 @@ type Failure struct{ Unit, Step, Message string }
 
 // Report is what a pass did.
 type Report struct {
-	Created, Adopted, Scheduled, Skipped []Item
-	Failed                               []Failure
+	Created, Adopted, Updated, Moved, Scheduled, Held, Deferred, Skipped []Item
+	Failed                                                               []Failure
 }
 
 // Hash is how a pushed title or body is remembered.
@@ -57,13 +63,15 @@ func Hash(s string) string {
 
 type pass struct {
 	d      Deps
+	opt    SyncOptions
 	store  *Store
 	byID   map[string]Row
+	states map[string]units.Status
 	report Report
 }
 
-// Sync creates the tickets of the mapped units that have none. It returns the report of what was done even
-// when it stops with an error.
+// Sync creates the tickets of the mapped units that have none and pushes what differs from what it last pushed
+// for the others. It returns the report of what was done even when it stops with an error.
 func Sync(ctx context.Context, d Deps, opt SyncOptions) (Report, error) {
 	lock, err := filelock.Acquire(filepath.Join(d.Dir, project.TicketsLockFile))
 	if errors.Is(err, filelock.ErrHeld) {
@@ -74,7 +82,7 @@ func Sync(ctx context.Context, d Deps, opt SyncOptions) (Report, error) {
 	}
 	defer lock.Release()
 
-	p := &pass{d: d, store: NewStore(d.DB)}
+	p := &pass{d: d, opt: opt, store: NewStore(d.DB)}
 	if err := p.checkPaused(ctx, opt.Force); err != nil {
 		return Report{}, err
 	}
@@ -91,6 +99,7 @@ func Sync(ctx context.Context, d Deps, opt SyncOptions) (Report, error) {
 			return Report{}, err
 		}
 	}
+	var queue []units.Unit
 	for _, level := range []units.Level{units.LevelBrief, units.LevelSlice, units.LevelTask} {
 		if !d.Settings.Mapped(string(level)) {
 			continue
@@ -100,15 +109,24 @@ func Sync(ctx context.Context, d Deps, opt SyncOptions) (Report, error) {
 			return p.report, err
 		}
 		for _, u := range list {
-			if len(opt.Units) > 0 && !slices.Contains(opt.Units, u.ID) {
-				continue
+			if len(opt.Units) == 0 || slices.Contains(opt.Units, u.ID) {
+				queue = append(queue, u)
 			}
-			if err := ctx.Err(); err != nil {
-				return p.report, err
-			}
-			if err := p.unit(ctx, u); err != nil {
-				return p.report, err
-			}
+		}
+	}
+	ids := make([]string, len(queue))
+	for i, u := range queue {
+		ids[i] = u.ID
+	}
+	if p.states, err = d.Units.Statuses(ctx, ids); err != nil {
+		return p.report, err
+	}
+	for _, u := range queue {
+		if err := ctx.Err(); err != nil {
+			return p.report, err
+		}
+		if err := p.unit(ctx, u); err != nil {
+			return p.report, err
 		}
 	}
 	return p.report, nil
@@ -148,15 +166,10 @@ func (p *pass) unit(ctx context.Context, u units.Unit) error {
 	case linkKey != "" && (!has || row.Key != linkKey):
 		return p.adoptLink(ctx, u, linkKey)
 	case has && !row.LinkConfirmed:
-		if linkKey == "" {
-			if err := p.d.Units.AddLink(ctx, u.ID, units.LinkExternal, linkPrefix+row.Key); err != nil {
-				return p.fail(ctx, u, stepCreate, err)
+		if !p.deferred(u, row, stepCreate) {
+			if done, err := p.confirmLink(ctx, u, row, linkKey); done {
+				return err
 			}
-		}
-		row.LinkConfirmed = true
-		clearFailure(&row, stepCreate)
-		if err := p.put(ctx, row); err != nil {
-			return p.fail(ctx, u, stepCreate, err)
 		}
 	case has && linkKey == "":
 		return nil
@@ -165,7 +178,26 @@ func (p *pass) unit(ctx context.Context, u units.Unit) error {
 			return err
 		}
 	}
-	return p.schedule(ctx, u)
+	if err := p.schedule(ctx, u); err != nil {
+		return err
+	}
+	return p.push(ctx, u)
+}
+
+// confirmLink finishes the row of a unit whose link was never confirmed. It reports done when the step failed.
+func (p *pass) confirmLink(ctx context.Context, u units.Unit, row Row, linkKey string) (done bool, err error) {
+	if linkKey == "" {
+		if err := p.d.Units.AddLink(ctx, u.ID, units.LinkExternal, linkPrefix+row.Key); err != nil {
+			return true, p.fail(ctx, u, stepCreate, err)
+		}
+	}
+	row.LinkConfirmed = true
+	clearFailure(&row, stepCreate)
+	row.SyncedAt = p.d.now()
+	if err := p.put(ctx, row); err != nil {
+		return true, p.fail(ctx, u, stepCreate, err)
+	}
+	return false, nil
 }
 
 func (p *pass) put(ctx context.Context, r Row) error {
@@ -193,11 +225,7 @@ func (p *pass) adopted(u units.Unit, key, reason string) {
 // create handles a unit with neither a row nor a link. It reports done when nothing more is to be done for the
 // unit in this pass.
 func (p *pass) create(ctx context.Context, u units.Unit) (done bool, err error) {
-	status, err := p.d.Units.Status(ctx, u.ID)
-	if err != nil {
-		return true, p.fail(ctx, u, stepCreate, err)
-	}
-	if status == units.StatusCancelled {
+	if p.states[u.ID] == units.StatusCancelled {
 		p.skipped(u, "", "cancelled")
 		return true, nil
 	}
@@ -213,7 +241,7 @@ func (p *pass) create(ctx context.Context, u units.Unit) (done bool, err error) 
 		p.adopted(u, found.Key, "found by its reference")
 		return true, nil
 	}
-	want, err := Build(ctx, p.d, u, p.byID)
+	want, err := build(ctx, p.d, u, p.byID, string(p.states[u.ID]))
 	if errors.Is(err, ErrParentWaiting) {
 		p.skipped(u, "", err.Error())
 		return true, nil
@@ -268,11 +296,15 @@ func (p *pass) schedule(ctx context.Context, u units.Unit) error {
 	if !ok || row.Scheduled || row.PushedTitle == "" || sprint == "" || !slices.Contains(p.d.Settings.SprintLevels, string(u.Level)) {
 		return nil
 	}
+	if p.deferred(u, row, stepSchedule) {
+		return nil
+	}
 	if err := p.d.System.Schedule(ctx, row.Key, sprint); err != nil {
 		return p.fail(ctx, u, stepSchedule, err)
 	}
 	row.Scheduled = true
 	clearFailure(&row, stepSchedule)
+	row.SyncedAt = p.d.now()
 	if err := p.put(ctx, row); err != nil {
 		return p.fail(ctx, u, stepSchedule, err)
 	}
@@ -313,5 +345,138 @@ func (p *pass) fail(ctx context.Context, u units.Unit, step string, cause error)
 		}
 		return fmt.Errorf("ticket sync stopped: %w", cause)
 	}
+	return nil
+}
+
+// deferred reports whether an automatic pass leaves the step alone because it failed too recently, and says so.
+func (p *pass) deferred(u units.Unit, row Row, step string) bool {
+	interval := p.d.Settings.PollInterval
+	if !p.opt.Automatic || row.FailedStep != step || row.FailedAt.IsZero() {
+		return false
+	}
+	now := p.d.now()
+	retry := row.FailedAt.Add(interval)
+	if !now.Before(retry) {
+		return false
+	}
+	msg := fmt.Sprintf("%s: failed %s ago, retry after %s", step, ago(now.Sub(row.FailedAt)), retry.UTC().Format(time.RFC3339))
+	p.report.Deferred = append(p.report.Deferred, Item{Unit: u.ID, Key: row.Key, Reason: msg})
+	p.d.emit(Event{Kind: "deferred", Unit: u.ID, Key: row.Key, Message: msg})
+	return true
+}
+
+func ago(d time.Duration) string {
+	switch {
+	case d < time.Minute:
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	default:
+		return fmt.Sprintf("%dh%dm", int(d.Hours()), int(d.Minutes())%60)
+	}
+}
+
+// push sends the differences between what the unit's ticket should be and what was last pushed.
+func (p *pass) push(ctx context.Context, u units.Unit) error {
+	row, ok := p.byID[u.ID]
+	if !ok {
+		return nil
+	}
+	if row.Drift != "" {
+		p.held(u, row)
+		return nil
+	}
+	want := content(p.d, u, string(p.states[u.ID]))
+	if held, err := p.pushFields(ctx, u, want); held || err != nil {
+		return err
+	}
+	return p.pushStatus(ctx, u, want)
+}
+
+func (p *pass) held(u units.Unit, row Row) {
+	var fields []string
+	for _, f := range strings.Split(row.Drift, ",") {
+		if f = strings.TrimSpace(f); f != "" {
+			fields = append(fields, f)
+		}
+	}
+	reason := strings.Join(fields, ", ")
+	p.report.Held = append(p.report.Held, Item{Unit: u.ID, Key: row.Key, Reason: reason})
+	p.d.emit(Event{Kind: "held", Unit: u.ID, Key: row.Key, Message: reason})
+}
+
+// markDeleted records that the ticket is gone and holds the unit.
+func (p *pass) markDeleted(ctx context.Context, u units.Unit, row Row) error {
+	row.Drift, row.DriftSeenAt = driftDeleted, p.d.now()
+	if err := p.put(ctx, row); err != nil {
+		return p.fail(ctx, u, stepFields, err)
+	}
+	p.held(u, row)
+	return nil
+}
+
+// pushFields updates the title and body when their hashes differ from the pushed ones. It reports held when the
+// ticket turned out to be gone.
+func (p *pass) pushFields(ctx context.Context, u units.Unit, want Desired) (held bool, err error) {
+	row := p.byID[u.ID]
+	norm := p.d.System.Normalize(taskmanager.Fields{Title: want.Title, Body: want.Body})
+	title, body := Hash(norm.Title), Hash(norm.Body)
+	var changed []string
+	if title != row.PushedTitle {
+		changed = append(changed, "title")
+	}
+	if body != row.PushedBody {
+		changed = append(changed, "body")
+	}
+	if len(changed) == 0 || p.deferred(u, row, stepFields) {
+		return false, nil
+	}
+	err = p.d.System.Update(ctx, row.Key, taskmanager.Fields{Title: want.Title, Body: want.Body})
+	if errors.Is(err, taskmanager.ErrNotFound) {
+		return true, p.markDeleted(ctx, u, row)
+	}
+	if err != nil {
+		return false, p.fail(ctx, u, stepFields, err)
+	}
+	row.PushedTitle, row.PushedBody = title, body
+	clearFailure(&row, stepFields)
+	row.SyncedAt = p.d.now()
+	if err := p.put(ctx, row); err != nil {
+		return false, p.fail(ctx, u, stepFields, err)
+	}
+	reason := strings.Join(changed, ", ")
+	p.report.Updated = append(p.report.Updated, Item{Unit: u.ID, Key: row.Key, Reason: reason})
+	p.d.emit(Event{Kind: "updated", Unit: u.ID, Key: row.Key, Message: reason})
+	return false, nil
+}
+
+// pushStatus moves the ticket to the status the unit's state maps to when that is not where it was last put.
+func (p *pass) pushStatus(ctx context.Context, u units.Unit, want Desired) error {
+	row := p.byID[u.ID]
+	if want.Status == "" || strings.EqualFold(want.Status, row.PushedStatus) || p.deferred(u, row, stepMove) {
+		return nil
+	}
+	moved, err := p.d.System.Move(ctx, row.Key, want.Status, p.d.Settings.Flow)
+	if errors.Is(err, taskmanager.ErrNotFound) {
+		return p.markDeleted(ctx, u, row)
+	}
+	if err != nil {
+		return p.fail(ctx, u, stepMove, err)
+	}
+	if moved.To == "" {
+		moved.To = want.Status
+	}
+	row.PushedStatus = moved.To
+	clearFailure(&row, stepMove)
+	row.SyncedAt = p.d.now()
+	if err := p.put(ctx, row); err != nil {
+		return p.fail(ctx, u, stepMove, err)
+	}
+	if moved.From == moved.To {
+		return nil
+	}
+	via := strings.Join(moved.Via, ", ")
+	p.report.Moved = append(p.report.Moved, Item{Unit: u.ID, Key: row.Key, Reason: via})
+	p.d.emit(Event{Kind: "moved", Unit: u.ID, Key: row.Key, Message: moved.From + " -> " + moved.To, Detail: via})
 	return nil
 }

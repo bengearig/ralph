@@ -21,6 +21,22 @@ type flaky struct {
 	*taskmanagertest.Fake
 	createFails   map[string]error
 	scheduleFails map[string]error
+	updateFails   map[string]error
+	moveFails     map[string]error
+}
+
+func (f *flaky) Update(ctx context.Context, key string, fields taskmanager.Fields) error {
+	if err := f.updateFails[key]; err != nil {
+		return err
+	}
+	return f.Fake.Update(ctx, key, fields)
+}
+
+func (f *flaky) Move(ctx context.Context, key, status string, flow []string) (taskmanager.Move, error) {
+	if err := f.moveFails[key]; err != nil {
+		return taskmanager.Move{}, err
+	}
+	return f.Fake.Move(ctx, key, status, flow)
 }
 
 func (f *flaky) Create(ctx context.Context, n taskmanager.New) (taskmanager.Ticket, error) {
@@ -53,7 +69,7 @@ func newEnv(t *testing.T) *env {
 	t.Helper()
 	d := testutil.NewDB(t, db.Migrations)
 	e := &env{t: t, ctx: context.Background(), db: d, svc: units.NewService(d), fake: taskmanagertest.NewFake("ABC"), store: NewStore(d)}
-	e.sys = &flaky{Fake: e.fake, createFails: map[string]error{}, scheduleFails: map[string]error{}}
+	e.sys = &flaky{Fake: e.fake, createFails: map[string]error{}, scheduleFails: map[string]error{}, updateFails: map[string]error{}, moveFails: map[string]error{}}
 	e.deps = Deps{
 		Units: e.svc, DB: d, System: e.sys,
 		Settings:  taskmanager.Settings{Provider: "jira", Types: map[string]string{"brief": "Feature", "slice": "Task"}, SprintLevels: []string{"slice", "task"}},
@@ -150,4 +166,51 @@ func wantKeys(t *testing.T, items []Item, want ...string) {
 	if got := keys(items); !slices.Equal(got, want) {
 		t.Fatalf("items = %q, want %q", got, want)
 	}
+}
+
+// direct lets a ticket go from any status to any other in one transition.
+func (e *env) direct() {
+	all := []string{"To Do", "In Progress", "Done"}
+	e.fake.SetWorkflow("To Do", map[string][]string{"To Do": all, "In Progress": all, "Done": all})
+}
+
+// setState walks a unit through the states to to.
+func (e *env) setState(id string, to ...units.State) {
+	e.t.Helper()
+	u, err := e.svc.Get(e.ctx, id)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	for _, st := range to {
+		if st == units.StateTodo && u.AcceptanceCriteria == "" {
+			if u, err = e.svc.Update(e.ctx, id, u.Fingerprint, units.Change{AcceptanceCriteria: ptr("it works")}); err != nil {
+				e.t.Fatal(err)
+			}
+		}
+		if u, err = e.svc.SetState(e.ctx, id, u.Fingerprint, st, "because"); err != nil {
+			e.t.Fatal(err)
+		}
+	}
+}
+
+func ptr(s string) *string { return &s }
+
+func (e *env) edit(id string, c units.Change) {
+	e.t.Helper()
+	u, err := e.svc.Get(e.ctx, id)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	if _, err := e.svc.Update(e.ctx, id, u.Fingerprint, c); err != nil {
+		e.t.Fatal(err)
+	}
+}
+
+func (e *env) ticket(key string) taskmanager.Ticket {
+	e.t.Helper()
+	got, err := e.fake.Get(e.ctx, []string{key})
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	return got[key]
 }

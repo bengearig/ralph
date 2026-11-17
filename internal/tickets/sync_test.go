@@ -184,7 +184,7 @@ func TestSyncAdoptLinkChangedKeyReplacesRow(t *testing.T) {
 func TestSyncRepairsMissingLinkWhenRowUnconfirmed(t *testing.T) {
 	e := newEnv(t)
 	b := e.unit(units.LevelBrief, "", "Brief")
-	if err := e.store.Put(e.ctx, Row{UnitID: b.ID, System: "fake", Key: "ABC-5", PushedTitle: Hash("Brief"), Scheduled: true}); err != nil {
+	if err := e.store.Put(e.ctx, Row{UnitID: b.ID, System: "fake", Key: "ABC-5", PushedTitle: Hash("Brief"), PushedBody: Hash("body of Brief"), PushedStatus: "To Do", Scheduled: true}); err != nil {
 		t.Fatal(err)
 	}
 	e.mustSync()

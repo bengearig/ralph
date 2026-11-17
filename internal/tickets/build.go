@@ -24,9 +24,10 @@ func (e *ParentWaitingError) Error() string {
 // Is makes errors.Is(err, ErrParentWaiting) true.
 func (e *ParentWaitingError) Is(target error) bool { return target == ErrParentWaiting }
 
-// Event is something a pass did, reported as it happens. Kind is created, adopted, scheduled, skipped or failed.
+// Event is something a pass did, reported as it happens. Kind is created, adopted, updated, moved, scheduled, held,
+// deferred, skipped or failed. Detail is the statuses a move passed through.
 type Event struct {
-	Kind, Unit, Key, Message string
+	Kind, Unit, Key, Message, Detail string
 }
 
 // Deps is what a pass needs.
@@ -58,6 +59,8 @@ func (d Deps) emit(e Event) {
 // Desired is the ticket a unit should have.
 type Desired struct {
 	Type, Title, Body, Parent, Ref string
+	// State is the unit's derived status or task state; Status is the ticket status it maps to, empty when none.
+	State, Status string
 }
 
 const criteriaHeading = "## Acceptance criteria"
@@ -67,21 +70,38 @@ func Ref(projectID, unitID string) string { return "ralph-" + projectID + "-" + 
 
 // Build works out the ticket of u. byID holds the rows known so far, by unit ID.
 func Build(ctx context.Context, d Deps, u units.Unit, byID map[string]Row) (Desired, error) {
-	body := u.Body
-	if u.AcceptanceCriteria != "" {
-		body += "\n\n" + criteriaHeading + "\n\n" + u.AcceptanceCriteria
+	state, err := d.Units.Status(ctx, u.ID)
+	if err != nil {
+		return Desired{}, fmt.Errorf("tickets: status of %s: %w", u.ID, err)
 	}
+	return build(ctx, d, u, byID, string(state))
+}
+
+func build(ctx context.Context, d Deps, u units.Unit, byID map[string]Row, state string) (Desired, error) {
 	parent, err := parentKey(ctx, d, u, byID)
 	if err != nil {
 		return Desired{}, err
 	}
+	want := content(d, u, state)
+	want.Parent = parent
+	return want, nil
+}
+
+// content is the ticket of u without its parent.
+func content(d Deps, u units.Unit, state string) Desired {
+	body := u.Body
+	if u.AcceptanceCriteria != "" {
+		body += "\n\n" + criteriaHeading + "\n\n" + u.AcceptanceCriteria
+	}
+	status, _ := StatusFor(d.Settings, state)
 	return Desired{
 		Type:   d.Settings.Types[string(u.Level)],
 		Title:  u.Title,
 		Body:   body,
-		Parent: parent,
 		Ref:    Ref(d.ProjectID, u.ID),
-	}, nil
+		State:  state,
+		Status: status,
+	}
 }
 
 func parentKey(ctx context.Context, d Deps, u units.Unit, byID map[string]Row) (string, error) {
