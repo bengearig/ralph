@@ -34,6 +34,9 @@ const (
 	// IndexRebuildFile is the new index a rebuild builds beside the old one; IndexLockFile is the lock of an index run.
 	IndexRebuildFile = "index.rebuild.db"
 	IndexLockFile    = "index.lock"
+
+	// TicketsLockFile is the lock of a ticket sync pass.
+	TicketsLockFile = "tickets.lock"
 )
 
 var (

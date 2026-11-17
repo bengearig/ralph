@@ -25,6 +25,7 @@ func LocalIgnoreEntries() []string {
 		"/" + IndexFile + "*",
 		"/" + IndexRebuildFile + "*",
 		"/" + IndexLockFile,
+		"/" + TicketsLockFile,
 	}
 }
 

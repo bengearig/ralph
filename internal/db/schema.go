@@ -258,3 +258,31 @@ BEGIN
 	SELECT RAISE(ABORT, 'a pull request belongs to a slice');
 END;
 `
+
+const createTicketsSQL = `
+CREATE TABLE tickets (
+	unit_id        TEXT PRIMARY KEY REFERENCES units(id) ON DELETE CASCADE,
+	system         TEXT NOT NULL,
+	ticket_key     TEXT NOT NULL,
+	ticket_id      TEXT NOT NULL DEFAULT '',
+	pushed_title   TEXT NOT NULL DEFAULT '',
+	pushed_body    TEXT NOT NULL DEFAULT '',
+	pushed_status  TEXT NOT NULL DEFAULT '',
+	pushed_parent  TEXT NOT NULL DEFAULT '',
+	scheduled      INTEGER NOT NULL DEFAULT 0,
+	link_confirmed INTEGER NOT NULL DEFAULT 0,
+	drift          TEXT NOT NULL DEFAULT '',
+	drift_seen_at  TEXT NOT NULL DEFAULT '',
+	failed_step    TEXT NOT NULL DEFAULT '',
+	failed_at      TEXT NOT NULL DEFAULT '',
+	last_error     TEXT NOT NULL DEFAULT '',
+	attempts       INTEGER NOT NULL DEFAULT 0,
+	synced_at      TEXT NOT NULL DEFAULT '',
+	UNIQUE (system, ticket_key)
+);
+
+CREATE TABLE ticket_state (
+	key   TEXT PRIMARY KEY,
+	value TEXT NOT NULL
+);
+`

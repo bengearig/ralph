@@ -32,7 +32,7 @@ func writeIgnore(t *testing.T, root, content string) {
 const header = "# Local ralph files. Written by ralph init.\n"
 
 func TestLocalIgnoreEntriesUseConstants(t *testing.T) {
-	want := []string{"/" + StoreFile + "*", "/" + BackupDirName + "/", "/" + LocalFile, "/" + IntegrationLocalFile, "/runs/", "/loop.lock", "/index.db*", "/index.rebuild.db*", "/index.lock"}
+	want := []string{"/" + StoreFile + "*", "/" + BackupDirName + "/", "/" + LocalFile, "/" + IntegrationLocalFile, "/runs/", "/loop.lock", "/index.db*", "/index.rebuild.db*", "/index.lock", "/tickets.lock"}
 	if got := LocalIgnoreEntries(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("entries = %q, want %q", got, want)
 	}
@@ -50,7 +50,7 @@ func TestEnsureIgnoreCreatesFile(t *testing.T) {
 	if !reflect.DeepEqual(added, LocalIgnoreEntries()) {
 		t.Fatalf("added = %q", added)
 	}
-	want := header + "/store.db*\n/backups/\n/project.local.yaml\n/integration.local.json\n/runs/\n/loop.lock\n/index.db*\n/index.rebuild.db*\n/index.lock\n"
+	want := header + "/store.db*\n/backups/\n/project.local.yaml\n/integration.local.json\n/runs/\n/loop.lock\n/index.db*\n/index.rebuild.db*\n/index.lock\n/tickets.lock\n"
 	if got := readIgnore(t, root); got != want {
 		t.Fatalf("file = %q, want %q", got, want)
 	}
@@ -78,10 +78,10 @@ func TestEnsureIgnoreKeepsUserLines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"/store.db*", "/project.local.yaml", "/integration.local.json", "/runs/", "/loop.lock", "/index.db*", "/index.rebuild.db*", "/index.lock"}; !reflect.DeepEqual(added, want) {
+	if want := []string{"/store.db*", "/project.local.yaml", "/integration.local.json", "/runs/", "/loop.lock", "/index.db*", "/index.rebuild.db*", "/index.lock", "/tickets.lock"}; !reflect.DeepEqual(added, want) {
 		t.Fatalf("added = %q, want %q", added, want)
 	}
-	want := "mine.log\n/backups/\nother\n/store.db*\n/project.local.yaml\n/integration.local.json\n/runs/\n/loop.lock\n/index.db*\n/index.rebuild.db*\n/index.lock\n"
+	want := "mine.log\n/backups/\nother\n/store.db*\n/project.local.yaml\n/integration.local.json\n/runs/\n/loop.lock\n/index.db*\n/index.rebuild.db*\n/index.lock\n/tickets.lock\n"
 	if got := readIgnore(t, root); got != want {
 		t.Fatalf("file = %q, want %q", got, want)
 	}
@@ -93,7 +93,7 @@ func TestEnsureIgnoreAddsMissingNewline(t *testing.T) {
 	if _, err := EnsureIgnore(root, LocalIgnoreEntries()); err != nil {
 		t.Fatal(err)
 	}
-	want := "mine.log\n/store.db*\n/backups/\n/project.local.yaml\n/integration.local.json\n/runs/\n/loop.lock\n/index.db*\n/index.rebuild.db*\n/index.lock\n"
+	want := "mine.log\n/store.db*\n/backups/\n/project.local.yaml\n/integration.local.json\n/runs/\n/loop.lock\n/index.db*\n/index.rebuild.db*\n/index.lock\n/tickets.lock\n"
 	if got := readIgnore(t, root); got != want {
 		t.Fatalf("file = %q, want %q", got, want)
 	}
@@ -106,10 +106,10 @@ func TestEnsureIgnoreHandlesCRLF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"/project.local.yaml", "/integration.local.json", "/runs/", "/loop.lock", "/index.db*", "/index.rebuild.db*", "/index.lock"}; !reflect.DeepEqual(added, want) {
+	if want := []string{"/project.local.yaml", "/integration.local.json", "/runs/", "/loop.lock", "/index.db*", "/index.rebuild.db*", "/index.lock", "/tickets.lock"}; !reflect.DeepEqual(added, want) {
 		t.Fatalf("added = %q, want %q", added, want)
 	}
-	want := "/store.db*\r\n/backups/  \r\n/project.local.yaml\n/integration.local.json\n/runs/\n/loop.lock\n/index.db*\n/index.rebuild.db*\n/index.lock\n"
+	want := "/store.db*\r\n/backups/  \r\n/project.local.yaml\n/integration.local.json\n/runs/\n/loop.lock\n/index.db*\n/index.rebuild.db*\n/index.lock\n/tickets.lock\n"
 	if got := readIgnore(t, root); got != want {
 		t.Fatalf("file = %q, want %q", got, want)
 	}
@@ -151,7 +151,7 @@ func TestLocalIgnoreEntriesIncludeLocalManifest(t *testing.T) {
 
 func TestLocalIgnoreEntriesIncludeRunsAndLock(t *testing.T) {
 	got := LocalIgnoreEntries()
-	for _, want := range []string{"/runs/", "/loop.lock", "/index.db*", "/index.rebuild.db*", "/index.lock"} {
+	for _, want := range []string{"/runs/", "/loop.lock", "/index.db*", "/index.rebuild.db*", "/index.lock", "/tickets.lock"} {
 		found := false
 		for _, e := range got {
 			found = found || e == want
@@ -170,9 +170,19 @@ func TestLocalIgnoreEntriesIncludeIndex(t *testing.T) {
 
 func TestLocalIgnoreEntriesIncludeRebuildAndLock(t *testing.T) {
 	got := LocalIgnoreEntries()
-	for _, want := range []string{"/index.rebuild.db*", "/index.lock"} {
+	for _, want := range []string{"/index.rebuild.db*", "/index.lock", "/tickets.lock"} {
 		if !slices.Contains(got, want) {
 			t.Fatalf("entries = %q, missing %q", got, want)
 		}
+	}
+}
+
+func TestLocalIgnoreEntriesIncludeTicketsLock(t *testing.T) {
+	if TicketsLockFile != "tickets.lock" {
+		t.Fatalf("TicketsLockFile = %q", TicketsLockFile)
+	}
+	got := LocalIgnoreEntries()
+	if got[len(got)-1] != "/tickets.lock" {
+		t.Fatalf("entries = %q", got)
 	}
 }

@@ -7,7 +7,7 @@ import (
 )
 
 func TestPullRequestsMigrationApplies(t *testing.T) {
-	last := Migrations[len(Migrations)-1]
+	last := Migrations[10]
 	if last.Name != "create pull requests" {
 		t.Fatalf("last migration = %d %q", last.Version, last.Name)
 	}
