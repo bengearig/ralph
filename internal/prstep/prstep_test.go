@@ -38,6 +38,7 @@ type env struct {
 	deps     prstep.Deps
 	lines    []string
 	branch   string
+	fbCount  int
 }
 
 func loadConfig(t *testing.T, root string) *config.Config {
