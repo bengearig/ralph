@@ -74,7 +74,8 @@ func Run(ctx context.Context, inv harness.Invocation, p harness.Parser, opt Opti
 
 	cmd := exec.Command(command, inv.Args...)
 	cmd.Dir = inv.Dir
-	cmd.Env = mergeEnv(os.Environ(), inv.Env)
+	// A stale PWD from the parent would make the child work in the wrong directory.
+	cmd.Env = mergeEnv(mergeEnv(os.Environ(), []string{"PWD=" + inv.Dir}), inv.Env)
 	setProcessGroup(cmd)
 
 	var stdin io.WriteCloser

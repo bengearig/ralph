@@ -1,0 +1,6 @@
+{"type":"step_start","sessionID":"ses_e1","part":{"type":"step-start"}}
+{"type":"tool_use","sessionID":"ses_e1","part":{"id":"prt_1","type":"tool","tool":"ralph_status","state":{"status":"completed","input":{},"output":"ok"}}}
+{"type":"tool_use","sessionID":"ses_e1","part":{"id":"prt_2","type":"tool","tool":"write","state":{"status":"completed","input":{"path":"edit.txt","content":"edited\n"},"output":"Created edit.txt"}}}
+{"type":"step_finish","sessionID":"ses_e1","part":{"type":"step-finish","reason":"tool-calls","cost":0,"tokens":{"input":189,"output":111,"reasoning":0,"cache":{"read":0,"write":0}}}}
+{"type":"text","sessionID":"ses_e1","part":{"type":"text","text":"All done."}}
+{"type":"step_finish","sessionID":"ses_e1","part":{"type":"step-finish","reason":"stop","cost":0,"tokens":{"input":200,"output":20,"reasoning":0,"cache":{"read":0,"write":0}}}}

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -124,6 +125,15 @@ func TestRunDir(t *testing.T) {
 	inv.Dir = dir
 	_, p := mustRun(t, inv, Options{})
 	equalLines(t, p.lines, want)
+}
+
+func TestRunPWDIsTheDirectory(t *testing.T) {
+	t.Setenv("PWD", t.TempDir())
+	dir := t.TempDir()
+	_, p := mustRun(t, harness.Invocation{Command: "env", Dir: dir}, Options{})
+	if !slices.Contains(p.lines, "PWD="+dir) {
+		t.Errorf("environment lacks PWD=%s: %q", dir, p.lines)
+	}
 }
 
 func TestRunMissingCommand(t *testing.T) {

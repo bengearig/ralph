@@ -1,0 +1,4 @@
+{"type":"system","subtype":"init","session_id":"e2e-1","model":"claude-sonnet-5-5","permissionMode":"dontAsk","mcp_servers":[{"name":"ralph","status":"connected"}]}
+{"type":"assistant","message":{"id":"msg_1","content":[{"type":"tool_use","id":"toolu_1","name":"mcp__ralph__status","input":{}}]}}
+{"type":"assistant","message":{"id":"msg_2","content":[{"type":"tool_use","id":"toolu_2","name":"Edit","input":{"file_path":"/work/edit.txt","old_string":"a","new_string":"b"}}]}}
+{"type":"result","subtype":"success","is_error":false,"terminal_reason":"completed","num_turns":3,"total_cost_usd":0.00245511,"usage":{"input_tokens":4,"cache_creation_input_tokens":9593,"cache_read_input_tokens":31611,"output_tokens":440},"permission_denials":[],"result":"All done.","session_id":"e2e-1"}

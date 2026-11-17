@@ -1,0 +1,5 @@
+{"type":"step_start","sessionID":"ses_e2","part":{"type":"step-start"}}
+{"type":"tool_use","sessionID":"ses_e2","part":{"id":"prt_1","type":"tool","tool":"shell","state":{"status":"error","input":{"command":"echo hello > shell.txt"},"error":"Permission denied: shell"}}}
+{"type":"step_finish","sessionID":"ses_e2","part":{"type":"step-finish","reason":"tool-calls","cost":0,"tokens":{"input":189,"output":111,"reasoning":0,"cache":{"read":0,"write":0}}}}
+{"type":"text","sessionID":"ses_e2","part":{"type":"text","text":"I could not run it."}}
+{"type":"step_finish","sessionID":"ses_e2","part":{"type":"step-finish","reason":"stop","cost":0,"tokens":{"input":200,"output":20,"reasoning":0,"cache":{"read":0,"write":0}}}}
