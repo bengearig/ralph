@@ -26,6 +26,10 @@ type stubSemantic struct {
 	called []SemanticQuery
 }
 
+func (s *stubSemantic) CatchUp(context.Context, int) (int, error) { return 0, nil }
+
+func (s *stubSemantic) Empty(context.Context) (bool, error) { return false, nil }
+
 func (s *stubSemantic) Query(_ context.Context, q SemanticQuery) ([]SemanticHit, error) {
 	s.called = append(s.called, q)
 	return s.hits, s.err
@@ -155,14 +159,14 @@ func TestFuseNotesDistinguishedByUnit(t *testing.T) {
 
 func TestHybridNilSemanticIsKeyword(t *testing.T) {
 	k := &stubKeyword{}
-	if got := NewHybrid(k, nil); got != Service(k) {
+	if got := NewHybrid(k, nil, HybridOptions{}); got != Service(k) {
 		t.Errorf("got %T", got)
 	}
 }
 
 func TestHybridInvalidQuerySameErrors(t *testing.T) {
 	k, s := &stubKeyword{}, &stubSemantic{}
-	h := NewHybrid(k, s)
+	h := NewHybrid(k, s, HybridOptions{})
 	for _, q := range []Query{
 		{Text: "   "}, {Text: "x", Limit: -1}, {Text: "x", Limit: 101}, {Text: "x", Kinds: []Kind{"bogus"}},
 	} {
@@ -180,7 +184,7 @@ func TestHybridInvalidQuerySameErrors(t *testing.T) {
 func TestHybridDepthIsThreeTimesLimitBetween30And100(t *testing.T) {
 	for _, c := range []struct{ limit, want int }{{0, 60}, {1, 30}, {10, 30}, {11, 33}, {20, 60}, {34, 100}, {100, 100}} {
 		k, s := &stubKeyword{}, &stubSemantic{}
-		_, err := NewHybrid(k, s).Search(context.Background(), Query{Text: "x", Limit: c.limit, Kinds: []Kind{KindTask}, IncludeInactive: true})
+		_, err := NewHybrid(k, s, HybridOptions{}).Search(context.Background(), Query{Text: "x", Limit: c.limit, Kinds: []Kind{KindTask}, IncludeInactive: true})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -195,7 +199,7 @@ func TestHybridDepthIsThreeTimesLimitBetween30And100(t *testing.T) {
 
 func TestHybridModeAndRelaxedFromKeyword(t *testing.T) {
 	k := &stubKeyword{res: Result{Mode: ModeKeyword, Relaxed: true, Hits: kw("T-1")}}
-	res, err := NewHybrid(k, &stubSemantic{hits: sem("T-2")}).Search(context.Background(), Query{Text: "a b"})
+	res, err := NewHybrid(k, &stubSemantic{hits: sem("T-2")}, HybridOptions{}).Search(context.Background(), Query{Text: "a b"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +210,7 @@ func TestHybridModeAndRelaxedFromKeyword(t *testing.T) {
 
 func TestHybridSemanticErrorWrapped(t *testing.T) {
 	boom := errors.New("boom")
-	_, err := NewHybrid(&stubKeyword{}, &stubSemantic{err: boom}).Search(context.Background(), Query{Text: "x"})
+	_, err := NewHybrid(&stubKeyword{}, &stubSemantic{err: boom}, HybridOptions{}).Search(context.Background(), Query{Text: "x"})
 	if !errors.Is(err, boom) || err.Error() != "semantic search: boom" {
 		t.Errorf("err = %v", err)
 	}
@@ -217,7 +221,7 @@ func TestHybridSourcesSet(t *testing.T) {
 	a := e.task("lemur feeding", "fruit", "")
 	b := e.task("zebra stripes", "other", "")
 	s := &stubSemantic{hits: []SemanticHit{{Kind: KindTask, ID: b.ID, Title: b.Title, Excerpt: "e", Status: "TODO"}, {Kind: KindTask, ID: a.ID, Title: a.Title, Excerpt: "e", Status: "TODO"}}}
-	res, err := NewHybrid(e.svc, s).Search(context.Background(), Query{Text: "lemur"})
+	res, err := NewHybrid(e.svc, s, HybridOptions{}).Search(context.Background(), Query{Text: "lemur"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -39,14 +39,18 @@ func TestSearchServiceFactoryKeywordWhenNoProvider(t *testing.T) {
 	}
 }
 
-func TestSearchServiceFactoryKeywordWhenNoIndexFile(t *testing.T) {
+func TestSearchServiceFactoryCreatesIndexFileWhenConfigured(t *testing.T) {
 	seedSearchProject(t)
-	useOllama(t, ollamatest.NewServer(t, ollamatest.Options{}))
-	if kind, _ := factoryService(t); kind != "*search.keyword" {
+	srv := ollamatest.NewServer(t, ollamatest.Options{})
+	useOllama(t, srv)
+	if kind, _ := factoryService(t); kind != "*search.hybrid" {
 		t.Errorf("service = %s", kind)
 	}
-	if _, err := os.Stat(filepath.Join(".ralph", "index.db")); !os.IsNotExist(err) {
-		t.Errorf("the factory created the index file: %v", err)
+	if _, err := os.Stat(filepath.Join(".ralph", "index.db")); err != nil {
+		t.Errorf("the factory did not create the index file: %v", err)
+	}
+	if len(srv.Requests()) != 0 {
+		t.Error("building the service called the provider")
 	}
 }
 
@@ -154,5 +158,114 @@ func TestSearchJSONHasModeNoticeSources(t *testing.T) {
 	_ = printSearchResult(&out, search.Result{Mode: search.ModeKeyword, Hits: []search.Hit{{ID: "T-1"}}}, true)
 	if strings.Contains(out.String(), "notice") || strings.Contains(out.String(), "sources") {
 		t.Errorf("empty fields not omitted: %s", out.String())
+	}
+}
+
+func TestSearchFallbackPrintsNoteAndKeywordHits(t *testing.T) {
+	f := seedSearchProject(t)
+	srv := ollamatest.NewServer(t, ollamatest.Options{})
+	useOllama(t, srv)
+	if code, _, stderr := run(t, "index"); code != 0 {
+		t.Fatal(stderr)
+	}
+	srv.Close()
+	code, out, stderr := run(t, "search", "enclosure")
+	if code != 0 || stderr != "" {
+		t.Fatalf("code %d stderr %q", code, stderr)
+	}
+	lines := strings.Split(out, "\n")
+	if !strings.HasPrefix(lines[0], "note: semantic search is unavailable (") || !strings.HasSuffix(lines[0], "); showing keyword results") {
+		t.Errorf("first line = %q", lines[0])
+	}
+	if !strings.HasPrefix(lines[1], f.doc+"  document  ACTIVE  Lemur habitat") {
+		t.Errorf("hits = %q", lines[1:])
+	}
+	if len(lines) != 4 {
+		t.Errorf("output = %q", out)
+	}
+}
+
+func TestSearchFallbackJSON(t *testing.T) {
+	seedSearchProject(t)
+	srv := ollamatest.NewServer(t, ollamatest.Options{})
+	useOllama(t, srv)
+	if code, _, stderr := run(t, "index"); code != 0 {
+		t.Fatal(stderr)
+	}
+	srv.Close()
+	res := hybridJSON(t, "enclosure")
+	if res.Mode != search.ModeKeywordFallback || !strings.HasPrefix(res.Notice, "semantic search is unavailable (") || len(res.Hits) != 1 || len(res.Hits[0].Sources) != 0 {
+		t.Errorf("res = %+v", res)
+	}
+}
+
+func TestSearchBehindNoticeShown(t *testing.T) {
+	seedSearchProject(t)
+	useOllama(t, ollamatest.NewServer(t, ollamatest.Options{}))
+	if code, _, stderr := run(t, "index"); code != 0 {
+		t.Fatal(stderr)
+	}
+	cs := mcpSession(t)
+	for i := range 7 {
+		mcpOK(t, cs, "doc_create", map[string]any{"kind": "design", "title": fmt.Sprintf("Lemur extra %d", i), "body": "more"})
+	}
+	_ = cs.Close()
+	code, out, stderr := run(t, "search", "lemur")
+	if code != 0 || stderr != "" || !strings.HasPrefix(out, "note: semantic index is behind by 2 records: run ralph index\n") {
+		t.Errorf("code %d out %q stderr %q", code, out, stderr)
+	}
+}
+
+func TestSearchFirstSearchCreatesIndexFileAndCatchesUp(t *testing.T) {
+	f := seedSearchProject(t)
+	srv := ollamatest.NewServer(t, ollamatest.Options{})
+	useOllama(t, srv)
+	res := hybridJSON(t, "lemur")
+	if _, err := os.Stat(filepath.Join(".ralph", "index.db")); err != nil {
+		t.Fatalf("no index file: %v", err)
+	}
+	if res.Mode != search.ModeHybrid || len(srv.Requests()) == 0 {
+		t.Fatalf("res = %+v, requests %d", res, len(srv.Requests()))
+	}
+	var found bool
+	for _, h := range res.Hits {
+		found = found || (h.ID == f.task && slices.Contains(h.Sources, "semantic"))
+	}
+	if !found {
+		t.Errorf("task not found semantically: %+v", res.Hits)
+	}
+}
+
+func TestSearchNoProviderTouchesNoIndexFile(t *testing.T) {
+	seedSearchProject(t)
+	if code, _, stderr := run(t, "search", "lemur"); code != 0 {
+		t.Fatal(stderr)
+	}
+	if _, err := os.Stat(filepath.Join(".ralph", "index.db")); !os.IsNotExist(err) {
+		t.Errorf("index file touched: %v", err)
+	}
+}
+
+func TestMCPServerRemembersOutageAcrossCalls(t *testing.T) {
+	seedSearchProject(t)
+	srv := ollamatest.NewServer(t, ollamatest.Options{})
+	useOllama(t, srv)
+	if code, _, stderr := run(t, "index"); code != 0 {
+		t.Fatal(stderr)
+	}
+	srv.FailWith(503)
+	cs := mcpSession(t)
+	mcpOK(t, cs, "doc_create", map[string]any{"kind": "design", "title": "Lemur new", "body": "x"})
+	first := mcpOK(t, cs, "search", map[string]any{"query": "lemur"})
+	if first["mode"] != search.ModeKeywordFallback {
+		t.Fatalf("first = %v", first)
+	}
+	before := len(srv.Requests())
+	second := mcpOK(t, cs, "search", map[string]any{"query": "lemur"})
+	if second["mode"] != search.ModeKeywordFallback || second["notice"] != first["notice"] {
+		t.Errorf("second = %v", second)
+	}
+	if after := len(srv.Requests()); after != before {
+		t.Errorf("second call made %d requests", after-before)
 	}
 }

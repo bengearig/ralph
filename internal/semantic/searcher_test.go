@@ -357,3 +357,35 @@ func TestSearcherReadsOnly(t *testing.T) {
 		t.Error("a search changed the index or the store")
 	}
 }
+
+func TestSearcherCatchUpReturnsWaiting(t *testing.T) {
+	e := newEnv(t)
+	for range 4 {
+		e.task("lemur", "text", "")
+	}
+	s := e.searcher(e.fake)
+	waiting, err := s.CatchUp(ctx, 2)
+	if err != nil || waiting != 4 {
+		t.Fatalf("waiting %d err %v", waiting, err)
+	}
+	if waiting, err = s.CatchUp(ctx, 10); err != nil || waiting != 0 {
+		t.Fatalf("waiting %d err %v", waiting, err)
+	}
+	e.task("lemur", "more", "")
+	e.fake.FailWith(embed.ErrUnavailable)
+	if waiting, err = s.CatchUp(ctx, 10); !errors.Is(err, embed.ErrUnavailable) || waiting != 1 {
+		t.Fatalf("waiting %d err %v", waiting, err)
+	}
+}
+
+func TestSearcherEmpty(t *testing.T) {
+	e := newEnv(t)
+	s := e.searcher(e.fake)
+	if empty, err := s.Empty(ctx); err != nil || !empty {
+		t.Fatalf("empty %v err %v", empty, err)
+	}
+	e.mustSync()
+	if empty, err := s.Empty(ctx); err != nil || empty {
+		t.Fatalf("empty %v err %v", empty, err)
+	}
+}

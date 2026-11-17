@@ -3,8 +3,15 @@ package search
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/bengearig/ralph/internal/embed"
+	"github.com/bengearig/ralph/internal/vecindex"
 )
 
 const (
@@ -18,6 +25,10 @@ const (
 // meanings they have in Hit, and Excerpt is the matching part of the text.
 type Semantic interface {
 	Query(ctx context.Context, q SemanticQuery) ([]SemanticHit, error)
+	// CatchUp embeds up to maxRecords changed or new records and returns how many are still waiting.
+	CatchUp(ctx context.Context, maxRecords int) (waiting int, err error)
+	// Empty reports whether the index holds no vectors.
+	Empty(ctx context.Context) (bool, error)
 }
 
 // SemanticQuery asks for at most Depth hits.
@@ -119,17 +130,90 @@ func rankOrLast(r int) int {
 	return r
 }
 
+var errEmptyIndex = errors.New("the semantic index is empty")
+
+const (
+	defaultHybridTimeout = 5 * time.Second
+	defaultCatchUp       = 5
+	outageMemory         = 60 * time.Second
+	emptyReason          = "the semantic index is empty: run ralph index"
+	dimensionsReason     = "the index was built with a different embedding model"
+)
+
+// HybridOptions tunes NewHybrid; a zero value means the default.
+type HybridOptions struct {
+	// Timeout limits the semantic part of a search; the default is 5 seconds.
+	Timeout time.Duration
+	// CatchUpRecords is the most records embedded before a search; the default is 5.
+	CatchUpRecords int
+	// Now is the clock; the default is time.Now.
+	Now func() time.Time
+}
+
 type hybrid struct {
 	keyword Service
 	sem     Semantic
+	opts    HybridOptions
+
+	mu         sync.Mutex
+	failedAt   time.Time
+	failReason string
 }
 
 // NewHybrid returns a search that combines keyword with sem; a nil sem gives keyword itself.
-func NewHybrid(keyword Service, sem Semantic) Service {
+// When the semantic part fails it falls back to keyword search.
+func NewHybrid(keyword Service, sem Semantic, opts HybridOptions) Service {
 	if sem == nil {
 		return keyword
 	}
-	return &hybrid{keyword: keyword, sem: sem}
+	if opts.Timeout <= 0 {
+		opts.Timeout = defaultHybridTimeout
+	}
+	if opts.CatchUpRecords <= 0 {
+		opts.CatchUpRecords = defaultCatchUp
+	}
+	if opts.Now == nil {
+		opts.Now = time.Now
+	}
+	return &hybrid{keyword: keyword, sem: sem, opts: opts}
+}
+
+func (h *hybrid) recentFailure() (string, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.failReason != "" && h.opts.Now().Sub(h.failedAt) < outageMemory {
+		return h.failReason, true
+	}
+	return "", false
+}
+
+func (h *hybrid) recordFailure(reason string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.failedAt, h.failReason = h.opts.Now(), reason
+}
+
+// failure classifies err: reason is set for a provider failure, and outage when it is to be remembered.
+func (h *hybrid) failure(err error) (reason string, outage, ok bool) {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return "timed out after " + h.opts.Timeout.String(), true, true
+	case errors.Is(err, embed.ErrUnavailable), errors.Is(err, embed.ErrModelNotFound), errors.Is(err, embed.ErrInvalid):
+		return strings.TrimPrefix(err.Error(), "embed: "), true, true
+	case errors.Is(err, vecindex.ErrDimensions):
+		return dimensionsReason, false, true
+	}
+	return "", false, false
+}
+
+func (h *hybrid) fallback(ctx context.Context, q Query, reason string) (Result, error) {
+	res, err := h.keyword.Search(ctx, q)
+	if err != nil {
+		return Result{}, err
+	}
+	res.Mode = ModeKeywordFallback
+	res.Notice = fmt.Sprintf("semantic search is unavailable (%s); showing keyword results", reason)
+	return res, nil
 }
 
 func (h *hybrid) Search(ctx context.Context, q Query) (Result, error) {
@@ -137,7 +221,45 @@ func (h *hybrid) Search(ctx context.Context, q Query) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	if reason, ok := h.recentFailure(); ok {
+		return h.fallback(ctx, q, reason)
+	}
+	res, err := h.semanticSearch(ctx, q, limit)
+	if err == nil {
+		return res, nil
+	}
+	if ctx.Err() != nil {
+		return Result{}, err
+	}
+	if errors.Is(err, errEmptyIndex) {
+		return h.fallback(ctx, q, emptyReason)
+	}
+	reason, outage, ok := h.failure(err)
+	if !ok {
+		return Result{}, err
+	}
+	if outage {
+		h.recordFailure(reason)
+	}
+	return h.fallback(ctx, q, reason)
+}
+
+func (h *hybrid) semanticSearch(ctx context.Context, q Query, limit int) (Result, error) {
 	depth := min(hybridMaxDep, max(minDepth, depthFactor*limit))
+
+	cctx, cancel := context.WithTimeout(ctx, h.opts.Timeout)
+	defer cancel()
+	waiting, err := h.sem.CatchUp(cctx, h.opts.CatchUpRecords)
+	if err != nil {
+		return Result{}, err
+	}
+	empty, err := h.sem.Empty(cctx)
+	if err != nil {
+		return Result{}, err
+	}
+	if empty {
+		return Result{}, errEmptyIndex
+	}
 
 	kq := q
 	kq.Limit = depth
@@ -150,9 +272,17 @@ func (h *hybrid) Search(ctx context.Context, q Query) (Result, error) {
 			kres.Hits[i].Unit = kres.Hits[i].ID
 		}
 	}
-	shits, err := h.sem.Query(ctx, SemanticQuery{Text: q.Text, Kinds: q.Kinds, IncludeInactive: q.IncludeInactive, Depth: depth})
+	shits, err := h.sem.Query(cctx, SemanticQuery{Text: q.Text, Kinds: q.Kinds, IncludeInactive: q.IncludeInactive, Depth: depth})
 	if err != nil {
 		return Result{}, fmt.Errorf("semantic search: %w", err)
 	}
-	return Result{Mode: ModeHybrid, Relaxed: kres.Relaxed, Hits: Fuse(kres.Hits, shits, limit)}, nil
+	res := Result{Mode: ModeHybrid, Relaxed: kres.Relaxed, Hits: Fuse(kres.Hits, shits, limit)}
+	if waiting > 0 {
+		noun := "records"
+		if waiting == 1 {
+			noun = "record"
+		}
+		res.Notice = fmt.Sprintf("semantic index is behind by %d %s: run ralph index", waiting, noun)
+	}
+	return res, nil
 }

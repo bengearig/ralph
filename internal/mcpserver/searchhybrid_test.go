@@ -2,14 +2,19 @@ package mcpserver
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/bengearig/ralph/internal/db"
 	"github.com/bengearig/ralph/internal/documents"
+	"github.com/bengearig/ralph/internal/embed"
+	"github.com/bengearig/ralph/internal/embed/embedtest"
 	"github.com/bengearig/ralph/internal/search"
+	"github.com/bengearig/ralph/internal/semantic"
 	"github.com/bengearig/ralph/internal/testutil"
 	"github.com/bengearig/ralph/internal/units"
+	"github.com/bengearig/ralph/internal/vecindex"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -92,5 +97,50 @@ func TestMCPSearchKeywordOutputUnchanged(t *testing.T) {
 	}
 	if _, ok := searchHits(t, out)[0]["sources"]; ok {
 		t.Error("sources present for keyword search")
+	}
+}
+
+func fallbackSearchClient(t *testing.T) *mcp.ClientSession {
+	t.Helper()
+	d := testutil.NewDB(t, db.Migrations)
+	us := units.NewService(d)
+	if _, err := us.Create(context.Background(), units.NewUnit{Level: units.LevelBrief, Title: "Lemur brief", Body: "b"}); err != nil {
+		t.Fatal(err)
+	}
+	fake := embedtest.NewFake(8)
+	fake.FailWith(embed.ErrUnavailable)
+	idx, err := vecindex.Open(filepath.Join(t.TempDir(), "index.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = idx.Close() })
+	sem := semantic.NewSearcher(semantic.SearcherDeps{DB: d, Index: idx, Provider: fake, Settings: embed.Settings{ChunkChars: 1200}})
+	svc := search.NewHybrid(search.New(d), sem, search.HybridOptions{})
+	return connect(t, Options{
+		Name: "ralph", Actor: actor,
+		Open:      staticOpen(us),
+		Documents: staticDocs(documents.NewService(d)),
+		Search:    func(context.Context) (search.Service, error) { return svc, nil },
+	})
+}
+
+func TestMCPSearchFallbackText(t *testing.T) {
+	res := call(t, fallbackSearchClient(t), "search", map[string]any{"query": "lemur"})
+	if res.IsError {
+		t.Fatal(text(res))
+	}
+	lines := strings.Split(text(res), "\n")
+	if lines[0] != "Keyword search: 1 result(s)" || !strings.HasPrefix(lines[1], "Notice: semantic search is unavailable (") ||
+		!strings.HasSuffix(lines[1], "); showing keyword results") {
+		t.Errorf("lines = %q", lines[:2])
+	}
+}
+
+func TestMCPSearchFallbackStructuredNotice(t *testing.T) {
+	res := call(t, fallbackSearchClient(t), "search", map[string]any{"query": "lemur"})
+	out := res.StructuredContent.(map[string]any)
+	notice, _ := out["notice"].(string)
+	if out["mode"] != search.ModeKeywordFallback || !strings.HasPrefix(notice, "semantic search is unavailable (") {
+		t.Errorf("structured = %#v", out)
 	}
 }

@@ -76,6 +76,21 @@ func (s *Searcher) lookup(ctx context.Context, kind search.Kind, ref string) (c 
 	return c, true, nil
 }
 
+// CatchUp embeds up to maxRecords changed or new records and returns how many are still waiting.
+func (s *Searcher) CatchUp(ctx context.Context, maxRecords int) (int, error) {
+	res, err := Sync(ctx, SyncDeps{DB: s.d.DB, Index: s.d.Index, Provider: s.d.Provider, Settings: s.d.Settings}, SyncOptions{MaxRecords: maxRecords})
+	return res.Waiting, err
+}
+
+// Empty reports whether the index holds no vectors.
+func (s *Searcher) Empty(ctx context.Context) (bool, error) {
+	st, err := s.d.Index.Stats(ctx)
+	if err != nil {
+		return false, err
+	}
+	return st.Chunks == 0, nil
+}
+
 // Query embeds the text and returns the records whose best chunk is closest to it.
 func (s *Searcher) Query(ctx context.Context, q search.SemanticQuery) ([]search.SemanticHit, error) {
 	if q.Depth <= 0 {

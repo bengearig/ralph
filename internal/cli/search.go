@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
 	"os/signal"
 	"slices"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/bengearig/ralph/internal/db"
 	"github.com/bengearig/ralph/internal/embed"
@@ -22,8 +22,10 @@ import (
 
 var searchKinds = []search.Kind{search.KindBrief, search.KindSlice, search.KindTask, search.KindNote, search.KindDocument}
 
+const maxSearchTimeout = 5 * time.Second
+
 // newSearchService returns the keyword search, or the keyword and semantic search combined when a provider
-// is configured and the index file exists. The returned function closes the index file.
+// is configured; the index file is created if it is missing. The returned function closes the index file.
 func newSearchService(a *app, d *db.DB) (search.Service, func(), error) {
 	keyword := search.New(d)
 	noop := func() {}
@@ -35,17 +37,12 @@ func newSearchService(a *app, d *db.DB) (search.Service, func(), error) {
 		return keyword, noop, nil
 	}
 	path := project.IndexPath(a.root)
-	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
-		return keyword, noop, nil
-	} else if err != nil {
-		return nil, noop, fmt.Errorf("search: %w", err)
-	}
 	idx, err := vecindex.Open(path)
 	if err != nil {
 		return nil, noop, err
 	}
 	searcher := semantic.NewSearcher(semantic.SearcherDeps{DB: d, Index: idx, Provider: provider, Settings: settings})
-	return search.NewHybrid(keyword, searcher), func() { _ = idx.Close() }, nil
+	return search.NewHybrid(keyword, searcher, search.HybridOptions{Timeout: min(settings.Timeout, maxSearchTimeout)}), func() { _ = idx.Close() }, nil
 }
 
 func printSearchResult(out io.Writer, res search.Result, asJSON bool) error {
