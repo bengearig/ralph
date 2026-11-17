@@ -83,7 +83,7 @@ Input: a middle unit whose bottom units are ready.
   them, and a separate action applies the follow-up. See
   [0010](decisions/0010-sequencing-and-merge-detection.md).
 - After a merge the units close and the branch is deleted. The next middle unit waits for the user to start the loop,
-  unless an auto mode is active. See [0011](decisions/0011-after-merge-and-closed-pull-requests.md).
+  unless auto-continue is active. See [0011](decisions/0011-after-merge-and-closed-pull-requests.md).
 
 ## Quick work
 

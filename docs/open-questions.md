@@ -4,7 +4,7 @@ Status: draft
 
 | Question | Blocks |
 | --- | --- |
-| What is auto mode: what does it start, how is it enabled, and what stops it? | workflow |
+| What is auto-continue: what does it start, how is it enabled, and what stops it? | workflow |
 | How much of the follow-up to a detected change can be applied automatically, and how is that configured? | workflow |
 | Is the monitor's final name `ralph monitor`, and what is the acting command called? | workflow |
 | Does branch deletion after merge cover the local branch, the remote branch, or both? | workflow |
@@ -41,16 +41,14 @@ Status: draft
 | Which other actions, if any, must exist as both CLI commands and MCP tools? | harness-integration |
 | What must an adapter declare about a harness's capabilities, and what does ralph do when one is missing? | harness-integration |
 | How does the loop build the prompt for a bottom unit, given that linked documents are pushed in (0019)? | harness-integration |
-| What does each adapter's restricted allowlist contain, and what is the setting's name, given auto mode is already used in 0011? | harness-integration |
+| Does OpenCode offer a way to layer a user's own permission rules under ralph's, so a user could widen a restricted run without letting a project's rules in? | harness-integration |
+| Which ralph tools beyond the read-only ones may a loop agent call, for example adding a note to its unit? | harness-integration |
+| What does the loop do with the suggestions in a run record: does the monitor show them, or are they applied only by the user? | harness-integration |
 | What are the configuration file names, the command that shows the effective configuration, and how is the project-local file kept out of version control? | configuration |
 | Should a remote instance hold settings shared by a team, as a layer between the user file and the project file? | configuration |
 | Which secret sources beyond environment variables are supported, and when? | configuration |
 | Which of the settings in the decisions so far are user-only? | configuration |
 | Should semantic search come before the loop? | first-release |
-| OpenCode's headless runs were tested for the loop's needs, with a free model in a scratch repository. The same checks have not been run against Claude Code. Which of them become automated adapter tests? | first-release |
-| OpenCode has no cost limit flag, but each step's JSON event reports cost and tokens. Does ralph enforce the budget itself by counting them, for any adapter whose harness reports them, and what does an adapter without either do? | harness-integration |
-| In OpenCode a rejected edit is worked around through the shell, so a restricted allowlist must constrain shell commands, not only file edits. How does the adapter interface express an allowlist so each adapter can apply it, and how is it tested against a real run? | harness-integration |
-| OpenCode exits with success after denying an action, so denials are found only in its output. How does each adapter report denied actions to the loop for the run record? | harness-integration |
 | How many pre-migration backups are kept, and how are old ones removed? | local-state |
 | What are the names of the backup command and the setting that requires explicit migration? | local-state |
 | How long are run records kept by default, how are they purged, and how are secrets that appear in them handled? | local-state |

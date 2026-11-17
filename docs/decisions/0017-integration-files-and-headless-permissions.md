@@ -28,8 +28,10 @@ Headless permissions:
   maps it to what its harness provides.
 - Restricted is the only mode a committed project file can request. Auto comes only from user-level configuration, an
   environment variable, or a run flag, so cloning a repository never grants an agent broad power.
-- The names are open. "Auto" is already used for starting the next middle unit in
-  [0011](0011-after-merge-and-closed-pull-requests.md).
+- The mode is the `headless.permissions` setting, with the values `restricted` and `auto`. The word "auto mode" means
+  only the harness's own mode; starting the next middle unit by itself is auto-continue in
+  [0011](0011-after-merge-and-closed-pull-requests.md). Extra shell commands for a restricted run are the
+  `headless.allow` setting.
 
 ## Alternatives rejected
 
@@ -45,3 +47,9 @@ Headless permissions:
   only.
 - A verification command not in the allowlist fails every iteration, so the allowlist must be derived from the
   configured verification commands.
+- `headless.permissions` is a user-only setting, and a value in a committed project file is ignored with a warning.
+- `headless.allow`, a list of shell command patterns that widen a restricted run, is user-only for the same reason.
+- In both modes the agent may not edit `.git`, `.ralph` or the harness's own configuration, so a run cannot widen itself
+  or damage ralph's state.
+- Committed harness settings, hooks and project configuration are not loaded in either mode, so a clone cannot widen an
+  unattended agent through them.

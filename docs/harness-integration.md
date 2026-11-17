@@ -31,17 +31,138 @@ and a tool; other actions are decided as they are added. See [0016](decisions/00
 
 ## Headless invocation
 
-Used by the loop. See [workflow.md](workflow.md).
+Used by the loop. See [workflow.md](workflow.md). The design record is the headless-invocation document in ralph's
+store; this section is the settled behavior.
 
-- Each iteration spawns the harness's CLI as a fresh process with a prompt built for one bottom unit. Context is not
-  carried between iterations.
-- The adapter defines the command, the permission mode, the budget cap and the handling of output.
-- Permissions default to restricted, a scoped allowlist. An auto mode defers to the harness's own automatic mode and
-  is never accepted from a committed project file. See [0017](decisions/0017-integration-files-and-headless-permissions.md).
-- Ralph checks the result itself after the process exits and does not rely on what the agent reports. A harness can
-  exit successfully after denying an action, so the adapter reads denied actions from the harness's output, not from
-  the exit code.
-- A session that hits the budget cap, or fails verification, counts as a failed iteration for the Stall Statute.
+### The process
+
+Each iteration starts the harness's CLI as a fresh process in the project root, with a prompt built for one bottom
+unit. The prompt travels on standard input, never in the arguments, so its size is not limited by the command line and
+it does not show in a process list. Context is not carried between iterations. The adapter describes the process as data
+(the command, arguments, environment additions and standard input), supplies a parser for the harness's output and
+declares what the harness can do; an adapter never starts a process itself. Ralph's runner starts it in its own process
+group, reads its output a line at a time, and ends the whole group on the time limit or on cancellation.
+
+Ralph checks the result itself after the process exits and does not rely on what the agent reports.
+
+### Permission modes
+
+`headless.permissions` chooses the mode. It is a user-only setting: a value found in the committed project file is
+ignored with a warning, so cloning a repository never grants an agent broad power. See
+[0017](decisions/0017-integration-files-and-headless-permissions.md).
+
+- **Restricted**, the default, denies everything and then allows what the loop needs.
+  - Claude Code runs in its mode that denies whatever is not allowed, without prompting, with allow and deny rules
+    built from ralph's allowlist. A deny rule beats an allow rule.
+  - OpenCode gets the same rules as permission configuration injected by ralph, with a catch-all deny first so that
+    reads and edits outside the project are denied too. Ralph's rules come last, and the last matching rule wins.
+- **Auto** hands approval to the harness's own automatic mode. Claude Code runs in its automatic permission mode with
+  prompts turned off, so nothing waits for an answer. OpenCode runs with its auto flag, which approves everything not
+  explicitly denied. Ralph adds no allowlist, only the protected paths. This is the only meaning "auto mode" has in these
+  documents; starting the next middle unit by itself is auto-continue.
+
+A restricted run may:
+
+- edit files inside the project and read;
+- call ralph's read-only tools;
+- run read-only git: status, diff, log, show, rev-parse and ls-files, each with any arguments;
+- run each configured verification command, as a whole and as each simple command inside it, split at `&&`, `||`, `;`,
+  `|`, `&` and newlines without regard to quoting;
+- run the shell command patterns of `headless.allow`.
+
+Everything else is denied, including committing, pushing and network access. Ralph commits after verification, as quick
+work does, so the agent is not given `git add` or `git commit`. A model that is refused a shell command may try another
+route, so the allowlist constrains shell commands and not only file edits.
+
+In both modes the agent may not edit `.git`, `.ralph` or the harness's own configuration: `.claude` and `.mcp.json` for
+Claude Code, `.opencode`, `opencode.json` and `opencode.jsonc` for OpenCode. An edit of those would let a run widen itself
+or damage ralph's state.
+
+### Settings that are not loaded
+
+Committed harness settings are not loaded in either mode, because a clone could otherwise widen an unattended agent or
+run its hooks.
+
+- Claude Code runs with only its user and local setting sources and only ralph's MCP server. A hook or allow rule
+  committed to the project neither runs nor widens the agent.
+- OpenCode runs with its project configuration left out, which skips the project's `opencode.json` and `.opencode`
+  directory and so the project's committed plugins and commands, with ralph's MCP server and rules injected, and with a
+  private server so the injected rules apply to the process that evaluates them. Its instruction file (`AGENTS.md`) is
+  still read.
+
+### Widening a restricted run
+
+`headless.allow` is a user-only list of shell command patterns, accepted from the user file, the project-local file, the
+environment and flags, and never from a committed file. A pattern uses `*` for any text and a backslash to take the next
+character literally; a trailing space and `*` also matches the command with no arguments. Both harnesses read a pattern
+the same way, so it is written once, and it works for both.
+
+Claude Code also applies the user's own settings, so an allow rule there widens a restricted run too. OpenCode has no
+such layer: ralph's rules come last and win, and the user's own OpenCode permission rules cannot widen a restricted run,
+so `headless.allow` is the only way for OpenCode. Setting `headless.permissions` to `auto` is the other route.
+
+### Denials
+
+The exit status says nothing about denials: both harnesses exit successfully after denying an action. Ralph reads them
+from the output instead.
+
+- Claude Code writes an event for each denied tool as it happens and lists them in the final result.
+- OpenCode writes a tool event whose state is an error beginning with a permission denial.
+
+Each denial records the tool, the command or path, and the reason. A run with a denial fails, even when the process
+exited with success. The report suggests the exact line to add: for a shell denial, the command as a `headless.allow`
+pattern (ending it in a space and `*` allows any arguments); for another tool, that it is outside the restricted
+allowlist and that `headless.permissions` can be `auto`.
+
+### Cost, tokens and the budget
+
+Ralph counts cost and tokens from the harness's output for every run and records them.
+
+- Claude Code reports cost and usage once, in its final result; per-message usage during the run is partial, so only
+  the final figures are used. Ralph passes the cap to Claude Code, which stops itself, and also checks the cost the final
+  result reports.
+- OpenCode has no cost flag but reports cost and tokens in every finished step. Ralph adds the cost of each finished
+  step and stops the process when the sum passes the cap. The step that crosses the cap is already paid for, so the
+  recorded cost can be above the cap.
+- When a cap is set and the harness reports no cost, as for a model without a price, the run is not stopped and the
+  result carries a note that the budget was not checked. The note belongs in the run record.
+- Tokens never stop a run.
+
+A run stopped by the cap, by either path, fails.
+
+### Time limit
+
+`headless.timeout` limits the wall-clock time of one run. On expiry ralph ends the process group, waits a grace period
+and then kills it. A run that timed out fails.
+
+### The run result
+
+A run returns the exit code, its duration, whether it timed out or was canceled, the last of its standard error, the
+parsed outcome (the final answer, the session, any harness error, the denials and the usage) and any notes. An error is
+returned only when the process cannot be started or its output cannot be read. A failure line says why in one line: timed
+out, canceled, budget exceeded, a harness error, a non-zero exit, or denied actions with the first few listed. An empty
+line means a clean run. A failed iteration, whether from this or from failed verification, counts for the Stall Statute.
+
+### Settings
+
+| Setting | Scope | Default | Meaning |
+| --- | --- | --- | --- |
+| `headless.permissions` | user-only | `restricted` | `restricted` or `auto`: the permission mode of a headless run. |
+| `headless.allow` | user-only | none | Shell command patterns a restricted run may also run. |
+| `headless.budget_usd` | project | `0` | Cost cap of one run in US dollars; `0` means no cap. |
+| `headless.timeout` | project | `30m` | Wall-clock limit of one run, a duration greater than zero. |
+
+### Live checks
+
+Each harness has a check that runs it for real, skipped by default. They read and change only a temporary project that
+the test creates.
+
+- `RALPH_CLAUDE_LIVE=1` runs the Claude Code check. It spends a small amount: `RALPH_CLAUDE_LIVE_BUDGET_USD` sets the
+  cap (default 0.50) and `RALPH_CLAUDE_LIVE_MODEL` the model (default `haiku`).
+- `RALPH_OPENCODE_LIVE=1` runs the OpenCode check with a private home. `RALPH_OPENCODE_LIVE_MODEL` sets the model; the
+  default is a free one.
+
+Both need the harness on the path. They exist to find drift between ralph's adapter and the real harness.
 
 ## Installation
 

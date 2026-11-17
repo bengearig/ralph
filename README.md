@@ -34,6 +34,10 @@ The project is under construction. The design is in [docs/](docs/README.md).
 - `ralph search <words>` finds documents, briefs, slices, tasks and notes by their words; `--kind` and `--limit` narrow
   the results and `--all` includes archived and superseded documents and cancelled tasks.
 - `ralph mcp` serves ralph's records to an agent over the Model Context Protocol on standard input and output.
+- Headless runs, which the loop uses, are set by `headless.permissions` (user-only, `restricted` by default or `auto`),
+  `headless.allow` (user-only shell command patterns that widen a restricted run), `headless.budget_usd` (a cost cap per
+  run) and `headless.timeout`. A restricted run cannot be widened from a committed file. See
+  [docs/harness-integration.md](docs/harness-integration.md).
 
 ## Development
 
@@ -61,6 +65,12 @@ skipped unless `RALPH_OPENCODE_LIVE=1` and `opencode` is on the path. It uses a 
 ```sh
 RALPH_OPENCODE_LIVE=1 go test ./internal/harness/opencode -run TestLiveOpenCode -v
 ```
+
+### Live headless tests
+
+The headless runs are checked against the real harnesses by tests skipped unless `RALPH_CLAUDE_LIVE=1` (Claude Code,
+which spends a small amount) or `RALPH_OPENCODE_LIVE=1` (OpenCode, with a free model by default) is set. They use a
+temporary project. See [docs/harness-integration.md](docs/harness-integration.md).
 
 ### Live GitHub test
 

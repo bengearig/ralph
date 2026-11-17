@@ -13,7 +13,7 @@ ambiguous: the approach may have been wrong, the work superseded, or the closure
 After a merge:
 - The merged middle unit and its bottom units are closed.
 - The branch is deleted.
-- The next middle unit waits for the user to start the loop, unless an auto mode is active. Auto mode starts the next
+- The next middle unit waits for the user to start the loop, unless auto-continue is active. Auto-continue starts the next
   middle unit by itself once the previous one merges. Its definition is open.
 
 After a closure without merging:
@@ -33,5 +33,5 @@ After a closure without merging:
 
 - Units need a closed state and a needs-attention state; names are open.
 - Branch deletion must refuse when the branch holds unmerged work, and must say what it did.
-- The monitor and any auto mode apply these results through the shared change handler, so they behave the same however
+- The monitor and any auto-continue apply these results through the shared change handler, so they behave the same however
   a change was detected.
