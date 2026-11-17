@@ -70,12 +70,14 @@ func runMCP(ctx context.Context, a *app, t mcp.Transport) error {
 	}
 
 	var (
-		mu     sync.Mutex
-		opened *db.DB
+		mu         sync.Mutex
+		opened     *db.DB
+		closeIndex = func() {}
 	)
 	defer func() {
 		mu.Lock()
 		defer mu.Unlock()
+		closeIndex()
 		if opened != nil {
 			_ = opened.Close()
 		}
@@ -124,7 +126,14 @@ func runMCP(ctx context.Context, a *app, t mcp.Transport) error {
 			if err != nil {
 				return nil, err
 			}
-			return search.New(d), nil
+			svc, closer, err := newSearchService(a, d)
+			if err != nil {
+				return nil, err
+			}
+			mu.Lock()
+			closeIndex = closer
+			mu.Unlock()
+			return svc, nil
 		},
 	})
 	err := srv.Run(ctx, t)

@@ -11,7 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const searchText = `Keyword search over the project's records: documents, briefs, slices, tasks and the notes on them. query is plain words, not search syntax: punctuation has no special meaning, and double quotes keep a phrase together. A record must contain every word; only when no record does, the result is relaxed and its hits match some of the words. Archived and superseded documents and cancelled tasks (with their notes) are left out unless include_inactive is true, and then they are marked inactive. Earlier versions of documents are not searched; read them with doc_versions and doc_get. Each hit gives kind, id (for a note, the task, slice or brief it is on), title, status and a snippet with the matching words in square brackets, best match first. Read a hit with doc_get for a document and unit_get for anything else. kinds limits the search to some kinds; limit is 1 to 100 and defaults to 20.`
+const searchText = `Search over the project's records: documents, briefs, slices, tasks and the notes on them. query is plain words, not search syntax: punctuation has no special meaning, and double quotes keep a phrase together. A record must contain every word; only when no record does, the result is relaxed and its hits match some of the words. Archived and superseded documents and cancelled tasks (with their notes) are left out unless include_inactive is true, and then they are marked inactive. Earlier versions of documents are not searched; read them with doc_versions and doc_get. Each hit gives kind, id (for a note, the task, slice or brief it is on), title, status and a snippet with the matching words in square brackets, best match first. Read a hit with doc_get for a document and unit_get for anything else. When a semantic index is configured, results combine keyword and semantic matches: mode says which search ran (hybrid, keyword or keyword-fallback) and sources says how each hit was found (keyword, semantic or both); the score of a combined result is a rank score that cannot be compared with a keyword score. A notice, when present, says something about the search. kinds limits the search to some kinds; limit is 1 to 100 and defaults to 20.`
 
 var searchKindEnum = []any{"brief", "slice", "task", "note", "document"}
 
@@ -83,7 +83,14 @@ func (s *server) runSearch(ctx context.Context, in searchInput) (*mcp.CallToolRe
 
 func searchSummary(r search.Result) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Keyword search: %d result(s)", len(r.Hits))
+	name := "Keyword"
+	if r.Mode == search.ModeHybrid {
+		name = "Hybrid"
+	}
+	fmt.Fprintf(&b, "%s search: %d result(s)", name, len(r.Hits))
+	if r.Notice != "" {
+		b.WriteString("\nNotice: " + r.Notice)
+	}
 	if r.Relaxed {
 		b.WriteString("\nno result had every word; these match some of them")
 	}

@@ -21,9 +21,9 @@ type Record struct {
 	Hash  string
 }
 
-const unitsSQL = `
-SELECT id, title, body || CASE WHEN acceptance_criteria <> '' THEN char(10) || acceptance_criteria ELSE '' END
-FROM units WHERE level = ? ORDER BY number`
+const unitTextSQL = `body || CASE WHEN acceptance_criteria <> '' THEN char(10) || acceptance_criteria ELSE '' END`
+
+const unitsSQL = `SELECT id, title, ` + unitTextSQL + ` FROM units WHERE level = ? ORDER BY number`
 
 const documentsSQL = `SELECT id, title, body FROM documents ORDER BY number`
 

@@ -28,21 +28,9 @@ type keyword struct {
 var _ Service = (*keyword)(nil)
 
 func (k *keyword) Search(ctx context.Context, q Query) (Result, error) {
-	parsed, err := ParseQuery(q.Text)
+	parsed, limit, err := validate(q)
 	if err != nil {
 		return Result{}, err
-	}
-	limit := q.Limit
-	switch {
-	case limit == 0:
-		limit = defaultLimit
-	case limit < 0 || limit > maxLimit:
-		return Result{}, fmt.Errorf("%w: limit %d is not between 1 and %d", ErrInvalid, q.Limit, maxLimit)
-	}
-	for _, kind := range q.Kinds {
-		if !kind.valid() {
-			return Result{}, fmt.Errorf("%w: unknown kind %q", ErrInvalid, kind)
-		}
 	}
 
 	res := Result{Mode: ModeKeyword}
@@ -112,6 +100,27 @@ WHERE search_fts MATCH ?
 		return nil, fmt.Errorf("search: read hits: %w", err)
 	}
 	return hits, nil
+}
+
+// validate parses the query text and checks the kinds and the limit, returning the limit to use.
+func validate(q Query) (Parsed, int, error) {
+	parsed, err := ParseQuery(q.Text)
+	if err != nil {
+		return Parsed{}, 0, err
+	}
+	limit := q.Limit
+	switch {
+	case limit == 0:
+		limit = defaultLimit
+	case limit < 0 || limit > maxLimit:
+		return Parsed{}, 0, fmt.Errorf("%w: limit %d is not between 1 and %d", ErrInvalid, q.Limit, maxLimit)
+	}
+	for _, kind := range q.Kinds {
+		if !kind.valid() {
+			return Parsed{}, 0, fmt.Errorf("%w: unknown kind %q", ErrInvalid, kind)
+		}
+	}
+	return parsed, limit, nil
 }
 
 // bodyStart returns the first characters of body, cut at a word boundary,
