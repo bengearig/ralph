@@ -297,6 +297,71 @@ func DefaultRegistry() *Registry {
 			},
 		},
 		Setting{
+			Path:        "embeddings.provider",
+			Description: "Which embedding service semantic search uses: none means keyword search only, ollama sends document text to the service named by embeddings.url",
+			Default:     "none",
+			Scope:       ScopeUser,
+			Allowed:     []string{"none", "ollama"},
+		},
+		Setting{
+			Path:        "embeddings.url",
+			Description: "Address of the embedding service, http or https with no credentials, query or fragment; document text is sent to this address when embeddings.provider is not none",
+			Default:     "http://localhost:11434",
+			Scope:       ScopeUser,
+			Validate:    validateEmbeddingsURL,
+		},
+		Setting{
+			Path:        "embeddings.model",
+			Description: "The embedding model the service at embeddings.url runs; document text is embedded with it",
+			Default:     "nomic-embed-text",
+			Scope:       ScopeUser,
+			Validate:    validateEmbeddingsModel,
+		},
+		Setting{
+			Path:        "embeddings.document_prefix",
+			Description: "Text put before each document chunk sent to the service at embeddings.url; empty means the built-in prefix for the model, and none means no prefix",
+			Scope:       ScopeUser,
+			Validate:    validateEmbeddingsPrefix,
+		},
+		Setting{
+			Path:        "embeddings.query_prefix",
+			Description: "Text put before each search query sent to the service at embeddings.url; empty means the built-in prefix for the model, and none means no prefix",
+			Scope:       ScopeUser,
+			Validate:    validateEmbeddingsPrefix,
+		},
+		Setting{
+			Path:        "embeddings.chunk_chars",
+			Description: "Target size in characters of each piece of document text sent to the service at embeddings.url, from 200 to 6000",
+			Default:     "1200",
+			Scope:       ScopeUser,
+			Validate: func(v string) error {
+				n, err := strconv.Atoi(v)
+				if err != nil {
+					return errors.New("must be a whole number from 200 to 6000")
+				}
+				if n < 200 || n > 6000 {
+					return errors.New("must be between 200 and 6000")
+				}
+				return nil
+			},
+		},
+		Setting{
+			Path:        "embeddings.timeout",
+			Description: "Per-request timeout for the embedding service at embeddings.url, greater than zero and at most 10m",
+			Default:     "30s",
+			Scope:       ScopeUser,
+			Validate: func(v string) error {
+				d, err := time.ParseDuration(v)
+				if err != nil {
+					return errors.New("must be a duration such as 30s")
+				}
+				if d <= 0 || d > 10*time.Minute {
+					return errors.New("must be greater than zero and at most 10m")
+				}
+				return nil
+			},
+		},
+		Setting{
 			Path:        "verify.commands",
 			Description: "Shell command lines run in order from the project root before quick work is committed",
 			Kind:        KindList,
@@ -551,6 +616,47 @@ func validateExportDir(v string) error {
 	}
 	if elems[0] == ".git" || elems[0] == ".ralph" {
 		return fmt.Errorf("must not be inside %s", elems[0])
+	}
+	return nil
+}
+
+func validateEmbeddingsURL(v string) error {
+	u, err := url.Parse(v)
+	if err != nil || u.Hostname() == "" {
+		return errors.New("must be a URL such as http://localhost:11434")
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return errors.New("must use http or https")
+	}
+	if u.User != nil {
+		return errors.New("embeddings.url must not contain credentials")
+	}
+	if u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || strings.Contains(v, "#") {
+		return errors.New("must not contain a query or fragment")
+	}
+	return nil
+}
+
+func validateEmbeddingsModel(v string) error {
+	switch {
+	case v == "":
+		return errors.New("must not be empty")
+	case utf8.RuneCountInString(v) > 200:
+		return errors.New("must be at most 200 characters")
+	case strings.HasPrefix(v, "-"):
+		return errors.New("must not start with -")
+	case strings.ContainsFunc(v, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }):
+		return errors.New("must not contain whitespace or a control character")
+	}
+	return nil
+}
+
+func validateEmbeddingsPrefix(v string) error {
+	if utf8.RuneCountInString(v) > 200 {
+		return errors.New("must be at most 200 characters")
+	}
+	if strings.ContainsAny(v, "\r\n") {
+		return errors.New("must not contain a newline")
 	}
 	return nil
 }
