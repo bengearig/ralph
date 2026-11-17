@@ -21,7 +21,10 @@ Work is organized in a fixed set of levels, each tied to a git artifact.
 A Brief is a received instruction broken down into slices. A Slice is a part of a brief that leaves the result stable and
 usable when merged. A Task is the smallest unit of work done. IDs are a letter prefix and a per-project number counted
 per level, such as `B-1`, `S-3` and `T-12`. Only tasks store a state; a slice and a brief derive their status from their
-children. See [0026](decisions/0026-work-level-and-state-names.md).
+children. A slice also has the status `NEEDS_ATTENTION` while its latest pull request was closed without merging and
+nobody has decided what to do, and a brief with such a slice shows it too. See
+[0026](decisions/0026-work-level-and-state-names.md) and
+[0011](decisions/0011-after-merge-and-closed-pull-requests.md).
 
 Parent and child rules:
 - A top-level unit has one or more middle units. A single middle unit is valid and preferred over splitting work into

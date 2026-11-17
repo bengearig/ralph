@@ -36,6 +36,11 @@ The project is under construction. The design is in [docs/](docs/README.md).
 - `ralph mcp` serves ralph's records to an agent over the Model Context Protocol on standard input and output.
 - `ralph loop <slice>` works a slice's ready tasks in order on its own branch, one verified commit per task and nothing
   pushed; it retries a failed attempt and blocks the task after `loop.max_failures`. `--dry-run` prints the plan.
+- `ralph pr create <slice>` verifies a finished slice, pushes its branch and opens a draft pull request, or publishes
+  new commits to the one that is open. `ralph pr feedback <slice>` lists the review feedback, and with `--create` turns
+  inline comments and requests for changes into tasks for the loop. `ralph pr check <slice>` records a pull request
+  closed without merging, which stops the slice until `ralph pr reopen`, `ralph pr rearticulate` or `ralph pr cancel`.
+  Nothing is merged.
 - `ralph runs purge` removes run records under `.ralph/runs/` (`--older-than DURATION`, `--slice <ID>`; it lists unless
   `--yes`), and a loop removes those older than `runs.keep_days` when it starts.
 - Headless runs, which the loop uses, are set by `headless.permissions` (user-only, `restricted` by default or `auto`),

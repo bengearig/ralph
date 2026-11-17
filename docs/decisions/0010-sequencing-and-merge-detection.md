@@ -20,7 +20,8 @@ to learn about merges, and about other changes to pull requests, without being a
   satisfied when that unit's work is merged. Removing the dependency lets the waiting unit start.
 - Ralph can learn about pull request changes in three ways, and all are planned: polling the hosting provider, a
   webhook into the API server, and a command the user runs. Each feeds the same handling, so behavior does not depend
-  on how a change was detected.
+  on how a change was detected. The user command is `ralph pr check <slice>`, which reads the slice's latest pull
+  request and records what changed through the same handler the other paths will use.
 - Viewing and acting are separate. A CLI command, working name `ralph monitor`, shows what is happening in the
   project and polls the provider for updates, and changes nothing. A separate action applies what follows a detected
   change, such as creating bottom units from review feedback or closing a merged unit. Both use the same handler, so a

@@ -23,6 +23,14 @@ Different people and projects verify differently.
 ## Consequences
 
 - The pull request provider integration must read review feedback, not only create pull requests.
+- Feedback is read from the latest pull request of the slice, and it does not change anything on the host. Inline
+  comments with text and reviews that request changes become bottom units; general comments and comment-only reviews
+  with text become bottom units only when the user asks for them, and an approval never does. A review that requests
+  changes has no text on Bitbucket, so its task says to read the pull request.
+- An item becomes at most one task: the task is tied to the item with an external link naming the pull request and the
+  feedback, so reading again shows the task instead of creating another. A task is made ready for the loop, with the
+  reviewer's words quoted in its body and acceptance criteria that say the change is made or the final answer says why
+  not. No task is created from a pull request that is no longer open.
 - A middle unit can gain bottom units after its pull request is open, so its state must allow that.
 - The loop runs the configured verification commands after each bottom unit, before committing it, and a failure fails
   the attempt. See [workflow.md](../workflow.md).

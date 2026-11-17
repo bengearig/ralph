@@ -108,6 +108,12 @@ identifier:
 | `inline` | Review comments, with the path and the line (the original line when the line no longer exists). | Comments attached to code, with the path and the line (`to`, else `from`). |
 | `comment` | Conversation comments. | Comments not attached to code, and replies. |
 
+When ralph turns feedback into tasks, a `review` that requests changes and an `inline` comment with text are made into
+tasks, a `comment` and a comment-only `review` with text only when the user asks for them, and an approval never. A
+Bitbucket `review` has no text, so a request for changes there becomes a task that says to read the pull request, and
+a Bitbucket approval is never a task. See
+[0009](decisions/0009-review-feedback-and-verification.md).
+
 Where they differ:
 
 - Bitbucket keeps only each reviewer's current verdict. An approval or a request for changes that a later verdict

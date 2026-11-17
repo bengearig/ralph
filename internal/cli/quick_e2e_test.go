@@ -34,11 +34,25 @@ type fakeGitHub struct {
 	mu       sync.Mutex
 	requests []string
 	created  []map[string]any
+	pulls    []*fakePull
+	feedback map[int][]fakeFeedback
+	nextID   int
+}
+
+type fakePull struct{ closed, merged bool }
+
+type fakeFeedback struct {
+	id         int
+	kind       string
+	user, body string
+	path       string
+	line       int
+	state      string
 }
 
 func newFakeGitHub(t *testing.T) *fakeGitHub {
 	t.Helper()
-	g := &fakeGitHub{}
+	g := &fakeGitHub{feedback: map[int][]fakeFeedback{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/acme/widgets/pulls", func(w http.ResponseWriter, r *http.Request) {
 		g.mu.Lock()
@@ -53,17 +67,27 @@ func newFakeGitHub(t *testing.T) *fakeGitHub {
 				return
 			}
 			g.created = append(g.created, in)
+			g.pulls = append(g.pulls, &fakePull{})
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(g.pull(len(g.created), in))
+			_ = json.NewEncoder(w).Encode(g.pull(len(g.created)))
 		case http.MethodGet:
 			out := []map[string]any{}
-			for i, in := range g.created {
-				out = append(out, g.pull(i+1, in))
+			head := strings.TrimPrefix(r.URL.Query().Get("head"), "acme:")
+			for i := len(g.created); i >= 1; i-- {
+				if head == "" || g.created[i-1]["head"] == head {
+					out = append(out, g.pull(i))
+				}
 			}
 			_ = json.NewEncoder(w).Encode(out)
 		default:
 			http.Error(w, "unsupported", http.StatusMethodNotAllowed)
 		}
+	})
+	mux.HandleFunc("/repos/acme/widgets/pulls/", func(w http.ResponseWriter, r *http.Request) {
+		g.serveNumbered(w, r, strings.TrimPrefix(r.URL.Path, "/repos/acme/widgets/pulls/"), "")
+	})
+	mux.HandleFunc("/repos/acme/widgets/issues/", func(w http.ResponseWriter, r *http.Request) {
+		g.serveNumbered(w, r, strings.TrimPrefix(r.URL.Path, "/repos/acme/widgets/issues/"), "issues")
 	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		g.mu.Lock()
@@ -76,17 +100,126 @@ func newFakeGitHub(t *testing.T) *fakeGitHub {
 	return g
 }
 
-func (g *fakeGitHub) pull(n int, in map[string]any) map[string]any {
-	return map[string]any{
+// serveNumbered answers GET /pulls/{n}, /pulls/{n}/comments, /pulls/{n}/reviews
+// and /issues/{n}/comments.
+func (g *fakeGitHub) serveNumbered(w http.ResponseWriter, r *http.Request, rest, area string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.requests = append(g.requests, r.Method+" "+r.URL.Path)
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodGet {
+		http.Error(w, "unsupported", http.StatusMethodNotAllowed)
+		return
+	}
+	numStr, sub, _ := strings.Cut(rest, "/")
+	n, err := strconv.Atoi(numStr)
+	if err != nil || n < 1 || n > len(g.pulls) {
+		http.NotFound(w, r)
+		return
+	}
+	switch {
+	case area == "" && sub == "":
+		_ = json.NewEncoder(w).Encode(g.pull(n))
+	case area == "" && sub == "comments":
+		_ = json.NewEncoder(w).Encode(g.feedbackJSON(n, "inline"))
+	case area == "" && sub == "reviews":
+		_ = json.NewEncoder(w).Encode(g.feedbackJSON(n, "review"))
+	case area == "issues" && sub == "comments":
+		_ = json.NewEncoder(w).Encode(g.feedbackJSON(n, "comment"))
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func (g *fakeGitHub) pull(n int) map[string]any {
+	in, st := g.created[n-1], g.pulls[n-1]
+	state := "open"
+	if st.closed || st.merged {
+		state = "closed"
+	}
+	out := map[string]any{
 		"number":   n,
 		"html_url": g.srv.URL + "/acme/widgets/pull/" + strconv.Itoa(n),
 		"title":    in["title"],
 		"body":     in["body"],
-		"state":    "open",
+		"state":    state,
 		"draft":    in["draft"],
 		"head":     map[string]any{"ref": in["head"]},
 		"base":     map[string]any{"ref": in["base"]},
 	}
+	if st.merged {
+		out["merged_at"] = "2026-01-02T00:00:00Z"
+		out["merge_commit_sha"] = "0123456789abcdef0123456789abcdef01234567"
+	}
+	return out
+}
+
+func (g *fakeGitHub) pullURL(n int) string {
+	return g.srv.URL + "/acme/widgets/pull/" + strconv.Itoa(n)
+}
+
+func (g *fakeGitHub) feedbackJSON(n int, kind string) []map[string]any {
+	out := []map[string]any{}
+	for _, f := range g.feedback[n] {
+		if f.kind != kind {
+			continue
+		}
+		id := strconv.Itoa(f.id)
+		at := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(f.id) * time.Second).Format(time.RFC3339)
+		item := map[string]any{"id": f.id, "user": map[string]any{"login": f.user}, "body": f.body}
+		switch kind {
+		case "review":
+			item["state"] = f.state
+			item["submitted_at"] = at
+			item["html_url"] = g.pullURL(n) + "#pullrequestreview-" + id
+		case "inline":
+			item["path"], item["line"], item["created_at"] = f.path, f.line, at
+			item["html_url"] = g.pullURL(n) + "#discussion_r" + id
+		default:
+			item["created_at"] = at
+			item["html_url"] = g.pullURL(n) + "#issuecomment-" + id
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func (g *fakeGitHub) add(n int, f fakeFeedback) int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.nextID++
+	f.id = g.nextID
+	g.feedback[n] = append(g.feedback[n], f)
+	return f.id
+}
+
+// AddComment adds a conversation comment and returns its ID.
+func (g *fakeGitHub) AddComment(n int, user, body string) int {
+	return g.add(n, fakeFeedback{kind: "comment", user: user, body: body})
+}
+
+// AddInlineComment adds a comment on a line of a file and returns its ID.
+func (g *fakeGitHub) AddInlineComment(n int, user, body, path string, line int) int {
+	return g.add(n, fakeFeedback{kind: "inline", user: user, body: body, path: path, line: line})
+}
+
+// AddReview adds a review in the given state (APPROVED, CHANGES_REQUESTED, COMMENTED) and returns its ID.
+func (g *fakeGitHub) AddReview(n int, user, body, state string) int {
+	return g.add(n, fakeFeedback{kind: "review", user: user, body: body, state: state})
+}
+
+// Close closes the pull request without merging it.
+func (g *fakeGitHub) Close(n int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.pulls[n-1].closed = true
+}
+
+// Merge merges the pull request.
+func (g *fakeGitHub) Merge(n int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.pulls[n-1].merged = true
 }
 
 func (g *fakeGitHub) requestCount() int {

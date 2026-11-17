@@ -87,6 +87,15 @@ Input: a middle unit whose bottom units are ready.
   [0010](decisions/0010-sequencing-and-merge-detection.md).
 - Creating the pull request is a ralph command. The hosting provider is configurable. GitHub and Bitbucket Cloud are
   supported in the first release. See [0021](decisions/0021-first-release-scope.md).
+- `ralph pr create <slice>` opens the pull request of a finished slice. It refuses unless the slice has a done task and
+  no task that is unfinished, the checkout is on the slice's branch and the working tree has no changes. It then runs
+  the configured verification commands, and a failure stops it before anything is pushed. It pushes the branch without
+  forcing it and opens a pull request, a draft by default, from the branch to the base branch, titled with the slice's
+  ID and title. The body names the brief, gives the slice's body, lists the tasks with their short commits, shows the
+  verification results and says which slice ralph opened it for. The pull request is recorded on the slice as a link, a
+  note and a record that `ralph status <slice>` lists.
+- Fixes made after review are published with the same command: when a pull request is already open for the branch, it
+  pushes the new commits and reports that the pull request was reused.
 - A pull request closed without merging is recorded and the unit stops for a human decision. See
   [0011](decisions/0011-after-merge-and-closed-pull-requests.md).
 
@@ -94,10 +103,21 @@ Input: a middle unit whose bottom units are ready.
 
 - A person reviews and merges. Ralph and agents never merge (Article V).
 - Feedback on the pull request becomes a new bottom unit appended to its middle unit, and the loop works it like any
-  other. See [0009](decisions/0009-review-feedback-and-verification.md).
-- Merges and other pull request changes are detected by polling, a webhook, or a user command. `ralph monitor` shows
-  them, and a separate action applies the follow-up. See
+  other. `ralph pr feedback <slice>` reads the feedback on the slice's latest pull request and lists what it found,
+  changing nothing. With `--create`, each inline comment and each review that requests changes becomes a ready task, once:
+  a task that already exists for an item is shown instead of a second one. With `--all`, general comments and plain
+  reviews that have text are eligible too; an approval never is. Tasks are only created while the pull request is open.
+  See [0009](decisions/0009-review-feedback-and-verification.md).
+- Merges and other pull request changes are detected by polling, a webhook, or a user command. `ralph pr check <slice>`
+  is the user command: it reads the slice's latest pull request from the host and records what changed. `ralph monitor`
+  shows them, and a separate action applies the follow-up. See
   [0010](decisions/0010-sequencing-and-merge-detection.md).
+- A pull request that was closed without merging stops the slice, which shows `NEEDS_ATTENTION`, and `ralph loop` and
+  `ralph pr create` refuse it until a person chooses. `ralph pr reopen <slice>` opens a new pull request from the same
+  branch, `ralph pr rearticulate <slice>` moves the unfinished tasks back to proposed so the plan is made again, and
+  `ralph pr cancel <slice>` cancels the unfinished tasks, and with `--dependents` those of the slices waiting for it;
+  without `--yes` it only says what it would do. Finished tasks and commits are never touched. See
+  [0011](decisions/0011-after-merge-and-closed-pull-requests.md).
 - After a merge the units close and the branch is deleted. The next middle unit waits for the user to start the loop,
   unless auto-continue is active. See [0011](decisions/0011-after-merge-and-closed-pull-requests.md).
 

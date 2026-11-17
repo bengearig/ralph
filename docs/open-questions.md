@@ -8,7 +8,6 @@ Status: draft
 | How much of the follow-up to a detected change can be applied automatically, and how is that configured? | workflow |
 | Is the monitor's final name `ralph monitor`, and what is the acting command called? | workflow |
 | Does branch deletion after merge cover the local branch, the remote branch, or both? | workflow |
-| How does ralph read feedback from a pull request, and which feedback becomes a bottom unit? | workflow |
 | How are chunk size and boundaries chosen, and what Ollama models are supported or required? | documents |
 | How are keyword and semantic results combined in one ranking? | documents |
 | What is the rebuild command's name, and does it also cover rebuilding the keyword index? | documents |
