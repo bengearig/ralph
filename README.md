@@ -29,6 +29,8 @@ The project is under construction. The design is in [docs/](docs/README.md).
 - `ralph docs export` writes each active document to a generated markdown file in the directory of the
   `documents.export.dir` setting (default `docs/ralph`), removes generated files that are stale and never touches other
   files; `--check` writes nothing and exits 1 if the files are out of step. Nothing is committed.
+- `ralph docs link <document> <unit>` links an active document to a brief, slice or task, `ralph docs unlink` removes
+  the link, and `ralph docs links <id>` shows a document's units or a unit's documents. A tie to a brief is not a link.
 - `ralph search <words>` finds documents, briefs, slices, tasks and notes by their words; `--kind` and `--limit` narrow
   the results and `--all` includes archived and superseded documents and cancelled tasks.
 - `ralph mcp` serves ralph's records to an agent over the Model Context Protocol on standard input and output.

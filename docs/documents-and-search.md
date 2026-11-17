@@ -118,8 +118,26 @@ For each bottom unit the loop does both of the following:
 - The agent can search for further documents and work records through the MCP server, as in
   [harness-integration.md](harness-integration.md).
 
-Links between documents and units are set in two ways: explicitly by the user, and by Receive and Articulate when they
-work out the plan. The loop limits how much it includes in a prompt. The limit and how it is applied are open.
+A link is explicit: it joins one document to one brief, slice or task, and exists only because someone made it. A
+document tied to a brief is not linked to it by that tie; the tie is the document's scope, and the brief has the document
+as a link only after `ralph docs link` or the `link_add` tool is run for it. A unit's documents are the ones linked to
+it and those linked to its slice and its brief, which a reader sees as the unit's own and the ones inherited, each
+inherited document naming the unit it comes from.
+
+- Only an active document can be linked. A missing document is `not_found`, and an archived or superseded one is
+  `invalid`; the message for a superseded one names its replacement, and nothing follows the replacement
+  automatically.
+- A link to a document of any status can be removed, and removing a link that is not there changes nothing.
+- A link survives its document being archived or superseded. It is still shown, with the document's status, and a
+  superseded document is shown with its replacement.
+- `ralph docs link <document> <unit>`, `ralph docs unlink <document> <unit>` and `ralph docs links <id>` make, remove
+  and show links; `links` takes a document, to list its units, or a unit, to list its documents and the inherited
+  ones. The tools are `link_add` and `link_remove` with kind `document`, `unit_get` for a unit's documents and
+  `doc_get` for a document's `linked_units`. `ralph status <unit>` prints the same documents.
+- Links are set by the user and by Receive and Articulate when they work out the plan.
+
+Pushing linked documents into the prompt belongs to the loop. The loop limits how much it includes in a prompt. The
+limit and how it is applied are open.
 
 Archived and superseded documents are excluded from what the loop pushes and from search results unless requested.
 

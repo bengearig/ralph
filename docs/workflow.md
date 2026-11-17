@@ -26,7 +26,8 @@ Input: an instruction from the user.
   cycle is rejected. See [0010](decisions/0010-sequencing-and-merge-detection.md).
 - Receive can start from an issue in an issue source, which becomes its input and is linked to the resulting units. See
   [task-manager-and-issues.md](task-manager-and-issues.md).
-- Receive links the documents the work relies on to its units. See [documents-and-search.md](documents-and-search.md).
+- Receive searches the existing documents before it writes new ones, stores what the work needs as documents, and links
+  the documents the work relies on to its units. See [documents-and-search.md](documents-and-search.md).
 
 ## Articulate
 
@@ -34,7 +35,8 @@ Input: a top-level unit with unplanned bottom units.
 
 - The command reads the unit and its notes, then each bottom unit's details are worked out with the user: a description and acceptance criteria that let an agent with
   no other context implement and verify it (Article II).
-- Articulate links further documents to a unit where its details need them.
+- Articulate searches and reads documents, stores a design the unit needs as a document, and links further documents to
+  a unit where its details need them.
 - Details are written to the unit and the unit is then promoted, with a reason. A promotion that lacks a description or
   acceptance criteria is refused and says what is missing.
 - Promoting a unit makes it ready. Only ready units are worked by the loop.
