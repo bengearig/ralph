@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/bengearig/ralph/internal/db"
 	"github.com/bengearig/ralph/internal/project"
@@ -40,6 +41,8 @@ func newTicketsCommand(a *app) *cobra.Command {
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print JSON")
 	cmd.AddCommand(newTicketsSyncCommand(a))
 	cmd.AddCommand(newTicketsCheckCommand(a))
+	cmd.AddCommand(newTicketsResolveCommand(a, tickets.ActionAccept))
+	cmd.AddCommand(newTicketsResolveCommand(a, tickets.ActionOverwrite))
 	return cmd
 }
 
@@ -361,4 +364,93 @@ func timeText(t time.Time) string {
 		return ""
 	}
 	return t.UTC().Format(time.RFC3339)
+}
+
+func newTicketsResolveCommand(a *app, action string) *cobra.Command {
+	var (
+		fields []string
+		yes    bool
+	)
+	short, long := "Import what was changed in Jira into the unit", "Set the unit's title and body from the ticket, acknowledge a different status, or drop the link of a ticket that was deleted.\n"
+	if action == tickets.ActionOverwrite {
+		short, long = "Push the unit's values over what was changed in Jira", "Clear the difference and push the unit's title, body and status to the ticket now; a deleted ticket is created again with a new key.\n"
+	}
+	cmd := &cobra.Command{
+		Use:   action + " <unit>",
+		Short: short,
+		Long: long + "Without --yes the command prints what would change and changes nothing. Use --field (title, body, status or deleted,\n" +
+			"repeatable) to resolve only some of the differences.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
+			d, system, settings, err := openTicketsEnv(ctx, a)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = d.Close() }()
+			var events []tickets.Event
+			deps := tickets.Deps{
+				Units: units.NewService(d), DB: d, System: system, Settings: settings,
+				ProjectID: a.setting("project.id"), Dir: project.RalphDir(a.root), Now: time.Now,
+				Report: func(ev tickets.Event) { events = append(events, ev) },
+			}
+			plan, err := tickets.PlanResolve(ctx, deps, args[0], action, fields)
+			if err != nil {
+				return err
+			}
+			out := cmd.OutOrStdout()
+			if !yes {
+				return writeResolvePlan(out, plan)
+			}
+			err = tickets.Resolve(ctx, deps, plan)
+			if err == nil {
+				if action == tickets.ActionAccept {
+					_, _ = fmt.Fprintf(out, "accepted %s %s from %s\n", plan.Unit, strings.Join(plan.Fields(), ", "), plan.Key)
+				} else {
+					_, _ = fmt.Fprintf(out, "overwrote %s %s from %s\n", plan.Key, strings.Join(plan.Fields(), ", "), plan.Unit)
+				}
+			}
+			for _, ev := range events {
+				_, _ = fmt.Fprintln(out, eventLine(ev))
+			}
+			return err
+		},
+	}
+	cmd.Flags().StringArrayVar(&fields, "field", nil, "resolve only this field (title, body, status or deleted); repeatable")
+	cmd.Flags().BoolVar(&yes, "yes", false, "apply the change instead of printing it")
+	return cmd
+}
+
+func writeResolvePlan(out io.Writer, plan tickets.ResolvePlan) error {
+	if plan.Action == tickets.ActionAccept {
+		_, _ = fmt.Fprintf(out, "accept %s from %s\n", plan.Unit, plan.Key)
+	} else {
+		_, _ = fmt.Fprintf(out, "overwrite %s from %s\n", plan.Key, plan.Unit)
+	}
+	for _, c := range plan.Changes {
+		var line string
+		switch c.Field {
+		case "body":
+			line = fmt.Sprintf("body: %d characters -> %d characters", utf8.RuneCountInString(c.From), utf8.RuneCountInString(c.To))
+		case "status":
+			line = fmt.Sprintf("status: %s -> %s", c.From, c.To)
+		case "deleted":
+			line = "deleted: " + c.To
+		default:
+			line = fmt.Sprintf("%s: %q -> %q", c.Field, cut(c.From), cut(c.To))
+		}
+		if _, err := fmt.Fprintln(out, "  "+line); err != nil {
+			return err
+		}
+	}
+	_, err := fmt.Fprintln(out, "run again with --yes to apply")
+	return err
+}
+
+func cut(s string) string {
+	if utf8.RuneCountInString(s) <= 80 {
+		return s
+	}
+	return string([]rune(s)[:80]) + "…"
 }
