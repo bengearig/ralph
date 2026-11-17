@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/bengearig/ralph/internal/db"
+	"github.com/bengearig/ralph/internal/followup"
 	"github.com/bengearig/ralph/internal/hosting"
 	"github.com/bengearig/ralph/internal/prstep"
 	"github.com/bengearig/ralph/internal/quick"
@@ -306,14 +307,15 @@ func runPRCheck(cmd *cobra.Command, a *app, sliceID string) error {
 	if err != nil {
 		return err
 	}
-	res, err := prstep.Check(a.actorContext(ctx, cmd), deps, sliceID)
+	fd := followup.Deps{PR: deps, Units: deps.Units, Workspace: deps.Workspace, Provider: deps.Provider}
+	obs, change, err := followup.CheckSlice(a.actorContext(ctx, cmd), fd, sliceID)
 	if err != nil {
 		return err
 	}
 	out := cmd.OutOrStdout()
-	id := res.Slice.ID
-	_, _ = fmt.Fprintf(out, "%s pull request #%d (%s): %s\n", id, res.Record.Number, res.PullRequest.State, res.PullRequest.URL)
-	switch res.Change.Kind {
+	id := obs.Slice.ID
+	_, _ = fmt.Fprintf(out, "%s pull request #%d (%s): %s\n", id, obs.Record.Number, obs.PullRequest.State, obs.PullRequest.URL)
+	switch change.Kind {
 	case prstep.ChangeClosed:
 		_, _ = fmt.Fprintf(out, "closed without merging: %s needs a decision\n", id)
 		for _, c := range []string{"reopen", "rearticulate", "cancel"} {

@@ -106,8 +106,7 @@ func TestApplyMergedNotesOnly(t *testing.T) {
 func TestApplyClosedToOpen(t *testing.T) {
 	e := newEnv(t)
 	pr := e.mustRun(t).PullRequest
-	e.provider.Close(pr.Number)
-	if _, err := prstep.Check(ctx, e.deps, e.slice.ID); err != nil {
+	if err := e.units.SetPullRequestState(ctx, e.slice.ID, pr.Number, units.PullRequestClosed); err != nil {
 		t.Fatal(err)
 	}
 	rec := e.records(t)[0]
@@ -140,53 +139,6 @@ func TestApplyUnchangedWritesNothing(t *testing.T) {
 	}
 	if len(e.noteBodies(t)) != len(notes) {
 		t.Errorf("notes = %q", e.noteBodies(t))
-	}
-}
-
-func TestCheckReadsLatestRecord(t *testing.T) {
-	e := newEnv(t)
-	first := e.mustRun(t).PullRequest
-	e.provider.Close(first.Number)
-	if err := e.units.SetPullRequestState(ctx, e.slice.ID, first.Number, units.PullRequestClosed); err != nil {
-		t.Fatal(err)
-	}
-	second, err := e.provider.CreatePullRequest(ctx, hosting.NewPullRequest{Head: e.branch, Base: "main", Title: "again"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := e.units.RecordPullRequest(ctx, units.PullRequestRecord{
-		SliceID: e.slice.ID, Number: second.Number, URL: second.URL, Head: e.branch, Base: "main", State: units.PullRequestOpen,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	e.provider.Merge(second.Number)
-	res, err := prstep.Check(ctx, e.deps, e.slice.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.Record.Number != second.Number || res.PullRequest.Number != second.Number || res.Change.Kind != prstep.ChangeMerged || res.Slice.ID != e.slice.ID {
-		t.Errorf("result = %+v", res)
-	}
-}
-
-func TestCheckNoRecordMessage(t *testing.T) {
-	e := newEnv(t)
-	_, err := prstep.Check(ctx, e.deps, e.slice.ID)
-	if err == nil || err.Error() != "S-1 has no pull request: run ralph pr create S-1" {
-		t.Errorf("err = %v", err)
-	}
-}
-
-func TestCheckPullRequestGoneFromHost(t *testing.T) {
-	e := newEnv(t)
-	if err := e.units.RecordPullRequest(ctx, units.PullRequestRecord{
-		SliceID: e.slice.ID, Number: 77, URL: "https://fake.example/pull/77", Head: e.branch, Base: "main", State: units.PullRequestOpen,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	_, err := prstep.Check(ctx, e.deps, e.slice.ID)
-	if !errors.Is(err, hosting.ErrNotFound) || !strings.Contains(err.Error(), "gone from the host") {
-		t.Errorf("err = %v", err)
 	}
 }
 

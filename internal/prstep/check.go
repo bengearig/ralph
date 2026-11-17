@@ -2,7 +2,6 @@ package prstep
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/bengearig/ralph/internal/hosting"
@@ -23,14 +22,6 @@ const (
 type Change struct {
 	Kind    ChangeKind
 	Message string
-}
-
-// CheckResult is what Check read and recorded.
-type CheckResult struct {
-	Slice       units.Unit
-	Record      units.PullRequestRecord
-	PullRequest hosting.PullRequest
-	Change      Change
 }
 
 // Apply records the state of a pull request as the provider reported it. A
@@ -62,47 +53,6 @@ func Apply(ctx context.Context, u units.Service, slice units.Unit, rec units.Pul
 		return Change{}, err
 	}
 	return change, nil
-}
-
-// Check reads the latest pull request of a slice from the host and records
-// what changed.
-func Check(ctx context.Context, d Deps, sliceID string) (CheckResult, error) {
-	var res CheckResult
-	slice, err := d.Units.Get(ctx, sliceID)
-	if err != nil {
-		return res, err
-	}
-	if slice.Level != units.LevelSlice {
-		return res, fmt.Errorf("%s is a %s, not a slice: give ralph pr check the ID of a slice", slice.ID, slice.Level)
-	}
-	res.Slice = slice
-	records, err := d.Units.PullRequests(ctx, slice.ID)
-	if err != nil {
-		return res, err
-	}
-	if len(records) == 0 {
-		return res, fmt.Errorf("%s has no pull request: run ralph pr create %s", slice.ID, slice.ID)
-	}
-	res.Record = records[len(records)-1]
-	if d.Provider == nil {
-		return res, errors.New("no pull request provider is configured")
-	}
-	p, err := d.Provider(ctx)
-	if err != nil {
-		return res, err
-	}
-	pr, err := p.GetPullRequest(ctx, res.Record.Number)
-	if errors.Is(err, hosting.ErrNotFound) {
-		return res, fmt.Errorf("pull request #%d of %s is gone from the host (%s): %w", res.Record.Number, slice.ID, res.Record.URL, err)
-	}
-	if err != nil {
-		return res, err
-	}
-	res.PullRequest = pr
-	if res.Change, err = Apply(ctx, d.Units, slice, res.Record, pr); err != nil {
-		return res, err
-	}
-	return res, nil
 }
 
 // NeedsDecisionError reports a slice whose latest pull request was closed
