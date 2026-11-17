@@ -1,0 +1,4 @@
+{"type":"system","subtype":"init","session_id":"sess-4","model":"claude-sonnet-5-5","permissionMode":"dontAsk","mcp_servers":[{"name":"ralph","status":"connected"}]}
+{"type":"assistant","message":{"id":"msg_1","content":[{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"command":"echo hello > shell.txt"}}]}}
+{"type":"system","subtype":"permission_denied","tool_name":"Bash","tool_use_id":"toolu_1","decision_reason_type":"mode","message":"Permission to use Bash has been denied because the command is not allowed."}
+{"type":"result","subtype":"success","is_error":false,"terminal_reason":"completed","num_turns":3,"total_cost_usd":0.00245511,"permission_denials":[{"tool_name":"Bash","tool_use_id":"toolu_1","tool_input":{"command":"echo hello > shell.txt"}}],"result":"I could not run it.","session_id":"sess-4"}

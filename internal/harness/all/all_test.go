@@ -33,7 +33,7 @@ func TestCheckAllOnRegisteredAdapters(t *testing.T) {
 	harnesstest.CheckAll(t, Adapters())
 }
 
-func fixturesOf(t *testing.T, dir string) harnesstest.HeadlessFixtures {
+func fixturesOf(t *testing.T, dir, tool string) harnesstest.HeadlessFixtures {
 	t.Helper()
 	read := func(name string) string {
 		b, err := os.ReadFile(filepath.Join("..", dir, "testdata", name))
@@ -42,18 +42,19 @@ func fixturesOf(t *testing.T, dir string) harnesstest.HeadlessFixtures {
 		}
 		return string(b)
 	}
-	return harnesstest.HeadlessFixtures{Success: read("success.jsonl"), Error: read("error.jsonl"), Truncated: read("truncated.jsonl")}
+	return harnesstest.HeadlessFixtures{Success: read("success.jsonl"), Error: read("error.jsonl"), Truncated: read("truncated.jsonl"), Denied: read("denied.jsonl"), DeniedTool: tool, DeniedTarget: "echo hello > shell.txt"}
 }
 
 func TestHeadlessConformance(t *testing.T) {
 	dirs := map[string]string{"claude-code": "claudecode", "opencode": "opencode"}
+	tools := map[string]string{"claude-code": "Bash", "opencode": "shell"}
 	for _, a := range Adapters() {
 		dir, ok := dirs[a.Name()]
 		if !ok {
 			t.Fatalf("no fixtures for adapter %q", a.Name())
 		}
 		t.Run(a.Name(), func(t *testing.T) {
-			harnesstest.RunHeadless(t, a, fixturesOf(t, dir))
+			harnesstest.RunHeadless(t, a, fixturesOf(t, dir, tools[a.Name()]))
 		})
 	}
 }

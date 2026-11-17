@@ -121,16 +121,28 @@ func (adapter) Headless(req harness.HeadlessRequest) (harness.Invocation, error)
 	}, nil
 }
 
-func (adapter) NewParser() harness.Parser { return &parser{} }
+func (adapter) NewParser() harness.Parser { return &parser{seen: map[string]bool{}} }
 
-type parser struct{ out harness.Outcome }
+type parser struct {
+	out  harness.Outcome
+	seen map[string]bool
+}
 
 type event struct {
 	Type      string `json:"type"`
 	SessionID string `json:"sessionID"`
 	Part      struct {
+		ID     string `json:"id"`
+		PartID string `json:"partID"`
+		CallID string `json:"callID"`
+		Tool   string `json:"tool"`
 		Text   string `json:"text"`
 		Reason string `json:"reason"`
+		State  struct {
+			Status string          `json:"status"`
+			Input  json.RawMessage `json:"input"`
+			Error  string          `json:"error"`
+		} `json:"state"`
 	} `json:"part"`
 	Error struct {
 		Type    string `json:"type"`
@@ -151,6 +163,8 @@ func (p *parser) Line(b []byte) {
 		p.out.SessionID = e.SessionID
 	}
 	switch e.Type {
+	case "tool_use":
+		p.toolUse(e)
 	case "text":
 		p.out.Text = e.Part.Text
 	case "step_finish":
@@ -167,6 +181,61 @@ func (p *parser) Line(b []byte) {
 	p.out.Success = p.out.Finished && p.out.Error == ""
 }
 
+func isDenial(text string) bool {
+	t := strings.ToLower(strings.TrimSpace(text))
+	return strings.HasPrefix(t, "permission denied") || strings.HasPrefix(t, "permission rejected")
+}
+
+func (p *parser) toolUse(e event) {
+	st := e.Part.State
+	if st.Status != "error" || !isDenial(st.Error) {
+		return
+	}
+	for _, id := range []string{e.Part.ID, e.Part.PartID, e.Part.CallID} {
+		if id == "" {
+			continue
+		}
+		if p.seen[id] {
+			return
+		}
+		p.seen[id] = true
+		break
+	}
+	tool := e.Part.Tool
+	shell := tool == "shell" || tool == "bash"
+	p.out.Denials = append(p.out.Denials, harness.Denial{
+		Tool:   tool,
+		Target: target(tool, shell, st.Input),
+		Reason: st.Error,
+		Shell:  shell,
+	})
+}
+
+// target is the command or path a tool input names.
+func target(tool string, shell bool, raw json.RawMessage) string {
+	var m map[string]any
+	if json.Unmarshal(raw, &m) != nil {
+		return harness.CompactTarget(raw)
+	}
+	var keys []string
+	switch {
+	case shell:
+		keys = []string{"command"}
+	case tool == "edit" || tool == "write" || tool == "patch" || tool == "read":
+		keys = []string{"path", "filePath", "file_path"}
+	}
+	for _, k := range keys {
+		if s, ok := m[k].(string); ok {
+			return s
+		}
+	}
+	return harness.CompactTarget(raw)
+}
+
 func (p *parser) Usage() harness.Usage { return p.out.Usage }
 
-func (p *parser) Outcome() harness.Outcome { return p.out }
+func (p *parser) Outcome() harness.Outcome {
+	o := p.out
+	o.Denials = append([]harness.Denial{}, p.out.Denials...)
+	return o
+}

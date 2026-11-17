@@ -88,3 +88,26 @@ func TestAutoUnsupportedExecuteRejected(t *testing.T) {
 		t.Errorf("error = %v", err)
 	}
 }
+
+func TestFailureFromDenialWithExitZero(t *testing.T) {
+	abs, err := filepath.Abs(filepath.Join("..", "harness", "opencode", "testdata", "denied.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fakeHarness(t, "opencode", abs)
+	req := harness.HeadlessRequest{
+		Dir:    t.TempDir(),
+		Prompt: "go",
+		MCP:    harness.MCPServer{Name: "ralph", Command: "ralph", Args: []string{"mcp"}},
+	}
+	res, err := Execute(context.Background(), opencode.New(), req, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.ExitCode != 0 {
+		t.Fatalf("ExitCode = %d", res.ExitCode)
+	}
+	if got := res.Failure(); !strings.HasPrefix(got, "denied actions (1): shell") {
+		t.Errorf("Failure = %q", got)
+	}
+}

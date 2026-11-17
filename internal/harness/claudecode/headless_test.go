@@ -125,7 +125,7 @@ func fixture(t *testing.T, name string) string {
 
 func TestClaudeParserSuccessStream(t *testing.T) {
 	out := parse(fixture(t, "success.jsonl"))
-	want := harness.Outcome{Finished: true, Success: true, Text: "All done.", SessionID: "sess-1"}
+	want := harness.Outcome{Finished: true, Success: true, Text: "All done.", SessionID: "sess-1", Denials: []harness.Denial{}}
 	if !reflect.DeepEqual(out, want) {
 		t.Errorf("Outcome = %+v, want %+v", out, want)
 	}

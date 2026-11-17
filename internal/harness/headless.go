@@ -1,6 +1,8 @@
 package harness
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"math"
 	"path/filepath"
@@ -121,9 +123,33 @@ type Usage struct {
 
 // Denial is an action the harness refused.
 type Denial struct {
-	Tool   string
+	Tool string
+	// Target is the command or path, empty when unknown.
 	Target string
 	Reason string
+	// Shell is true when the denied tool runs a shell command.
+	Shell bool
+}
+
+const maxTargetRunes = 200
+
+// CompactTarget is the compact JSON of a tool input cut to 200 characters with
+// an ellipsis, or empty when there is no input.
+func CompactTarget(raw []byte) string {
+	var buf bytes.Buffer
+	if len(bytes.TrimSpace(raw)) == 0 || json.Compact(&buf, raw) != nil || buf.String() == "null" {
+		return ""
+	}
+	return CutTarget(buf.String())
+}
+
+// CutTarget cuts s to 200 characters, adding an ellipsis when it was longer.
+func CutTarget(s string) string {
+	r := []rune(s)
+	if len(r) <= maxTargetRunes {
+		return s
+	}
+	return string(r[:maxTargetRunes]) + "…"
 }
 
 // Outcome is the end state of a run as the harness reported it.

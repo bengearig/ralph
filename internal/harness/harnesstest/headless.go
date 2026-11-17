@@ -17,7 +17,14 @@ type HeadlessFixtures struct {
 	Error string
 	// Truncated is a stream cut off before the run finished.
 	Truncated string
+	// Denied is a run that exited 0 after the harness refused one action,
+	// with the denial it must report.
+	Denied       string
+	DeniedTool   string
+	DeniedTarget string
 }
+
+var empty = harness.Outcome{Denials: []harness.Denial{}}
 
 const headlessPrompt = "PROMPT-MARKER implement the task"
 
@@ -131,12 +138,32 @@ func RunHeadless(t *testing.T, a harness.Adapter, f HeadlessFixtures) {
 		}
 	})
 
+	t.Run("denied stream", func(t *testing.T) {
+		if f.Denied == "" {
+			t.Fatal("no Denied fixture")
+		}
+		out := feed(a.NewParser(), f.Denied)
+		if len(out.Denials) != 1 {
+			t.Fatalf("Denials = %+v, want one", out.Denials)
+		}
+		d := out.Denials[0]
+		if d.Tool != f.DeniedTool || d.Target != f.DeniedTarget || d.Reason == "" {
+			t.Errorf("Denial = %+v, want tool %q target %q and a reason", d, f.DeniedTool, f.DeniedTarget)
+		}
+	})
+
+	t.Run("no denials is an empty slice", func(t *testing.T) {
+		if out := feed(a.NewParser(), f.Success); out.Denials == nil || len(out.Denials) != 0 {
+			t.Errorf("Denials = %#v, want an empty non-nil slice", out.Denials)
+		}
+	})
+
 	t.Run("garbage is ignored", func(t *testing.T) {
 		p := a.NewParser()
 		for _, l := range []string{"", "   ", "not json", "{", "[1,2]", "null", `"text"`, "\x00\xff"} {
 			p.Line([]byte(l))
 		}
-		if out := p.Outcome(); !reflect.DeepEqual(out, harness.Outcome{}) {
+		if out := p.Outcome(); !reflect.DeepEqual(out, empty) {
 			t.Errorf("garbage changed the outcome: %+v", out)
 		}
 		clean := feed(a.NewParser(), f.Success)
@@ -152,7 +179,7 @@ func RunHeadless(t *testing.T, a harness.Adapter, f HeadlessFixtures) {
 	})
 
 	t.Run("empty stream", func(t *testing.T) {
-		if out := feed(a.NewParser(), ""); !reflect.DeepEqual(out, harness.Outcome{}) {
+		if out := feed(a.NewParser(), ""); !reflect.DeepEqual(out, empty) {
 			t.Errorf("empty stream gave %+v", out)
 		}
 	})
