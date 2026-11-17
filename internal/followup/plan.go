@@ -51,7 +51,8 @@ func planOne(o Observation, opt PlanOptions) []Followup {
 		}
 		out = append(out, add(KindFeedback, fmt.Sprintf("%d new review feedback %s", len(o.NewFeedback), noun)))
 	}
-	if state == units.PullRequestMerged && opt.DeleteBranches != DeleteNone && o.LocalBranchExists {
+	if state == units.PullRequestMerged && opt.DeleteBranches != DeleteNone &&
+		(o.LocalBranchExists || (opt.DeleteBranches == DeleteBoth && o.RemoteBranchExists)) {
 		out = append(out, add(KindClose, "delete branch "+o.LocalBranch))
 	}
 	return out

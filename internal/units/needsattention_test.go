@@ -131,7 +131,7 @@ func TestNeedsAttentionIgnoresOlderClosedPullRequest(t *testing.T) {
 	_, c, _, sl := doneSlice(t)
 	c.record(t, sl.ID, 1, units.PullRequestClosed)
 	c.record(t, sl.ID, 2, units.PullRequestOpen)
-	if got := status(t, c.s, sl.ID); got != units.StatusDone {
+	if got := status(t, c.s, sl.ID); got != units.StatusInReview {
 		t.Errorf("slice = %s", got)
 	}
 }
@@ -142,7 +142,7 @@ func TestNeedsAttentionTieBrokenByHigherNumber(t *testing.T) {
 	if _, err := c.d.SQL().Exec("INSERT INTO pull_requests (slice_id, number, url, head, base, state, created_at, updated_at) SELECT slice_id, 2, url, head, base, 'open', created_at, updated_at FROM pull_requests WHERE number = 1"); err != nil {
 		t.Fatal(err)
 	}
-	if got := status(t, c.s, sl.ID); got != units.StatusDone {
+	if got := status(t, c.s, sl.ID); got != units.StatusInReview {
 		t.Errorf("slice = %s", got)
 	}
 }

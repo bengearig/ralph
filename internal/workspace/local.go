@@ -278,3 +278,71 @@ func (l *Local) AheadOfRemote(ctx context.Context, remote, branch string) (int, 
 	}
 	return n, true, nil
 }
+
+func (l *Local) BranchTip(ctx context.Context, name string) (string, bool, error) {
+	res, err := l.run(ctx, "", "rev-parse", "--verify", "-q", "refs/heads/"+name+"^{commit}")
+	if err != nil {
+		return "", false, err
+	}
+	switch res.exitCode {
+	case 0:
+		return strings.TrimSpace(res.stdout), true, nil
+	case 1:
+		return "", false, nil
+	default:
+		return "", false, newGitError([]string{"rev-parse"}, res.exitCode, res.output)
+	}
+}
+
+func (l *Local) DeleteBranch(ctx context.Context, name string) error {
+	st, err := l.State(ctx)
+	switch {
+	case err == nil:
+		if st.Branch == name {
+			return fmt.Errorf("%w: %q", ErrBranchCheckedOut, name)
+		}
+	case errors.Is(err, ErrDetachedHead), errors.Is(err, ErrNoCommits):
+	default:
+		return err
+	}
+	_, err = l.ok(ctx, "", "branch", "-D", "--", name)
+	return err
+}
+
+func (l *Local) RemoteBranchTip(ctx context.Context, remote, branch string) (string, bool, error) {
+	ref := "refs/heads/" + branch
+	res, err := l.ok(ctx, "", "ls-remote", "--heads", remote, ref)
+	if err != nil {
+		return "", false, err
+	}
+	for _, line := range strings.Split(res.stdout, "\n") {
+		tip, name, ok := strings.Cut(strings.TrimSpace(line), "\t")
+		if ok && name == ref {
+			return tip, true, nil
+		}
+	}
+	return "", false, nil
+}
+
+func (l *Local) DeleteRemoteBranch(ctx context.Context, remote, branch string) error {
+	_, err := l.ok(ctx, "", "push", remote, "--delete", branch)
+	return err
+}
+
+func (l *Local) FastForward(ctx context.Context, remote, branch string) (bool, error) {
+	before, err := l.ok(ctx, "", "rev-parse", "HEAD")
+	if err != nil {
+		return false, err
+	}
+	if _, err := l.ok(ctx, "", "fetch", remote, branch); err != nil {
+		return false, err
+	}
+	if _, err := l.ok(ctx, "", "merge", "--ff-only", "FETCH_HEAD"); err != nil {
+		return false, err
+	}
+	after, err := l.ok(ctx, "", "rev-parse", "HEAD")
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(before.stdout) != strings.TrimSpace(after.stdout), nil
+}

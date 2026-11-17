@@ -368,7 +368,7 @@ func TestFeedbackNewTasksMakeSliceReadyAgain(t *testing.T) {
 	e.openAt(t, 1)
 	e.feedback(t, 1, hosting.Feedback{ID: "a", Kind: hosting.KindInline, Author: "ann", Body: "x", Path: "p.go", Line: 2})
 	st, err := e.units.Status(ctx, e.slice.ID)
-	if err != nil || st != units.StatusDone {
+	if err != nil || st != units.StatusInReview {
 		t.Fatalf("status = %q, %v", st, err)
 	}
 	e.readFeedback(t, prstep.FeedbackOptions{Create: true})

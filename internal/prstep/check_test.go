@@ -87,8 +87,12 @@ func TestApplyMergedNotesOnly(t *testing.T) {
 	}
 	after := e.statuses(t)
 	for id, st := range before {
-		if after[id] != st {
-			t.Errorf("%s changed from %s to %s", id, st, after[id])
+		want := st
+		if id == e.slice.ID {
+			want = units.StatusMerged
+		}
+		if after[id] != want {
+			t.Errorf("%s changed from %s to %s, want %s", id, st, after[id], want)
 		}
 	}
 	for _, tk := range e.tasks {
@@ -120,7 +124,7 @@ func TestApplyClosedToOpen(t *testing.T) {
 	if e.records(t)[0].State != units.PullRequestOpen {
 		t.Errorf("record = %+v", e.records(t)[0])
 	}
-	if e.statuses(t)[e.slice.ID] != units.StatusDone {
+	if e.statuses(t)[e.slice.ID] != units.StatusInReview {
 		t.Errorf("status = %s", e.statuses(t)[e.slice.ID])
 	}
 }

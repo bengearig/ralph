@@ -288,7 +288,7 @@ func TestE2EPRCreateOpensDraftPullRequest(t *testing.T) {
 	}
 
 	status := p.mustRalph(t, "status", "S-1").stdout
-	wantContains(t, "status", status, "S-1  DONE  Deliver the files", "Pull requests:", "#1  open  "+url)
+	wantContains(t, "status", status, "S-1  IN_REVIEW  Deliver the files", "Pull requests:", "#1  open  "+url)
 }
 
 func contains(list []string, want string) bool {
@@ -400,7 +400,7 @@ func TestE2EPRFeedbackCreatesTasksTheLoopWorks(t *testing.T) {
 		"T-3: Address alice's comment on feature.txt:1", "T-4: Address changes requested by bob"}, "\n"); msgs != want {
 		t.Errorf("commits = %q, want %q", msgs, want)
 	}
-	if got := p.status(t, "S-1"); got != "DONE" {
+	if got := p.status(t, "S-1"); got != "IN_REVIEW" {
 		t.Errorf("slice after the loop = %s", got)
 	}
 
@@ -486,7 +486,7 @@ func TestE2EPRClosedWithoutMergingStopsTheSlice(t *testing.T) {
 	if after := p.children(t, "S-1"); strings.Join(after, ",") != strings.Join(before, ",") {
 		t.Errorf("tasks changed: %v -> %v", before, after)
 	}
-	if got := p.status(t, "S-1"); got != "DONE" {
+	if got := p.status(t, "S-1"); got != "MERGED" {
 		t.Errorf("slice after the merge = %s", got)
 	}
 	if !p.hasNote(t, "S-1", "NOTE", "Pull request "+url2+" was merged.") {
@@ -515,7 +515,7 @@ func TestE2EPRReopen(t *testing.T) {
 		t.Errorf("pull requests = %v", prs)
 	}
 	status := p.mustRalph(t, "status", "S-1").stdout
-	wantContains(t, "status", status, "S-1  DONE  ", "#1  closed  "+url1+"  (reopened)", "#2  open  "+url2)
+	wantContains(t, "status", status, "S-1  IN_REVIEW  ", "#1  closed  "+url1+"  (reopened)", "#2  open  "+url2)
 	if strings.Contains(status, "NEEDS_ATTENTION") || strings.Contains(p.mustRalph(t, "status").stdout, "NEEDS_ATTENTION") {
 		t.Error("the slice still needs attention")
 	}

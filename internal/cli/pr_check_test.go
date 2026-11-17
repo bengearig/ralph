@@ -112,7 +112,7 @@ func TestStatusPullRequestsBlock(t *testing.T) {
 	if !strings.Contains(out, want) {
 		t.Errorf("out =\n%s\nlacks %q", out, want)
 	}
-	if !strings.HasPrefix(out, "S-1  DONE  S\n") {
+	if !strings.HasPrefix(out, "S-1  IN_REVIEW  S\n") {
 		t.Errorf("out = %q", out)
 	}
 	if strings.Index(out, "Tasks:") > strings.Index(out, "Pull requests:") {

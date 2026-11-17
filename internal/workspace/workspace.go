@@ -38,4 +38,16 @@ type Workspace interface {
 	// AheadOfRemote counts commits on the local branch that its remote-tracking
 	// branch lacks; tracked is false when that remote-tracking branch does not exist.
 	AheadOfRemote(ctx context.Context, remote, branch string) (n int, tracked bool, err error)
+	// BranchTip returns the commit a local branch points at; exists is false when there is no such branch.
+	BranchTip(ctx context.Context, name string) (tip string, exists bool, err error)
+	// DeleteBranch deletes a local branch whatever it holds; it refuses the checked-out branch.
+	DeleteBranch(ctx context.Context, name string) error
+	// RemoteBranchTip returns the commit a branch has on the remote, asking the remote itself.
+	RemoteBranchTip(ctx context.Context, remote, branch string) (tip string, exists bool, err error)
+	// DeleteRemoteBranch deletes a branch on the remote and never forces.
+	DeleteRemoteBranch(ctx context.Context, remote, branch string) error
+	// FastForward brings the checked-out branch up to the remote's branch of
+	// the same name and fails when that is not a fast-forward; changed is
+	// false when it was already up to date.
+	FastForward(ctx context.Context, remote, branch string) (changed bool, err error)
 }

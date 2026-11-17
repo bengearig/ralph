@@ -35,7 +35,12 @@ func newStatusCommand(a *app) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "status [id]",
 		Short: "Show briefs, slices and tasks with their statuses",
-		Args:  cobra.MaximumNArgs(1),
+		Long: `Show briefs, slices and tasks with their statuses.
+
+A slice whose tasks are all done and whose pull request is open is IN_REVIEW,
+which counts as work in progress. A slice whose pull request was merged is
+MERGED, which counts as finished and is left out unless --all is given.`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			d, err := openStore(ctx, a, db.Options{MustExist: true})
@@ -55,7 +60,7 @@ func newStatusCommand(a *app) *cobra.Command {
 			return statusSummary(ctx, cmd.OutOrStdout(), svc, all, asJSON, outdatedPaths(ctx, a.root))
 		},
 	}
-	cmd.Flags().BoolVar(&all, "all", false, "include finished (DONE or CANCELLED) work")
+	cmd.Flags().BoolVar(&all, "all", false, "include finished (DONE, MERGED or CANCELLED) work")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print JSON")
 	return cmd
 }

@@ -33,7 +33,7 @@ func (e *ReasonRequiredError) Is(target error) bool { return target == ErrReason
 var ErrWaiting = errors.New("slice waiting")
 
 // WaitingError reports a task that cannot start because its slice waits for
-// other slices that are not DONE.
+// other slices that are not satisfied.
 type WaitingError struct {
 	ID      string
 	Slice   string

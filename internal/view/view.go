@@ -23,7 +23,7 @@ type Slice struct {
 	Title  string         `json:"title"`
 	Status string         `json:"status"`
 	Tasks  map[string]int `json:"tasks"`
-	// WaitingOn lists the slices this one waits for that are not DONE.
+	// WaitingOn lists the slices this one waits for that are not satisfied.
 	WaitingOn []string `json:"waiting_on,omitempty"`
 }
 
@@ -67,7 +67,7 @@ type Note struct {
 	CreatedAt string `json:"created_at"`
 }
 
-// Dependency is a slice another slice waits for; Satisfied is true once it is DONE.
+// Dependency is a slice another slice waits for; Satisfied is true once it is MERGED, or DONE with no pull request.
 type Dependency struct {
 	ID        string `json:"id"`
 	Title     string `json:"title"`
@@ -117,7 +117,7 @@ func (e *NotFoundError) Error() string { return "unit " + e.ID + " was not found
 func (e *NotFoundError) Unwrap() error { return units.ErrNotFound }
 
 func finished(s units.Status) bool {
-	return s == units.StatusDone || s == units.StatusCancelled
+	return s == units.StatusDone || s == units.StatusMerged || s == units.StatusCancelled
 }
 
 func stamp(t time.Time) string { return t.UTC().Format(time.RFC3339) }

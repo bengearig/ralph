@@ -244,6 +244,12 @@ func DefaultRegistry() *Registry {
 			},
 		},
 		Setting{
+			Path:        "follow_up.delete_branches",
+			Description: "Which branches ralph deletes after a pull request is merged: local deletes only the local branch, both also deletes the remote one, none deletes nothing; a branch is deleted only when its tip is the commit the merged pull request had",
+			Default:     "local",
+			Allowed:     []string{"local", "both", "none"},
+		},
+		Setting{
 			Path:        "plan.confirm_outline",
 			Description: "Whether a new outline is shown and approved before anything is created; a revision of an existing outline always asks, whatever this says",
 			Default:     "false",

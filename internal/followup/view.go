@@ -66,11 +66,8 @@ const (
 	ProviderNotPolled = "not polled"
 )
 
-// A merged slice has this derived status once the host reports the merge.
-const statusMerged units.Status = "MERGED"
-
 func statusFinished(s units.Status) bool {
-	return s == units.StatusDone || s == units.StatusCancelled || s == statusMerged
+	return s == units.StatusDone || s == units.StatusCancelled || s == units.StatusMerged
 }
 
 type briefScope struct {

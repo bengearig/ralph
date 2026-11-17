@@ -10,7 +10,7 @@ import (
 )
 
 // Dependency is a slice that another slice waits for. It is Satisfied once its
-// derived status is DONE.
+// derived status is MERGED, or DONE with no pull request recorded.
 type Dependency struct {
 	ID        string
 	Title     string
@@ -131,7 +131,7 @@ func (s *Store) Dependencies(ctx context.Context, sliceID string) ([]Dependency,
 	return s.readDependencies(ctx, sliceID, false)
 }
 
-// Waiting returns the dependencies of a slice that are not DONE.
+// Waiting returns the dependencies of a slice that are not satisfied.
 func (s *Store) Waiting(ctx context.Context, sliceID string) ([]Dependency, error) {
 	return s.readDependencies(ctx, sliceID, true)
 }
@@ -202,7 +202,16 @@ func dependenciesIn(ctx context.Context, tx *sql.Tx, sliceID string) ([]Dependen
 			return nil, err
 		}
 		out[i].Status = st
-		out[i].Satisfied = st == StatusDone
+		switch st {
+		case StatusMerged:
+			out[i].Satisfied = true
+		case StatusDone:
+			var n int
+			if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM pull_requests WHERE slice_id = ?", out[i].ID).Scan(&n); err != nil {
+				return nil, fmt.Errorf("units: pull requests of %s: %w", out[i].ID, err)
+			}
+			out[i].Satisfied = n == 0
+		}
 	}
 	return out, nil
 }

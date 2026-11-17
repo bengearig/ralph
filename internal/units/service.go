@@ -38,7 +38,7 @@ type Service interface {
 	RemoveDependency(ctx context.Context, sliceID, dependsOnID string) error
 	// Dependencies returns the slices a slice waits for, ordered by ID number.
 	Dependencies(ctx context.Context, sliceID string) ([]Dependency, error)
-	// Waiting returns the dependencies of a slice that are not DONE.
+	// Waiting returns the dependencies of a slice that are not satisfied.
 	Waiting(ctx context.Context, sliceID string) ([]Dependency, error)
 	// Status returns a task's state, or the status derived from a slice's or brief's children.
 	Status(ctx context.Context, id string) (Status, error)

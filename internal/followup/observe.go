@@ -43,7 +43,9 @@ type Observation struct {
 	NewFeedback       []prstep.FeedbackItem
 	LocalBranch       string
 	LocalBranchExists bool
-	Err               error
+	// RemoteBranchExists is set only for a merged slice with DeleteBranches both.
+	RemoteBranchExists bool
+	Err                error
 }
 
 // ObserveResult is what Observe saw. A provider that could not be built and a
@@ -91,9 +93,22 @@ func Observe(ctx context.Context, d Deps, opt ObserveOptions) (ObserveResult, er
 		if err != nil && o.Err == nil {
 			o.Err = err
 		}
+		if d.DeleteBranches == DeleteBoth && d.Workspace != nil && o.LocalBranch != "" && effectiveState(o) == units.PullRequestMerged {
+			_, o.RemoteBranchExists, err = d.Workspace.RemoteBranchTip(ctx, d.PR.Config.Remote, o.LocalBranch)
+			if err != nil && o.Err == nil {
+				o.Err = fmt.Errorf("look for branch %s on %s: %w", o.LocalBranch, d.PR.Config.Remote, err)
+			}
+		}
 		res.Observations = append(res.Observations, o)
 	}
 	return res, nil
+}
+
+func effectiveState(o Observation) units.PullRequestState {
+	if o.Polled && o.Err == nil {
+		return units.PullRequestState(o.PullRequest.State)
+	}
+	return o.Record.State
 }
 
 type selected struct {

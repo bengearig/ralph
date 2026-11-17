@@ -81,8 +81,8 @@ func TestMonitorOutputGolden(t *testing.T) {
 	pr1, _ := p.GetPullRequest(context.Background(), 1)
 	pr2, _ := p.GetPullRequest(context.Background(), 2)
 	want := "ralph monitor  2026-11-17 10:30:00 UTC  provider: ok\n" +
-		"B-1  ARTICULATING  Ship it\n" +
-		"  S-1  DONE  The slice\n" +
+		"B-1  IN_PROGRESS  Ship it\n" +
+		"  S-1  IN_REVIEW  The slice\n" +
 		"       pull request #1 merged on the host (recorded: open) " + pr1.URL + "\n" +
 		"       next: record: pull request #1: merged on the host (recorded: open)\n" +
 		"       next: close: delete branch ralph/s-1-the-slice\n" +

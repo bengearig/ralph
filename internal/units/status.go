@@ -24,6 +24,8 @@ const (
 	StatusReady        Status = "READY"
 
 	StatusNeedsAttention Status = "NEEDS_ATTENTION"
+	StatusInReview       Status = "IN_REVIEW"
+	StatusMerged         Status = "MERGED"
 )
 
 // DeriveStatus derives the status of a slice from its tasks' statuses or of a
@@ -62,7 +64,7 @@ func DeriveStatus(level Level, children []Status) Status {
 	}
 	done := true
 	for _, c := range live {
-		if c != StatusDone {
+		if c != StatusDone && c != StatusMerged {
 			done = false
 			break
 		}
@@ -70,7 +72,7 @@ func DeriveStatus(level Level, children []Status) Status {
 	if done {
 		return StatusDone
 	}
-	if has(StatusInProgress) {
+	if has(StatusInProgress, StatusInReview) {
 		return StatusInProgress
 	}
 	if level == LevelBrief {
@@ -169,16 +171,22 @@ func statusIn(ctx context.Context, tx *sql.Tx, id string, memo map[string]Status
 		statuses[i] = st
 	}
 	if Level(level) == LevelSlice {
-		if overlay, err := pullRequestOverlay(ctx, tx, id); err != nil || overlay != "" {
-			return overlay, err
+		derived := DeriveStatus(Level(level), statuses)
+		overlay, err := pullRequestOverlay(ctx, tx, id, derived)
+		if err != nil {
+			return "", err
 		}
+		if overlay != "" {
+			return overlay, nil
+		}
+		return derived, nil
 	}
 	return DeriveStatus(Level(level), statuses), nil
 }
 
 // pullRequestOverlay returns the status a slice's latest pull request forces
-// on it, or "" when the derivation from its tasks stands.
-func pullRequestOverlay(ctx context.Context, tx *sql.Tx, sliceID string) (Status, error) {
+// on it, or "" when the derived status of its tasks stands.
+func pullRequestOverlay(ctx context.Context, tx *sql.Tx, sliceID string, derived Status) (Status, error) {
 	rows, err := tx.QueryContext(ctx,
 		"SELECT number, state, resolution, created_at FROM pull_requests WHERE slice_id = ?", sliceID)
 	if err != nil {
@@ -208,14 +216,23 @@ func pullRequestOverlay(ctx context.Context, tx *sql.Tx, sliceID string) (Status
 	if err := rows.Err(); err != nil {
 		return "", fmt.Errorf("units: pull requests of %q: %w", sliceID, err)
 	}
-	if !found || PullRequestState(state) != PullRequestClosed {
+	if !found {
 		return "", nil
 	}
-	switch resolution {
-	case "":
-		return StatusNeedsAttention, nil
-	case "cancelled":
-		return StatusCancelled, nil
+	switch PullRequestState(state) {
+	case PullRequestClosed:
+		switch resolution {
+		case "":
+			return StatusNeedsAttention, nil
+		case "cancelled":
+			return StatusCancelled, nil
+		}
+	case PullRequestMerged:
+		return StatusMerged, nil
+	case PullRequestOpen:
+		if derived == StatusDone {
+			return StatusInReview, nil
+		}
 	}
 	return "", nil
 }

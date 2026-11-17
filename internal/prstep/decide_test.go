@@ -334,16 +334,16 @@ func dependentSlices(t *testing.T, e *env) (direct, indirect units.Unit, tasks m
 	t.Helper()
 	direct = e.create(t, units.NewUnit{Level: units.LevelSlice, ParentID: e.brief.ID, Title: "Direct"})
 	indirect = e.create(t, units.NewUnit{Level: units.LevelSlice, ParentID: e.brief.ID, Title: "Indirect"})
+	tasks = map[string]units.Unit{
+		"direct-todo":   e.addTask(t, direct.ID, "d1", units.StateTodo),
+		"direct-done":   e.addTask(t, direct.ID, "d2", units.StateDone),
+		"indirect-prop": e.addTask(t, indirect.ID, "i1", units.StateProposed),
+	}
 	if err := e.units.AddDependency(ctx, direct.ID, e.slice.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := e.units.AddDependency(ctx, indirect.ID, direct.ID); err != nil {
 		t.Fatal(err)
-	}
-	tasks = map[string]units.Unit{
-		"direct-todo":   e.addTask(t, direct.ID, "d1", units.StateTodo),
-		"direct-done":   e.addTask(t, direct.ID, "d2", units.StateDone),
-		"indirect-prop": e.addTask(t, indirect.ID, "i1", units.StateProposed),
 	}
 	return direct, indirect, tasks
 }

@@ -9,14 +9,15 @@ import (
 )
 
 var (
-	ErrDetachedHead    = errors.New("HEAD is detached: switch to a branch first")
-	ErrNoCommits       = errors.New("the repository has no commits yet")
-	ErrBranchExists    = errors.New("branch already exists")
-	ErrInvalidBranch   = errors.New("invalid branch name")
-	ErrNothingToCommit = errors.New("nothing to commit")
-	ErrNotOnBase       = errors.New("not on the base branch")
-	ErrDirty           = errors.New("the working tree has changes")
-	ErrBaseAhead       = errors.New("the base branch is ahead of its remote")
+	ErrDetachedHead     = errors.New("HEAD is detached: switch to a branch first")
+	ErrNoCommits        = errors.New("the repository has no commits yet")
+	ErrBranchExists     = errors.New("branch already exists")
+	ErrInvalidBranch    = errors.New("invalid branch name")
+	ErrNothingToCommit  = errors.New("nothing to commit")
+	ErrNotOnBase        = errors.New("not on the base branch")
+	ErrDirty            = errors.New("the working tree has changes")
+	ErrBaseAhead        = errors.New("the base branch is ahead of its remote")
+	ErrBranchCheckedOut = errors.New("the branch is checked out")
 )
 
 const maxOutput = 2000
