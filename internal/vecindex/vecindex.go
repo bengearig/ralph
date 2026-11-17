@@ -141,6 +141,69 @@ func (s *Store) meta(ctx context.Context, key string) (string, bool, error) {
 	return v, true, nil
 }
 
+// Meta reads a value kept beside the vectors.
+func (s *Store) Meta(ctx context.Context, key string) (string, bool, error) {
+	if err := checkMetaKey(key); err != nil {
+		return "", false, err
+	}
+	return s.meta(ctx, key)
+}
+
+// SetMeta stores a value beside the vectors; the keys the index keeps for itself are refused.
+func (s *Store) SetMeta(ctx context.Context, key, value string) error {
+	if err := checkMetaKey(key); err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)`, key, value); err != nil {
+		return fmt.Errorf("vecindex: write %s: %w", key, err)
+	}
+	return nil
+}
+
+// DeleteMeta removes a value kept beside the vectors; a key that is not there is not an error.
+func (s *Store) DeleteMeta(ctx context.Context, key string) error {
+	if err := checkMetaKey(key); err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM meta WHERE key = ?`, key); err != nil {
+		return fmt.Errorf("vecindex: delete %s: %w", key, err)
+	}
+	return nil
+}
+
+func checkMetaKey(key string) error {
+	switch key {
+	case "":
+		return errors.New("vecindex: meta key is empty")
+	case "schema", "dimensions":
+		return fmt.Errorf("vecindex: meta key %q is reserved", key)
+	}
+	return nil
+}
+
+// Reset removes every record and chunk and every meta value except the schema version, so the index is
+// empty and has no fixed dimensions.
+func (s *Store) Reset(ctx context.Context) (err error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("vecindex: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+	for _, q := range []string{`DELETE FROM chunks`, `DELETE FROM records`, `DELETE FROM meta WHERE key <> 'schema'`} {
+		if _, err = tx.ExecContext(ctx, q); err != nil {
+			return fmt.Errorf("vecindex: reset: %w", err)
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("vecindex: %w", err)
+	}
+	return nil
+}
+
 // Close closes the file.
 func (s *Store) Close() error { return s.db.Close() }
 

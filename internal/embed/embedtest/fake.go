@@ -52,6 +52,10 @@ type Fake struct {
 	calls [][]string
 	err   error
 	delay time.Duration
+
+	info         *core.Info
+	describeErr  error
+	describeCall int
 }
 
 // NewFake returns a Fake with vectors of dims values; zero or less means the default.
@@ -84,7 +88,15 @@ func (f *Fake) Embed(ctx context.Context, texts []string) ([][]float32, error) {
 // Describe reports the fake model.
 func (f *Fake) Describe(ctx context.Context) (core.Info, error) {
 	f.mu.Lock()
+	f.describeCall++
 	err, delay := f.err, f.delay
+	if f.describeErr != nil {
+		err = f.describeErr
+	}
+	info := core.Info{Provider: "fake", Model: "fake", Digest: "fake", Dimensions: f.dims}
+	if f.info != nil {
+		info = *f.info
+	}
 	f.mu.Unlock()
 	if err := wait(ctx, delay); err != nil {
 		return core.Info{}, err
@@ -92,7 +104,31 @@ func (f *Fake) Describe(ctx context.Context) (core.Info, error) {
 	if err != nil {
 		return core.Info{}, err
 	}
-	return core.Info{Provider: "fake", Model: "fake", Digest: "fake", Dimensions: f.dims}, nil
+	return info, nil
+}
+
+// SetInfo sets what Describe returns.
+func (f *Fake) SetInfo(info core.Info) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.info = &info
+}
+
+// FailDescribe makes Describe, and only Describe, fail with err until RecoverDescribe.
+func (f *Fake) FailDescribe(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.describeErr = err
+}
+
+// RecoverDescribe ends the failure set by FailDescribe.
+func (f *Fake) RecoverDescribe() { f.FailDescribe(nil) }
+
+// DescribeCalls counts the Describe calls.
+func (f *Fake) DescribeCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.describeCall
 }
 
 // Calls returns the texts of each Embed call.

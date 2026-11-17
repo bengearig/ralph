@@ -280,3 +280,80 @@ func TestStoreConcurrentReaders(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestStoreMetaRoundTrip(t *testing.T) {
+	s, _ := open(t)
+	if err := s.SetMeta(ctx, "config", "one"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetMeta(ctx, "config", "two"); err != nil {
+		t.Fatal(err)
+	}
+	v, ok, err := s.Meta(ctx, "config")
+	if err != nil || !ok || v != "two" {
+		t.Errorf("Meta = %q, %v, %v", v, ok, err)
+	}
+}
+
+func TestStoreMetaMissing(t *testing.T) {
+	s, _ := open(t)
+	v, ok, err := s.Meta(ctx, "config")
+	if err != nil || ok || v != "" {
+		t.Errorf("Meta = %q, %v, %v", v, ok, err)
+	}
+}
+
+func TestStoreMetaReservedKeysRefused(t *testing.T) {
+	s, _ := open(t)
+	for _, key := range []string{"", "schema", "dimensions"} {
+		if err := s.SetMeta(ctx, key, "x"); err == nil {
+			t.Errorf("SetMeta(%q) succeeded", key)
+		}
+		if err := s.DeleteMeta(ctx, key); err == nil {
+			t.Errorf("DeleteMeta(%q) succeeded", key)
+		}
+		if _, _, err := s.Meta(ctx, key); err == nil {
+			t.Errorf("Meta(%q) succeeded", key)
+		}
+	}
+}
+
+func TestStoreMetaDelete(t *testing.T) {
+	s, _ := open(t)
+	if err := s.SetMeta(ctx, "config", "x"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteMeta(ctx, "config"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := s.Meta(ctx, "config"); ok {
+		t.Error("value still there")
+	}
+	if err := s.DeleteMeta(ctx, "config"); err != nil {
+		t.Errorf("deleting a missing key: %v", err)
+	}
+}
+
+func TestStoreResetClearsRecordsDimensionsAndMeta(t *testing.T) {
+	s, _ := open(t)
+	put(t, s, "task", "T-1", "h", cv(0, 1, 0))
+	if err := s.SetMeta(ctx, "config", "x"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Reset(ctx); err != nil {
+		t.Fatal(err)
+	}
+	st, err := s.Stats(ctx)
+	if err != nil || st.Records != 0 || st.Chunks != 0 || st.Dimensions != 0 {
+		t.Errorf("Stats = %+v, %v", st, err)
+	}
+	if _, ok, _ := s.Meta(ctx, "config"); ok {
+		t.Error("config survived")
+	}
+	if v, ok, _ := s.meta(ctx, "schema"); !ok || v == "" {
+		t.Error("schema lost")
+	}
+	if err := s.Put(ctx, Record{Kind: "task", Ref: "T-2", Hash: "h"}, []ChunkVector{cv(0, 1, 0, 0)}); err != nil {
+		t.Errorf("Put with another length: %v", err)
+	}
+}

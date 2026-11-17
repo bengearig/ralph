@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/bengearig/ralph/internal/chunk"
 	"github.com/bengearig/ralph/internal/db"
@@ -87,6 +88,7 @@ func Sync(ctx context.Context, d SyncDeps, opt SyncOptions) (SyncResult, error) 
 		res.Removed++
 	}
 	docPrefix, _ := embed.Prefixes(d.Settings)
+	first := true
 	for i, r := range waiting {
 		if opt.MaxRecords > 0 && res.Embedded >= opt.MaxRecords {
 			res.Waiting = len(waiting) - i
@@ -96,7 +98,7 @@ func Sync(ctx context.Context, d SyncDeps, opt SyncOptions) (SyncResult, error) 
 			res.Waiting = len(waiting) - i
 			return res, err
 		}
-		n, err := embedRecord(ctx, d, r, docPrefix)
+		n, err := embedRecord(ctx, d, r, docPrefix, &first)
 		if err != nil {
 			res.Waiting = len(waiting) - i
 			return res, fmt.Errorf("embedding %s: %w", r.label(), err)
@@ -110,7 +112,9 @@ func Sync(ctx context.Context, d SyncDeps, opt SyncOptions) (SyncResult, error) 
 	return res, nil
 }
 
-func embedRecord(ctx context.Context, d SyncDeps, r Record, docPrefix string) (int, error) {
+// embedRecord stores r; before the first record of a run into an empty index it resets the index and
+// records the configuration of the run.
+func embedRecord(ctx context.Context, d SyncDeps, r Record, docPrefix string, first *bool) (int, error) {
 	chunks := chunk.Split(chunk.Input{Kind: string(r.Kind), Title: r.Title, Text: r.Text}, d.Settings.ChunkChars)
 	texts := make([]string, len(chunks))
 	for i, c := range chunks {
@@ -127,9 +131,34 @@ func embedRecord(ctx context.Context, d SyncDeps, r Record, docPrefix string) (i
 	for i, c := range chunks {
 		cvs[i] = vecindex.ChunkVector{Seq: c.Seq, Text: c.Text, Excerpt: c.Excerpt, Vector: vectors[i]}
 	}
+	if *first {
+		if err := startIndex(ctx, d, vectors); err != nil {
+			return 0, err
+		}
+		*first = false
+	}
 	rec := vecindex.Record{Kind: string(r.Kind), Ref: r.Ref, Unit: r.Unit, Hash: r.Hash}
 	if err := d.Index.Put(ctx, rec, cvs); err != nil {
 		return 0, err
 	}
 	return len(chunks), nil
+}
+
+func startIndex(ctx context.Context, d SyncDeps, vectors [][]float32) error {
+	held, err := d.Index.Records(ctx)
+	if err != nil {
+		return err
+	}
+	if len(held) > 0 {
+		return nil
+	}
+	if err := d.Index.Reset(ctx); err != nil {
+		return err
+	}
+	info, _ := d.Provider.Describe(ctx)
+	info.Dimensions = 0
+	if len(vectors) > 0 {
+		info.Dimensions = len(vectors[0])
+	}
+	return RecordConfig(ctx, d.Index, embed.NewFingerprint(d.Settings, info), time.Now())
 }

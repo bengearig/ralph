@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/bengearig/ralph/internal/embed/core"
 )
 
 func dot(a, b []float32) float32 {
@@ -87,5 +89,32 @@ func TestFakeRecordsCalls(t *testing.T) {
 	want := [][]string{{"a", "b"}, {"c"}}
 	if got := f.Calls(); !reflect.DeepEqual(got, want) {
 		t.Errorf("Calls = %v", got)
+	}
+}
+
+func TestFakeDescribeSetInfoAndFail(t *testing.T) {
+	f := NewFake(8)
+	info, err := f.Describe(context.Background())
+	if err != nil || info.Dimensions != 8 || info.Digest != "fake" {
+		t.Fatalf("default info = %+v, %v", info, err)
+	}
+	f.SetInfo(core.Info{Provider: "p", Model: "m", Digest: "d", Dimensions: 3})
+	if info, _ = f.Describe(context.Background()); info.Model != "m" || info.Dimensions != 3 {
+		t.Errorf("info = %+v", info)
+	}
+	boom := errors.New("boom")
+	f.FailDescribe(boom)
+	if _, err := f.Describe(context.Background()); !errors.Is(err, boom) {
+		t.Errorf("err = %v", err)
+	}
+	if _, err := f.Embed(context.Background(), []string{"x"}); err != nil {
+		t.Errorf("Embed failed: %v", err)
+	}
+	f.RecoverDescribe()
+	if _, err := f.Describe(context.Background()); err != nil {
+		t.Errorf("err = %v", err)
+	}
+	if n := f.DescribeCalls(); n != 4 {
+		t.Errorf("DescribeCalls = %d", n)
 	}
 }
