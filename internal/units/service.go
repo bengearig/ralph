@@ -44,6 +44,11 @@ type Service interface {
 	Status(ctx context.Context, id string) (Status, error)
 	// Statuses returns the status of each given unit in one read.
 	Statuses(ctx context.Context, ids []string) (map[string]Status, error)
+	// RecordPullRequest inserts a pull request of a slice, or updates the URL,
+	// branches and state of the one with the same number.
+	RecordPullRequest(ctx context.Context, rec PullRequestRecord) error
+	// PullRequests returns a slice's pull requests, oldest first.
+	PullRequests(ctx context.Context, sliceID string) ([]PullRequestRecord, error)
 }
 
 var _ Service = (*Store)(nil)

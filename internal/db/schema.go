@@ -235,3 +235,26 @@ BEGIN
 	DELETE FROM search_fts WHERE rowid = OLD.id * 5 + 4;
 END;
 `
+
+const createPullRequestsSQL = `
+CREATE TABLE pull_requests (
+	slice_id   TEXT NOT NULL REFERENCES units(id),
+	number     INTEGER NOT NULL,
+	url        TEXT NOT NULL,
+	head       TEXT NOT NULL,
+	base       TEXT NOT NULL,
+	state      TEXT NOT NULL CHECK (state IN ('open', 'closed', 'merged')),
+	resolution TEXT NOT NULL DEFAULT '' CHECK (resolution IN ('', 'reopened', 'rearticulated', 'cancelled')),
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	PRIMARY KEY (slice_id, number)
+);
+
+CREATE INDEX pull_requests_by_slice ON pull_requests (slice_id, created_at);
+
+CREATE TRIGGER pull_requests_slice_only BEFORE INSERT ON pull_requests
+WHEN (SELECT level FROM units WHERE id = NEW.slice_id) IS NOT 'slice'
+BEGIN
+	SELECT RAISE(ABORT, 'a pull request belongs to a slice');
+END;
+`

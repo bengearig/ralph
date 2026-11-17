@@ -7,9 +7,8 @@ import (
 )
 
 func TestLinksTargetIndexExists(t *testing.T) {
-	last := Migrations[len(Migrations)-1]
-	if last.Version != 10 || last.Name != "index document links by target" {
-		t.Fatalf("last migration = %d %q", last.Version, last.Name)
+	if m := Migrations[9]; m.Version != 10 || m.Name != "index document links by target" {
+		t.Fatalf("migration 10 = %d %q", m.Version, m.Name)
 	}
 	d, err := openWith(t, filepath.Join(t.TempDir(), "fresh.db"), Migrations, MigrateAuto)
 	if err != nil {

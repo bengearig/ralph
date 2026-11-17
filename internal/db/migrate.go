@@ -31,6 +31,7 @@ var Migrations = []Migration{
 	{Version: 8, Name: "create search index", SQL: createSearchIndexSQL},
 	{Version: 9, Name: "index records for search", SQL: indexRecordsForSearchSQL},
 	{Version: 10, Name: "index document links by target", SQL: indexDocumentLinksSQL},
+	{Version: 11, Name: "create pull requests", SQL: createPullRequestsSQL},
 }
 
 // MigrateMode says what Open does when migrations are pending.
