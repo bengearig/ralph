@@ -111,6 +111,9 @@ func (c *Client) readProject(ctx context.Context) (projectInfo, error) {
 
 // Check verifies the credentials and that the project is reachable.
 func (c *Client) Check(ctx context.Context) (taskmanager.Account, error) {
+	if err := c.needProject(); err != nil {
+		return taskmanager.Account{}, err
+	}
 	var me struct {
 		DisplayName  string `json:"displayName"`
 		EmailAddress string `json:"emailAddress"`
@@ -126,6 +129,9 @@ func (c *Client) Check(ctx context.Context) (taskmanager.Account, error) {
 
 // Types lists the issue types of the project.
 func (c *Client) Types(ctx context.Context) ([]string, error) {
+	if err := c.needProject(); err != nil {
+		return nil, err
+	}
 	p, err := c.readProject(ctx)
 	if err != nil {
 		return nil, err
@@ -171,6 +177,9 @@ func keyNumber(key string) int {
 // Find returns the ticket carrying ref as a label; of a duplicate it returns
 // the one created first.
 func (c *Client) Find(ctx context.Context, ref string) (*taskmanager.Ticket, error) {
+	if err := c.needProject(); err != nil {
+		return nil, err
+	}
 	res, err := c.search(ctx, "project = "+quoteJQL(c.project)+" AND labels = "+quoteJQL(ref), 2, "")
 	if err != nil {
 		return nil, err
@@ -198,6 +207,9 @@ func description(md string) any {
 
 // Create makes a ticket and returns it as Jira holds it.
 func (c *Client) Create(ctx context.Context, n taskmanager.New) (taskmanager.Ticket, error) {
+	if err := c.needProject(); err != nil {
+		return taskmanager.Ticket{}, err
+	}
 	labels := []string{"ralph"}
 	if n.Ref != "" {
 		labels = append(labels, n.Ref)
@@ -266,6 +278,20 @@ func (c *Client) Get(ctx context.Context, keys []string) (map[string]taskmanager
 		}
 	}
 	return out, nil
+}
+
+// Issue returns the one ticket with the given key, under the key the site
+// reports for it.
+func (c *Client) Issue(ctx context.Context, key string) (taskmanager.Ticket, error) {
+	found, err := c.Get(ctx, []string{key})
+	if err != nil {
+		return taskmanager.Ticket{}, err
+	}
+	t, ok := found[key]
+	if !ok {
+		return taskmanager.Ticket{}, &notFoundError{fmt.Sprintf("%s was not found in Jira or is not visible to this account", key)}
+	}
+	return t, nil
 }
 
 func dedupe(keys []string) []string {

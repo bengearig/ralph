@@ -76,9 +76,6 @@ func New(cfg Config) (*Client, error) {
 	if err := checkSite(site); err != nil {
 		return nil, err
 	}
-	if cfg.Project == "" {
-		return nil, errors.New("jira: the project key must be set")
-	}
 	if cfg.Token == nil {
 		return nil, errors.New("jira: a token function is required")
 	}
@@ -128,6 +125,15 @@ func isLoopback(host string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
+}
+
+var errNoProject = &invalidError{"jira.project is not set"}
+
+func (c *Client) needProject() error {
+	if c.project == "" {
+		return errNoProject
+	}
+	return nil
 }
 
 // Name returns jira.

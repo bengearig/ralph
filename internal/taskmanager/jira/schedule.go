@@ -118,6 +118,9 @@ func (c *Client) resolveSprint(ctx context.Context, plan string) (int, error) {
 
 // Schedule puts a ticket in the active or future sprint named plan.
 func (c *Client) Schedule(ctx context.Context, key, plan string) error {
+	if err := c.needProject(); err != nil {
+		return err
+	}
 	id, err := c.resolveSprint(ctx, plan)
 	if err != nil {
 		return err

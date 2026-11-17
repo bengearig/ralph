@@ -304,6 +304,12 @@ func DefaultRegistry() *Registry {
 			Allowed:     []string{"none", "jira"},
 		},
 		Setting{
+			Path:        "issues.provider",
+			Description: "Which system ralph reads tickets from when work starts from one; none turns reading off, and jira turns it on, fetching the ticket's text from the site named by jira.site",
+			Default:     "none",
+			Allowed:     []string{"none", "jira"},
+		},
+		Setting{
 			Path:        "jira.site",
 			Description: "Address of the Jira Cloud site, https or http on a loopback host, with no credentials, query or fragment; ticket text is sent to this site when taskmanager.provider is jira",
 			Scope:       ScopeUser,

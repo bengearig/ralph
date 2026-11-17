@@ -1,6 +1,7 @@
 package config
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -200,4 +201,21 @@ func TestJiraSettingsFromEnvironment(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "jira.site") {
 		t.Errorf("err = %v", err)
 	}
+}
+
+func TestIssuesProviderSetting(t *testing.T) {
+	s, ok := DefaultRegistry().Lookup("issues.provider")
+	if !ok {
+		t.Fatal("issues.provider is not registered")
+	}
+	if s.Default != "none" || s.Scope != ScopeProject {
+		t.Errorf("default %q, scope %v", s.Default, s.Scope)
+	}
+	if !slices.Equal(s.Allowed, []string{"none", "jira"}) {
+		t.Errorf("allowed = %v", s.Allowed)
+	}
+	if !strings.Contains(s.Description, "jira.site") || !strings.Contains(s.Description, "fetching") {
+		t.Errorf("description = %q", s.Description)
+	}
+	expect(t, "issues.provider", []string{"none", "jira"}, []string{"", "github", "Jira"})
 }

@@ -26,7 +26,6 @@ func TestNewRejectsBadConfig(t *testing.T) {
 		"empty site":         {Project: "RAL", Token: tok},
 		"no host":            {Site: "https://", Project: "RAL", Token: tok},
 		"other scheme":       {Site: "ftp://example.atlassian.net", Project: "RAL", Token: tok},
-		"empty project":      {Site: "https://example.atlassian.net", Token: tok},
 		"nil token function": {Site: "https://example.atlassian.net", Project: "RAL"},
 	} {
 		if _, err := New(cfg); err == nil {
@@ -301,3 +300,10 @@ func TestRedactionConnectionError(t *testing.T) {
 }
 
 func b64(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) }
+
+func TestNewWithoutProject(t *testing.T) {
+	c, err := New(Config{Site: "https://example.atlassian.net", Token: func() (string, error) { return "x", nil }})
+	if err != nil || c.Name() != "jira" {
+		t.Fatalf("New = %v, %v", c, err)
+	}
+}
