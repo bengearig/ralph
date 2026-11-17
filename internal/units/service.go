@@ -50,6 +50,13 @@ type Service interface {
 	// SetPullRequestState sets the state of a recorded pull request; the
 	// record must exist (ErrNotFound) and the state must be valid.
 	SetPullRequestState(ctx context.Context, sliceID string, number int, state PullRequestState) error
+	// ResolvePullRequest records the decision taken after a pull request was
+	// closed without merging: reopened, rearticulated or cancelled. The
+	// record must be closed and unresolved.
+	ResolvePullRequest(ctx context.Context, sliceID string, number int, resolution string) error
+	// Dependents returns the slices that wait for a slice, directly or
+	// through others, each once, ordered by ID number.
+	Dependents(ctx context.Context, sliceID string) ([]string, error)
 	// PullRequests returns a slice's pull requests, oldest first.
 	PullRequests(ctx context.Context, sliceID string) ([]PullRequestRecord, error)
 }

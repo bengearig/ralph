@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -203,4 +205,57 @@ func dependenciesIn(ctx context.Context, tx *sql.Tx, sliceID string) ([]Dependen
 		out[i].Satisfied = st == StatusDone
 	}
 	return out, nil
+}
+
+// Dependents returns the slices that wait for a slice, directly or through
+// others, each once, ordered by ID number.
+func (s *Store) Dependents(ctx context.Context, sliceID string) ([]string, error) {
+	tx, err := s.db.SQL().BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("units: dependents of %s: %w", sliceID, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := sliceIn(ctx, tx, sliceID, "slice"); err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{sliceID: true}
+	queue := []string{sliceID}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		rows, err := tx.QueryContext(ctx, "SELECT slice_id FROM dependencies WHERE depends_on_id = ?", cur)
+		if err != nil {
+			return nil, fmt.Errorf("units: dependents of %s: %w", sliceID, err)
+		}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return nil, fmt.Errorf("units: dependents of %s: %w", sliceID, err)
+			}
+			if !seen[id] {
+				seen[id] = true
+				queue = append(queue, id)
+			}
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return nil, fmt.Errorf("units: dependents of %s: %w", sliceID, err)
+		}
+		if err := rows.Close(); err != nil {
+			return nil, fmt.Errorf("units: dependents of %s: %w", sliceID, err)
+		}
+	}
+	delete(seen, sliceID)
+	out := make([]string, 0, len(seen))
+	for id := range seen {
+		out = append(out, id)
+	}
+	sort.Slice(out, func(i, j int) bool { return idNumber(out[i]) < idNumber(out[j]) })
+	return out, nil
+}
+
+func idNumber(id string) int {
+	n, _ := strconv.Atoi(id[strings.IndexByte(id, '-')+1:])
+	return n
 }

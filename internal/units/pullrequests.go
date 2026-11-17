@@ -142,3 +142,36 @@ func (s *Store) SetPullRequestState(ctx context.Context, sliceID string, number 
 		return nil
 	})
 }
+
+// ResolvePullRequest records the decision taken after a pull request was
+// closed without merging. The record must be closed and not yet resolved.
+func (s *Store) ResolvePullRequest(ctx context.Context, sliceID string, number int, resolution string) error {
+	switch resolution {
+	case "reopened", "rearticulated", "cancelled":
+	default:
+		return fmt.Errorf("%w: pull request resolution %q is not reopened, rearticulated or cancelled", ErrInvalid, resolution)
+	}
+	return s.db.WriteTx(ctx, func(tx *sql.Tx) error {
+		var state, current string
+		err := tx.QueryRowContext(ctx,
+			"SELECT state, resolution FROM pull_requests WHERE slice_id = ? AND number = ?", sliceID, number).Scan(&state, &current)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: pull request %d of %s", ErrNotFound, number, sliceID)
+		}
+		if err != nil {
+			return fmt.Errorf("units: pull request %d of %s: %w", number, sliceID, err)
+		}
+		if state != string(PullRequestClosed) {
+			return fmt.Errorf("%w: pull request %d of %s is %s, and only a closed pull request can be resolved", ErrInvalid, number, sliceID, state)
+		}
+		if current != "" {
+			return fmt.Errorf("%w: pull request %d of %s is already resolved as %s", ErrInvalid, number, sliceID, current)
+		}
+		if _, err := tx.ExecContext(ctx,
+			"UPDATE pull_requests SET resolution = ?, updated_at = ? WHERE slice_id = ? AND number = ?",
+			resolution, s.stamp(), sliceID, number); err != nil {
+			return fmt.Errorf("units: resolve pull request %d of %s: %w", number, sliceID, err)
+		}
+		return nil
+	})
+}

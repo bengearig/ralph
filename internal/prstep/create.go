@@ -18,6 +18,9 @@ const commitLinkPrefix = "commit:"
 // CreateInput says which slice to open the pull request for.
 type CreateInput struct {
 	SliceID string
+	// skipDecision lets Reopen open a pull request for a slice that waits
+	// for a decision; only Reopen sets it.
+	skipDecision bool
 }
 
 // CreateResult is what Create did.
@@ -106,8 +109,10 @@ func Create(ctx context.Context, d Deps, in CreateInput) (CreateResult, error) {
 	if slice.Level != units.LevelSlice {
 		return CreateResult{}, &NotSliceError{ID: slice.ID, Level: slice.Level}
 	}
-	if err := Decision(ctx, d.Units, slice.ID); err != nil {
-		return CreateResult{}, err
+	if !in.skipDecision {
+		if err := Decision(ctx, d.Units, slice.ID); err != nil {
+			return CreateResult{}, err
+		}
 	}
 	done, err := checkTasks(ctx, d.Units, slice)
 	if err != nil {

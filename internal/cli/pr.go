@@ -29,7 +29,8 @@ func newPRCommand(a *app) *cobra.Command {
 			return cmd.Help()
 		},
 	}
-	cmd.AddCommand(newPRCreateCommand(a), newPRFeedbackCommand(a), newPRCheckCommand(a))
+	cmd.AddCommand(newPRCreateCommand(a), newPRFeedbackCommand(a), newPRCheckCommand(a),
+		newPRReopenCommand(a), newPRRearticulateCommand(a), newPRCancelCommand(a))
 	return cmd
 }
 
@@ -75,6 +76,11 @@ func runPRCreate(cmd *cobra.Command, a *app, sliceID string) error {
 	if err != nil {
 		return err
 	}
+	writeCreated(out, res)
+	return nil
+}
+
+func writeCreated(out io.Writer, res prstep.CreateResult) {
 	line := "pull request: " + res.PullRequest.URL
 	switch {
 	case res.Reused:
@@ -84,7 +90,6 @@ func runPRCreate(cmd *cobra.Command, a *app, sliceID string) error {
 	}
 	_, _ = fmt.Fprintln(out, line)
 	_, _ = fmt.Fprintln(out, "nothing has been merged: a person reviews the pull request")
-	return nil
 }
 
 func prDeps(cmd *cobra.Command, a *app, d *db.DB) (prstep.Deps, error) {
@@ -322,4 +327,151 @@ func runPRCheck(cmd *cobra.Command, a *app, sliceID string) error {
 		_, _ = fmt.Fprintln(out, "unchanged")
 	}
 	return nil
+}
+
+func withPRDeps(cmd *cobra.Command, a *app, fn func(ctx context.Context, d prstep.Deps) error) error {
+	if a.root == "" {
+		return errNotInRepository
+	}
+	ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	d, err := openStore(ctx, a, db.Options{MustExist: true})
+	if errors.Is(err, fs.ErrNotExist) {
+		return errors.New(errNoDatabase)
+	}
+	if err != nil {
+		return err
+	}
+	defer func() { _ = d.Close() }()
+	deps, err := prDeps(cmd, a, d)
+	if err != nil {
+		return err
+	}
+	return fn(a.actorContext(ctx, cmd), deps)
+}
+
+func newPRReopenCommand(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:   "reopen <slice>",
+		Short: "Open a new pull request from the branch of a slice whose pull request was closed",
+		Long: `Choose this after a pull request was closed without merging and the work
+should be reviewed again. It runs what ralph pr create runs, opens a new pull
+request from the same branch and resolves the closed one as reopened.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			sliceID := strings.ToUpper(strings.TrimSpace(args[0]))
+			return withPRDeps(cmd, a, func(ctx context.Context, deps prstep.Deps) error {
+				res, err := prstep.Reopen(ctx, deps, sliceID)
+				var ve *prstep.VerificationError
+				if errors.As(err, &ve) {
+					writeVerificationFailure(cmd.ErrOrStderr(), verify.Report{Results: []verify.Result{ve.Result}})
+					return &reportedError{err}
+				}
+				if err != nil {
+					return err
+				}
+				out := cmd.OutOrStdout()
+				writeCreated(out, res.Created)
+				_, _ = fmt.Fprintf(out, "resolved pull request #%d as reopened\n", res.Resolved.Number)
+				return nil
+			})
+		},
+	}
+}
+
+func newPRRearticulateCommand(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:   "rearticulate <slice>",
+		Short: "Move the unfinished tasks of a slice whose pull request was closed back to PROPOSED",
+		Long: `Choose this after a pull request was closed without merging and the plan
+needs rework. Every task that is not DONE or CANCELLED goes back to PROPOSED,
+the closed pull request is resolved as rearticulated, and the finished tasks
+and commits stay.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			sliceID := strings.ToUpper(strings.TrimSpace(args[0]))
+			return withPRDeps(cmd, a, func(ctx context.Context, deps prstep.Deps) error {
+				res, err := prstep.Rearticulate(ctx, deps.Units, sliceID)
+				if err != nil {
+					return err
+				}
+				slice, err := deps.Units.Get(ctx, sliceID)
+				if err != nil {
+					return err
+				}
+				out := cmd.OutOrStdout()
+				if len(res.Moved) > 0 {
+					_, _ = fmt.Fprintf(out, "moved %s back to PROPOSED\n", strings.Join(res.Moved, ", "))
+				} else {
+					_, _ = fmt.Fprintln(out, "no unfinished tasks to move")
+				}
+				if len(res.Kept) > 0 {
+					_, _ = fmt.Fprintf(out, "kept %s (done)\n", strings.Join(res.Kept, ", "))
+				}
+				_, _ = fmt.Fprintf(out, "resolved pull request #%d as rearticulated\n", res.Resolved.Number)
+				plan := "/ralph:receive "
+				if slice.ParentID != "" {
+					plan += slice.ParentID + " "
+				}
+				_, _ = fmt.Fprintf(out, "plan %s again: %sto revise the plan, or /ralph:articulate %s to work out the tasks (/ralph/receive and /ralph/articulate in OpenCode)\n",
+					slice.ID, plan, slice.ID)
+				return nil
+			})
+		},
+	}
+}
+
+func newPRCancelCommand(a *app) *cobra.Command {
+	var dependents, yes bool
+	cmd := &cobra.Command{
+		Use:   "cancel <slice> [--dependents] [--yes]",
+		Short: "Cancel a slice whose pull request was closed, and optionally the slices waiting for it",
+		Long: `Choose this after a pull request was closed without merging and the work is
+dropped. The unfinished tasks of the slice are cancelled and the closed pull
+request is resolved as cancelled. Without --yes nothing changes: the command
+says what it would cancel. With --dependents the unfinished tasks of the
+slices waiting for this one, directly or through others, are cancelled too.
+Finished tasks are never touched.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			sliceID := strings.ToUpper(strings.TrimSpace(args[0]))
+			return withPRDeps(cmd, a, func(ctx context.Context, deps prstep.Deps) error {
+				res, err := prstep.Cancel(ctx, deps.Units, sliceID, prstep.CancelOptions{Dependents: dependents, Yes: yes})
+				if err != nil {
+					return err
+				}
+				writeCancel(cmd.OutOrStdout(), sliceID, res, dependents)
+				return nil
+			})
+		},
+	}
+	cmd.Flags().BoolVar(&dependents, "dependents", false, "also cancel the unfinished tasks of the slices waiting for this one")
+	cmd.Flags().BoolVar(&yes, "yes", false, "do it; without it nothing changes")
+	return cmd
+}
+
+func writeCancel(out io.Writer, sliceID string, res prstep.CancelResult, dependents bool) {
+	verb, also := "would cancel", "would also cancel"
+	if res.Done {
+		verb, also = "cancelled", "also cancelled"
+	}
+	list := func(ids []string) string {
+		if len(ids) == 0 {
+			return "no unfinished tasks"
+		}
+		return strings.Join(ids, ", ")
+	}
+	_, _ = fmt.Fprintf(out, "%s %s\n", verb, list(res.Tasks))
+	switch {
+	case len(res.Dependents) == 0:
+	case dependents:
+		_, _ = fmt.Fprintf(out, "%s the unfinished tasks of %s\n", also, strings.Join(res.Dependents, ", "))
+	default:
+		_, _ = fmt.Fprintf(out, "slices waiting for %s: %s; they stay waiting, or add --dependents\n", sliceID, strings.Join(res.Dependents, ", "))
+	}
+	if res.Done {
+		_, _ = fmt.Fprintf(out, "resolved pull request #%d as cancelled\n", res.Resolved.Number)
+		return
+	}
+	_, _ = fmt.Fprintln(out, "run again with --yes to do it")
 }
