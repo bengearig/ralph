@@ -33,11 +33,11 @@ func (k Kind) Order() int {
 
 // Followup is one thing to do about a slice.
 type Followup struct {
-	Kind    Kind
-	Slice   string
-	Summary string
+	Kind    Kind   `json:"kind"`
+	Slice   string `json:"slice"`
+	Summary string `json:"summary"`
 	// Number is the pull request the follow-up is about.
-	Number int
+	Number int `json:"number"`
 }
 
 // Branch deletion modes.
