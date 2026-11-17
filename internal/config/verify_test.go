@@ -131,3 +131,20 @@ func TestLoopPromptSetting(t *testing.T) {
 		}
 	}
 }
+
+func TestLoopMaxFailuresSetting(t *testing.T) {
+	s, ok := DefaultRegistry().Lookup("loop.max_failures")
+	if !ok || s.Default != "3" || s.Scope != ScopeProject || s.Description == "" {
+		t.Fatalf("loop.max_failures = %+v, %v", s, ok)
+	}
+	for _, v := range []string{"1", "3", "10"} {
+		if err := s.Validate(v); err != nil {
+			t.Errorf("%q rejected: %v", v, err)
+		}
+	}
+	for _, v := range []string{"0", "-2", "x", "2.5", ""} {
+		if err := s.Validate(v); err == nil {
+			t.Errorf("%q accepted", v)
+		}
+	}
+}

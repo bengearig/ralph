@@ -361,6 +361,18 @@ func DefaultRegistry() *Registry {
 			},
 		},
 		Setting{
+			Path:        "loop.max_failures",
+			Description: "The number of consecutive failed attempts on one task after which the loop stops and blocks the task",
+			Default:     "3",
+			Validate: func(v string) error {
+				n, err := strconv.Atoi(v)
+				if err != nil || n < 1 {
+					return errors.New("must be a whole number of at least 1, such as 3")
+				}
+				return nil
+			},
+		},
+		Setting{
 			Path:        "git.branch_template",
 			Description: "Template for branch names; fields ID, Level, Number, Title, Slug, ParentID; functions lower, upper, trunc",
 			Default:     "ralph/{{lower .ID}}-{{.Slug}}",
