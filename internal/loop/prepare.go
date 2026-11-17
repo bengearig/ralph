@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
+	"github.com/bengearig/ralph/internal/filelock"
 	"github.com/bengearig/ralph/internal/hosting"
 	"github.com/bengearig/ralph/internal/naming"
 	"github.com/bengearig/ralph/internal/project"
@@ -111,13 +113,13 @@ type Plan struct {
 	Runnable []units.Unit
 	Stop     *Stop
 
-	lock *lock
+	lock *filelock.Lock
 }
 
 // Close releases the lock; it is safe to call more than once and on a dry run.
 func (p *Plan) Close() {
 	if p != nil {
-		p.lock.release()
+		p.lock.Release()
 	}
 }
 
@@ -143,8 +145,8 @@ func Prepare(ctx context.Context, d Deps, in PrepareInput) (plan Plan, err error
 	}
 
 	if !in.DryRun {
-		l, err := acquireLock(d.Root)
-		if errors.Is(err, errLockHeld) {
+		l, err := filelock.Acquire(lockPath(d.Root))
+		if errors.Is(err, filelock.ErrHeld) {
 			return Plan{}, &LockHeldError{Path: lockPath(d.Root)}
 		}
 		if err != nil {
@@ -153,12 +155,12 @@ func Prepare(ctx context.Context, d Deps, in PrepareInput) (plan Plan, err error
 		plan.lock = l
 		defer func() {
 			if err != nil {
-				l.release()
+				l.Release()
 				plan = Plan{}
 			}
 		}()
 		if err := checkIgnored(ctx, d.Root); err != nil {
-			l.discard()
+			l.Discard()
 			return Plan{}, err
 		}
 	} else if err := checkIgnored(ctx, d.Root); err != nil {
@@ -362,4 +364,8 @@ func gitIgnores(ctx context.Context, root, rel string) (bool, error) {
 		return false, ctx.Err()
 	}
 	return false, fmt.Errorf("git check-ignore %s: %w", rel, err)
+}
+
+func lockPath(root string) string {
+	return filepath.Join(project.RalphDir(root), project.LoopLockFile)
 }

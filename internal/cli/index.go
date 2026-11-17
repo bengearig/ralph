@@ -73,6 +73,13 @@ func newIndexCommand(a *app) *cobra.Command {
 			if provider == nil {
 				return errors.New(errNoProvider)
 			}
+			if !status {
+				release, err := semantic.LockIndex(project.RalphDir(a.root))
+				if err != nil {
+					return err
+				}
+				defer release()
+			}
 			idx, err := vecindex.Open(project.IndexPath(a.root))
 			if err != nil {
 				return err

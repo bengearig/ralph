@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/bengearig/ralph/internal/embed/ollama/ollamatest"
+	"github.com/bengearig/ralph/internal/semantic"
 	"github.com/bengearig/ralph/internal/testutil"
 )
 
@@ -209,5 +210,40 @@ func TestIndexCommandHelpListsFlags(t *testing.T) {
 	}
 	if _, root, _ := run(t, "--help"); !strings.Contains(root, "index") {
 		t.Error("root help does not list index")
+	}
+}
+
+func TestIndexCommandBusy(t *testing.T) {
+	seedSearchProject(t)
+	srv := ollamatest.NewServer(t, ollamatest.Options{})
+	useOllama(t, srv)
+	release, err := semantic.LockIndex(".ralph")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	before := len(srv.Requests())
+	code, out, stderr := run(t, "index")
+	if want := "ralph: another ralph index run is in progress\n"; code != 1 || out != "" || stderr != want {
+		t.Fatalf("code %d out %q stderr %q", code, out, stderr)
+	}
+	for _, r := range srv.Requests()[before:] {
+		if strings.Contains(r.Path, "embed") {
+			t.Fatalf("embedded: %+v", r)
+		}
+	}
+}
+
+func TestIndexCommandStatusIgnoresLock(t *testing.T) {
+	seedSearchProject(t)
+	srv := ollamatest.NewServer(t, ollamatest.Options{})
+	useOllama(t, srv)
+	release, err := semantic.LockIndex(".ralph")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	if code, out, stderr := run(t, "index", "--status"); code != 0 || !strings.Contains(out, "state:") {
+		t.Fatalf("code %d out %q stderr %q", code, out, stderr)
 	}
 }

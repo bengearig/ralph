@@ -23,6 +23,8 @@ func LocalIgnoreEntries() []string {
 		"/" + RunsDirName + "/",
 		"/" + LoopLockFile,
 		"/" + IndexFile + "*",
+		"/" + IndexRebuildFile + "*",
+		"/" + IndexLockFile,
 	}
 }
 

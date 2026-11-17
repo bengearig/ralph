@@ -24,6 +24,8 @@ type SearcherDeps struct {
 	Settings embed.Settings
 	// Describer caches the provider's description of its model; nil makes one over Provider.
 	Describer *Describer
+	// Dir holds the index lock; empty means catching up does not take it.
+	Dir string
 }
 
 // Searcher finds records by meaning. It reads the index and the store and writes neither.
@@ -95,8 +97,21 @@ func (s *Searcher) lookup(ctx context.Context, kind search.Kind, ref string) (c 
 }
 
 // CatchUp embeds up to maxRecords changed or new records and returns how many are still waiting.
+// When another process holds the index lock it embeds nothing and returns how many are waiting.
 func (s *Searcher) CatchUp(ctx context.Context, maxRecords int) (int, error) {
-	res, err := Sync(ctx, SyncDeps{DB: s.d.DB, Index: s.d.Index, Provider: s.d.Provider, Settings: s.d.Settings}, SyncOptions{MaxRecords: maxRecords})
+	deps := SyncDeps{DB: s.d.DB, Index: s.d.Index, Provider: s.d.Provider, Settings: s.d.Settings}
+	if s.d.Dir != "" {
+		release, err := LockIndex(s.d.Dir)
+		if errors.Is(err, ErrIndexBusy) {
+			waiting, _, perr := Pending(ctx, deps)
+			return len(waiting), perr
+		}
+		if err != nil {
+			return 0, err
+		}
+		defer release()
+	}
+	res, err := Sync(ctx, deps, SyncOptions{MaxRecords: maxRecords})
 	return res.Waiting, err
 }
 

@@ -1,6 +1,6 @@
 //go:build windows
 
-package loop
+package filelock
 
 import (
 	"errors"
@@ -28,7 +28,7 @@ func lockFile(f *os.File) error {
 		return nil
 	}
 	if errors.Is(err, errLockViolation) {
-		return errLockHeld
+		return ErrHeld
 	}
 	return err
 }

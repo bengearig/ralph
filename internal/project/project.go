@@ -31,6 +31,9 @@ const (
 
 	// IndexFile is the derived vector index for semantic search.
 	IndexFile = "index.db"
+	// IndexRebuildFile is the new index a rebuild builds beside the old one; IndexLockFile is the lock of an index run.
+	IndexRebuildFile = "index.rebuild.db"
+	IndexLockFile    = "index.lock"
 )
 
 var (

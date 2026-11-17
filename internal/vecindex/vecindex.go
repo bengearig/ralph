@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -73,10 +74,23 @@ type Stats struct {
 	Bytes                       int64
 }
 
-// Store is an open index file.
+// Store is an open index file. When the file at its path is replaced, or removed, the next call follows the file
+// now there.
 type Store struct {
-	db   *sql.DB
 	path string
+
+	mu     sync.Mutex
+	h      *handle
+	opened int
+	closed bool
+}
+
+// handle is one open connection to one index file; it is closed when it is retired and no call is using it.
+type handle struct {
+	db      *sql.DB
+	id      os.FileInfo
+	users   int
+	retired bool
 }
 
 // Open opens the index at path, creating the file and its tables.
@@ -85,36 +99,92 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("vecindex: %w", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
-		return nil, fmt.Errorf("vecindex: create directory for %q: %w", abs, err)
-	}
-	q := url.Values{
-		"_pragma": {"busy_timeout(5000)", "journal_mode(WAL)", "synchronous(NORMAL)"},
-		"_txlock": {"immediate"},
-	}
-	u := url.URL{Path: abs}
-	sdb, err := sql.Open("sqlite", "file:"+u.EscapedPath()+"?"+q.Encode())
-	if err != nil {
-		return nil, fmt.Errorf("vecindex: open %q: %w", abs, err)
-	}
-	s := &Store{db: sdb, path: abs}
-	if err := s.init(context.Background()); err != nil {
-		_ = sdb.Close()
+	s := &Store{path: abs}
+	if s.h, err = s.openHandle(context.Background()); err != nil {
 		return nil, err
 	}
 	return s, nil
 }
 
-func (s *Store) init(ctx context.Context) error {
-	if _, err := s.db.ExecContext(ctx, schemaSQL); err != nil {
+func (s *Store) openHandle(ctx context.Context) (*handle, error) {
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+		return nil, fmt.Errorf("vecindex: create directory for %q: %w", s.path, err)
+	}
+	q := url.Values{
+		"_pragma": {"busy_timeout(5000)", "journal_mode(WAL)", "synchronous(NORMAL)"},
+		"_txlock": {"immediate"},
+	}
+	u := url.URL{Path: s.path}
+	sdb, err := sql.Open("sqlite", "file:"+u.EscapedPath()+"?"+q.Encode())
+	if err != nil {
+		return nil, fmt.Errorf("vecindex: open %q: %w", s.path, err)
+	}
+	if err := s.init(ctx, sdb); err != nil {
+		_ = sdb.Close()
+		return nil, err
+	}
+	id, err := os.Stat(s.path)
+	if err != nil {
+		_ = sdb.Close()
+		return nil, fmt.Errorf("vecindex: open %q: %w", s.path, err)
+	}
+	s.opened++
+	return &handle{db: sdb, id: id}, nil
+}
+
+// acquire returns the connection to the file now at the path, opening it again when the file is not the one the
+// store has open. The returned function must be called when the caller is done with the connection.
+func (s *Store) acquire(ctx context.Context) (*sql.DB, func(), error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil, nil, errors.New("vecindex: the index is closed")
+	}
+	if fi, err := os.Stat(s.path); s.h == nil || err != nil || !os.SameFile(s.h.id, fi) {
+		// The old connection is closed first when idle: closing the last connection to a file deletes its
+		// write-ahead files by name, which must not take the new file's.
+		if s.h != nil {
+			s.retire(s.h)
+			s.h = nil
+		}
+		h, err := s.openHandle(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		s.h = h
+	}
+	h := s.h
+	h.users++
+	return h.db, func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		h.users--
+		s.closeIfIdle(h)
+	}, nil
+}
+
+func (s *Store) retire(h *handle) {
+	h.retired = true
+	s.closeIfIdle(h)
+}
+
+func (s *Store) closeIfIdle(h *handle) {
+	if h.retired && h.users == 0 && h.db != nil {
+		_ = h.db.Close()
+		h.db = nil
+	}
+}
+
+func (s *Store) init(ctx context.Context, db *sql.DB) error {
+	if _, err := db.ExecContext(ctx, schemaSQL); err != nil {
 		return fmt.Errorf("vecindex: prepare %q: %w", s.path, err)
 	}
-	v, ok, err := s.meta(ctx, "schema")
+	v, ok, err := readMeta(ctx, db, "schema")
 	if err != nil {
 		return err
 	}
 	if !ok {
-		if _, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO meta (key, value) VALUES ('schema', ?)`, strconv.Itoa(schemaVersion)); err != nil {
+		if _, err := db.ExecContext(ctx, `INSERT OR IGNORE INTO meta (key, value) VALUES ('schema', ?)`, strconv.Itoa(schemaVersion)); err != nil {
 			return fmt.Errorf("vecindex: prepare %q: %w", s.path, err)
 		}
 		return nil
@@ -129,9 +199,9 @@ func (s *Store) init(ctx context.Context) error {
 	return nil
 }
 
-func (s *Store) meta(ctx context.Context, key string) (string, bool, error) {
+func readMeta(ctx context.Context, db *sql.DB, key string) (string, bool, error) {
 	var v string
-	err := s.db.QueryRowContext(ctx, `SELECT value FROM meta WHERE key = ?`, key).Scan(&v)
+	err := db.QueryRowContext(ctx, `SELECT value FROM meta WHERE key = ?`, key).Scan(&v)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, nil
 	}
@@ -149,12 +219,26 @@ func (s *Store) Meta(ctx context.Context, key string) (string, bool, error) {
 	return s.meta(ctx, key)
 }
 
+func (s *Store) meta(ctx context.Context, key string) (string, bool, error) {
+	db, done, err := s.acquire(ctx)
+	if err != nil {
+		return "", false, err
+	}
+	defer done()
+	return readMeta(ctx, db, key)
+}
+
 // SetMeta stores a value beside the vectors; the keys the index keeps for itself are refused.
 func (s *Store) SetMeta(ctx context.Context, key, value string) error {
 	if err := checkMetaKey(key); err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(ctx, `INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)`, key, value); err != nil {
+	db, done, err := s.acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer done()
+	if _, err := db.ExecContext(ctx, `INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)`, key, value); err != nil {
 		return fmt.Errorf("vecindex: write %s: %w", key, err)
 	}
 	return nil
@@ -165,7 +249,12 @@ func (s *Store) DeleteMeta(ctx context.Context, key string) error {
 	if err := checkMetaKey(key); err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM meta WHERE key = ?`, key); err != nil {
+	db, done, err := s.acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer done()
+	if _, err := db.ExecContext(ctx, `DELETE FROM meta WHERE key = ?`, key); err != nil {
 		return fmt.Errorf("vecindex: delete %s: %w", key, err)
 	}
 	return nil
@@ -184,7 +273,12 @@ func checkMetaKey(key string) error {
 // Reset removes every record and chunk and every meta value except the schema version, so the index is
 // empty and has no fixed dimensions.
 func (s *Store) Reset(ctx context.Context) (err error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	db, done, err := s.acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer done()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("vecindex: %w", err)
 	}
@@ -205,10 +299,21 @@ func (s *Store) Reset(ctx context.Context) (err error) {
 }
 
 // Close closes the file.
-func (s *Store) Close() error { return s.db.Close() }
+func (s *Store) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil
+	}
+	s.closed = true
+	if s.h != nil {
+		s.retire(s.h)
+	}
+	return nil
+}
 
-func (s *Store) dimensions(ctx context.Context) (int, error) {
-	v, ok, err := s.meta(ctx, "dimensions")
+func dimensions(ctx context.Context, db *sql.DB) (int, error) {
+	v, ok, err := readMeta(ctx, db, "dimensions")
 	if err != nil || !ok {
 		return 0, err
 	}
@@ -226,7 +331,12 @@ func (s *Store) Put(ctx context.Context, rec Record, chunks []ChunkVector) (err 
 			return fmt.Errorf("vecindex: chunk %d of %s %s has no vector", c.Seq, rec.Kind, rec.Ref)
 		}
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	db, done, err := s.acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer done()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("vecindex: %w", err)
 	}
@@ -281,7 +391,12 @@ func (s *Store) Put(ctx context.Context, rec Record, chunks []ChunkVector) (err 
 
 // Delete removes a record and its chunks; a record that is not there is not an error.
 func (s *Store) Delete(ctx context.Context, kind, ref string) (err error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	db, done, err := s.acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer done()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("vecindex: %w", err)
 	}
@@ -304,7 +419,12 @@ func (s *Store) Delete(ctx context.Context, kind, ref string) (err error) {
 
 // Records lists what the index holds.
 func (s *Store) Records(ctx context.Context) (map[Key]RecordInfo, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT kind, ref, unit, hash, chunks FROM records`)
+	db, done, err := s.acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer done()
+	rows, err := db.QueryContext(ctx, `SELECT kind, ref, unit, hash, chunks FROM records`)
 	if err != nil {
 		return nil, fmt.Errorf("vecindex: %w", err)
 	}
@@ -326,11 +446,16 @@ func (s *Store) Records(ctx context.Context) (map[Key]RecordInfo, error) {
 
 // Stats counts the records and chunks and measures the file.
 func (s *Store) Stats(ctx context.Context) (Stats, error) {
+	db, done, err := s.acquire(ctx)
+	if err != nil {
+		return Stats{}, err
+	}
+	defer done()
 	var st Stats
-	if err := s.db.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM records), (SELECT COUNT(*) FROM chunks)`).Scan(&st.Records, &st.Chunks); err != nil {
+	if err := db.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM records), (SELECT COUNT(*) FROM chunks)`).Scan(&st.Records, &st.Chunks); err != nil {
 		return Stats{}, fmt.Errorf("vecindex: %w", err)
 	}
-	dims, err := s.dimensions(ctx)
+	dims, err := dimensions(ctx, db)
 	if err != nil {
 		return Stats{}, err
 	}
@@ -372,7 +497,12 @@ func (h *minHeap) Pop() any {
 
 // Search returns the limit chunks whose vectors have the highest dot product with query, best first.
 func (s *Store) Search(ctx context.Context, query []float32, limit int) ([]ChunkHit, error) {
-	dims, err := s.dimensions(ctx)
+	db, done, err := s.acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer done()
+	dims, err := dimensions(ctx, db)
 	if err != nil {
 		return nil, err
 	}
@@ -385,7 +515,7 @@ func (s *Store) Search(ctx context.Context, query []float32, limit int) ([]Chunk
 	if limit <= 0 {
 		return []ChunkHit{}, nil
 	}
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := db.QueryContext(ctx, `
 SELECT c.id, c.kind, c.ref, c.unit, r.hash, c.seq, c.text, c.excerpt, c.vector
 FROM chunks c JOIN records r ON r.kind = c.kind AND r.ref = c.ref`)
 	if err != nil {
