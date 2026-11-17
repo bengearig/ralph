@@ -349,6 +349,18 @@ func DefaultRegistry() *Registry {
 			},
 		},
 		Setting{
+			Path:        "loop.prompt_documents_bytes",
+			Description: "Limits the bytes of linked-document text in a loop prompt; 0 means no limit. Documents are taken task first, then slice, then brief, and a document that does not fit is replaced by a pointer to read it with doc_get",
+			Default:     "0",
+			Validate: func(v string) error {
+				n, err := strconv.Atoi(v)
+				if err != nil || n < 0 {
+					return errors.New("must be a whole number of at least 0, such as 60000")
+				}
+				return nil
+			},
+		},
+		Setting{
 			Path:        "git.branch_template",
 			Description: "Template for branch names; fields ID, Level, Number, Title, Slug, ParentID; functions lower, upper, trunc",
 			Default:     "ralph/{{lower .ID}}-{{.Slug}}",

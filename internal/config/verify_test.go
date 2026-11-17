@@ -114,3 +114,20 @@ func TestHeadlessAllowSetting(t *testing.T) {
 		t.Errorf("warnings = %+v", w)
 	}
 }
+
+func TestLoopPromptSetting(t *testing.T) {
+	s, ok := DefaultRegistry().Lookup("loop.prompt_documents_bytes")
+	if !ok || s.Default != "0" || s.Scope != ScopeProject || s.Description == "" {
+		t.Fatalf("loop.prompt_documents_bytes = %+v, %v", s, ok)
+	}
+	for _, v := range []string{"0", "60000"} {
+		if err := s.Validate(v); err != nil {
+			t.Errorf("%q rejected: %v", v, err)
+		}
+	}
+	for _, v := range []string{"-1", "abc", "1.5", ""} {
+		if err := s.Validate(v); err == nil {
+			t.Errorf("%q accepted", v)
+		}
+	}
+}

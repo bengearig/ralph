@@ -1,0 +1,53 @@
+# Task T-1: Do the thing
+
+You are one step in a larger plan. Do this one task and nothing else.
+
+- Make the changes in the working tree. Do not commit, push, or switch or create branches: ralph checks the result and commits it.
+- Do not edit files under .git or .ralph.
+- If the task cannot be done, or is already done, say so plainly in your final answer instead of making unrelated changes.
+- You can look up more with the ralph tools: search finds work and documents, and doc_get reads a document.
+
+## The task
+
+Task body.
+
+## Acceptance criteria
+
+- it works
+- it is tested
+
+## Where this fits
+
+Brief B-1: Ship it
+
+The brief body.
+
+Slice S-1: The slice
+
+The slice body.
+
+Tasks in this slice (for context only; do not do them):
+- T-1 PROPOSED Do the thing <- this task
+- T-2 PROPOSED Another task
+
+## Notes on this task
+
+- NOTE 2026-03-04T05:11:07Z: first note
+- NOTE 2026-03-04T05:12:07Z: second note
+
+## Documents
+
+### D-2 design: Task doc (linked to this task)
+
+Task doc text.
+
+### D-1 design: Slice doc (linked to slice S-1)
+
+Slice doc text.
+
+## How your work is checked
+
+Ralph runs these commands after you finish, from the project root. All of them must pass:
+
+- `go test ./...`
+- `make lint`
