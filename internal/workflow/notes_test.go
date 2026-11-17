@@ -92,3 +92,11 @@ func TestProjectNotesStillMentionNotices(t *testing.T) {
 		t.Errorf("notes lack the notice line:\n%s", got)
 	}
 }
+
+func TestProjectNotesAskBeforeNoticeDecision(t *testing.T) {
+	got, _ := notesFor(t)
+	const want = "A notice can ask for a decision: relay it, ask the user, and do nothing until they answer."
+	if strings.Count(got, want) != 1 {
+		t.Errorf("notes lack the sentence once:\n%s", got)
+	}
+}

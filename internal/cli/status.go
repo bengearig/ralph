@@ -16,6 +16,7 @@ import (
 	"github.com/bengearig/ralph/internal/doclinks"
 	"github.com/bengearig/ralph/internal/harness/all"
 	"github.com/bengearig/ralph/internal/integration"
+	"github.com/bengearig/ralph/internal/semantic"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/view"
 	"github.com/spf13/cobra"
@@ -57,7 +58,7 @@ MERGED, which counts as finished and is left out unless --all is given.`,
 				links := doclinks.New(svc, newDocumentsService(a, d))
 				return statusUnit(ctx, cmd.OutOrStdout(), cmd.ErrOrStderr(), svc, links, args[0], asJSON)
 			}
-			return statusSummary(ctx, cmd.OutOrStdout(), svc, all, asJSON, outdatedPaths(ctx, a.root))
+			return statusSummary(ctx, cmd.OutOrStdout(), svc, all, asJSON, outdatedPaths(ctx, a.root), localSummary(ctx, a, d))
 		},
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "include finished (DONE, MERGED or CANCELLED) work")
@@ -84,19 +85,25 @@ func outdatedPaths(ctx context.Context, root string) []string {
 
 type statusSummaryJSON struct {
 	view.SummaryView
-	IntegrationOutdated []string `json:"integration_outdated,omitempty"`
+	IntegrationOutdated []string           `json:"integration_outdated,omitempty"`
+	SemanticIndex       *semanticIndexJSON `json:"semantic_index,omitempty"`
 }
 
-func statusSummary(ctx context.Context, out io.Writer, svc units.Service, all, asJSON bool, outdated []string) error {
+func statusSummary(ctx context.Context, out io.Writer, svc units.Service, all, asJSON bool, outdated []string, sem *semantic.Summary) error {
 	doc, err := view.Summary(ctx, svc, all)
 	if err != nil {
 		return err
 	}
 	if asJSON {
-		return writeJSON(out, statusSummaryJSON{SummaryView: doc, IntegrationOutdated: outdated})
+		return writeJSON(out, statusSummaryJSON{SummaryView: doc, IntegrationOutdated: outdated, SemanticIndex: semanticJSON(sem)})
 	}
 	if err := printSummary(out, doc); err != nil {
 		return err
+	}
+	if line := semanticLine(sem); line != "" {
+		if _, err := fmt.Fprintf(out, "\n%s\n", line); err != nil {
+			return err
+		}
 	}
 	if len(outdated) > 0 {
 		_, err = fmt.Fprintf(out, "\n%s\n", integrationOutdatedLine)
