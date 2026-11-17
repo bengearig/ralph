@@ -111,3 +111,47 @@ func TestOpenCodeRestrictedEmptyAllow(t *testing.T) {
 		t.Errorf("rules = %+v", rules)
 	}
 }
+
+func autoInvocation(t *testing.T) harness.Invocation {
+	t.Helper()
+	req := headlessReq()
+	req.Mode = harness.PermissionAuto
+	req.Allow = harness.Allowlist{Protected: []string{".git/", ".ralph/"}}
+	inv, err := New().Headless(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return inv
+}
+
+func TestOpenCodeAutoArgsEndWithAuto(t *testing.T) {
+	inv := autoInvocation(t)
+	want := []string{"run", "--standalone", "--format", "json", "--archived", "--auto"}
+	if !reflect.DeepEqual(inv.Args, want) {
+		t.Errorf("Args = %q, want %q", inv.Args, want)
+	}
+}
+
+func TestOpenCodeAutoRulesOnlyProtectedDenies(t *testing.T) {
+	inv := autoInvocation(t)
+	content := strings.TrimPrefix(inv.Env[1], "OPENCODE_CONFIG_CONTENT=")
+	var cfg configContent
+	if err := json.Unmarshal([]byte(content), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.MCP.Servers) != 1 || len(cfg.Permissions) == 0 {
+		t.Fatalf("config = %s", content)
+	}
+	for _, r := range cfg.Permissions {
+		if r.Effect != "deny" || r.Action != "edit" {
+			t.Errorf("rule %+v is not a protected edit deny", r)
+		}
+	}
+}
+
+func TestOpenCodeAutoKeepsProjectConfigDisabled(t *testing.T) {
+	inv := autoInvocation(t)
+	if len(inv.Env) != 2 || inv.Env[0] != "OPENCODE_DISABLE_PROJECT_CONFIG=1" {
+		t.Errorf("Env = %q", inv.Env)
+	}
+}

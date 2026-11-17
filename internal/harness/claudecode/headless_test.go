@@ -100,15 +100,6 @@ func TestClaudeHeadlessVersionGate(t *testing.T) {
 	}
 }
 
-func TestClaudeHeadlessAutoNotYetSupported(t *testing.T) {
-	req := headlessReq()
-	req.Mode = harness.PermissionAuto
-	_, err := New().Headless(req)
-	if err == nil || err.Error() != "auto mode is not implemented yet" {
-		t.Errorf("error = %v", err)
-	}
-}
-
 func TestClaudeCapabilities(t *testing.T) {
 	if got := New().Capabilities(); !got.Auto || !got.NativeBudget {
 		t.Errorf("Capabilities = %+v", got)

@@ -33,15 +33,19 @@ type configContent struct {
 
 var ownProtected = []string{".opencode/", "opencode.json", "opencode.jsonc"}
 
-// restrictedRules are ordered because the last matching rule wins: the
+// restrictedRules, in auto mode only the protected-path denies, are ordered because the last matching rule wins: the
 // protected-path denies must follow the edit allow.
 func restrictedRules(req harness.HeadlessRequest) []permissionRule {
-	rules := []permissionRule{
-		{"*", "*", "deny"},
-		{"read", "*", "allow"},
-		{"glob", "*", "allow"},
-		{"grep", "*", "allow"},
-		{"edit", "*", "allow"},
+	auto := req.Mode == harness.PermissionAuto
+	var rules []permissionRule
+	if !auto {
+		rules = []permissionRule{
+			{"*", "*", "deny"},
+			{"read", "*", "allow"},
+			{"glob", "*", "allow"},
+			{"grep", "*", "allow"},
+			{"edit", "*", "allow"},
+		}
 	}
 	for _, path := range append(append([]string(nil), req.Allow.Protected...), ownProtected...) {
 		if dir, ok := strings.CutSuffix(path, "/"); ok {
@@ -53,6 +57,9 @@ func restrictedRules(req harness.HeadlessRequest) []permissionRule {
 				permissionRule{"edit", path, "deny"},
 				permissionRule{"edit", "*/" + path, "deny"})
 		}
+	}
+	if auto {
+		return rules
 	}
 	for _, c := range req.Allow.Commands {
 		rules = append(rules, permissionRule{"shell", unescapePattern(c), "allow"})
@@ -86,8 +93,8 @@ func (adapter) Headless(req harness.HeadlessRequest) (harness.Invocation, error)
 	if err := req.Validate(); err != nil {
 		return harness.Invocation{}, err
 	}
-	if req.Mode == harness.PermissionAuto {
-		return harness.Invocation{}, fmt.Errorf("auto mode is not implemented yet")
+	if err := harness.CheckMode(adapter{}, req); err != nil {
+		return harness.Invocation{}, err
 	}
 	var cfg configContent
 	cfg.MCP.Servers = map[string]mcpEntry{
@@ -101,6 +108,9 @@ func (adapter) Headless(req harness.HeadlessRequest) (harness.Invocation, error)
 	args := []string{"run", "--standalone", "--format", "json", "--archived"}
 	if req.Model != "" {
 		args = append(args, "--model", req.Model)
+	}
+	if req.Mode == harness.PermissionAuto {
+		args = append(args, "--auto")
 	}
 	return harness.Invocation{
 		Command: "opencode",

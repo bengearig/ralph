@@ -80,15 +80,24 @@ func Restricted(verifyCommands, extra []string) harness.Allowlist {
 	}
 }
 
-// NewRequest builds a restricted headless request for the project at root.
+// NewRequest builds a headless request for the project at root, restricted
+// unless headless.permissions is auto.
 func NewRequest(cfg *config.Config, root, prompt string, mcp harness.MCPServer) (harness.HeadlessRequest, error) {
 	extra, _ := cfg.List("headless.allow")
+	mode := harness.PermissionRestricted
+	if v, ok := cfg.Get("headless.permissions"); ok && v.Value == string(harness.PermissionAuto) {
+		mode = harness.PermissionAuto
+	}
 	req := harness.HeadlessRequest{
 		Dir:    root,
 		Prompt: prompt,
 		MCP:    mcp,
-		Mode:   harness.PermissionRestricted,
+		Mode:   mode,
 		Allow:  Restricted(verify.FromConfig(cfg, root).Commands, extra),
+	}
+	if mode == harness.PermissionAuto {
+		req.Allow.Commands = nil
+		req.Allow.Tools = nil
 	}
 	if err := req.Validate(); err != nil {
 		return harness.HeadlessRequest{}, err

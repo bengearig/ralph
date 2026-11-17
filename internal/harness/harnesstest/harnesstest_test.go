@@ -299,3 +299,31 @@ func (f *fake) Headless(harness.HeadlessRequest) (harness.Invocation, error) {
 }
 func (f *fake) NewParser() harness.Parser          { return nil }
 func (f *fake) Capabilities() harness.Capabilities { return harness.Capabilities{} }
+
+type headlessFake struct {
+	fake
+	auto bool
+}
+
+func (h *headlessFake) Capabilities() harness.Capabilities { return harness.Capabilities{Auto: h.auto} }
+func (h *headlessFake) Headless(req harness.HeadlessRequest) (harness.Invocation, error) {
+	if err := harness.CheckMode(h, req); err != nil {
+		return harness.Invocation{}, err
+	}
+	return harness.Invocation{Command: "fake"}, nil
+}
+func (h *headlessFake) NewParser() harness.Parser { return nil }
+
+func TestAutoUnsupportedAdapterIsRejected(t *testing.T) {
+	a := &headlessFake{fake: fake{name: "fake"}}
+	req := harness.HeadlessRequest{Dir: "/tmp/p", Prompt: "p", Mode: harness.PermissionAuto,
+		MCP: harness.MCPServer{Name: "ralph", Command: "ralph"}}
+	_, err := a.Headless(req)
+	if err == nil || err.Error() != "fake has no automatic mode; set headless.permissions to restricted" {
+		t.Errorf("error = %v", err)
+	}
+	a.auto = true
+	if _, err := a.Headless(req); err != nil {
+		t.Errorf("auto adapter rejected: %v", err)
+	}
+}

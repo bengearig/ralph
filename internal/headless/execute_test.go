@@ -74,3 +74,17 @@ func TestExecuteReturnsHeadlessError(t *testing.T) {
 		t.Fatal("want the Validate error")
 	}
 }
+
+type noAutoAdapter struct{ harness.Adapter }
+
+func (noAutoAdapter) Name() string                       { return "plain" }
+func (noAutoAdapter) Capabilities() harness.Capabilities { return harness.Capabilities{} }
+
+func TestAutoUnsupportedExecuteRejected(t *testing.T) {
+	req := harness.HeadlessRequest{Dir: t.TempDir(), Prompt: "p", Mode: harness.PermissionAuto,
+		MCP: harness.MCPServer{Name: "ralph", Command: "ralph"}}
+	_, err := Execute(context.Background(), noAutoAdapter{claudecode.New()}, req, Options{})
+	if err == nil || err.Error() != "plain has no automatic mode; set headless.permissions to restricted" {
+		t.Errorf("error = %v", err)
+	}
+}

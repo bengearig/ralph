@@ -299,6 +299,13 @@ func DefaultRegistry() *Registry {
 			},
 		},
 		Setting{
+			Path:        "headless.permissions",
+			Description: "How the headless agent is permitted to act: restricted allows only a short allowlist; auto hands approval to the harness's own automatic mode, which then decides what the agent may do, and only ralph's protected paths stay denied",
+			Default:     "restricted",
+			Allowed:     []string{"restricted", "auto"},
+			Scope:       ScopeUser,
+		},
+		Setting{
 			Path:        "verify.timeout",
 			Description: "How long each verification command may run, from 1s to 2h",
 			Default:     "10m",

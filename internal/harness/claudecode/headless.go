@@ -43,8 +43,8 @@ func (adapter) Headless(req harness.HeadlessRequest) (harness.Invocation, error)
 	if err := req.Validate(); err != nil {
 		return harness.Invocation{}, err
 	}
-	if req.Mode == harness.PermissionAuto {
-		return harness.Invocation{}, fmt.Errorf("auto mode is not implemented yet")
+	if err := harness.CheckMode(adapter{}, req); err != nil {
+		return harness.Invocation{}, err
 	}
 	if tooOld(req.Version) {
 		return harness.Invocation{}, fmt.Errorf("claude %s is too old for headless runs; version %s or later is needed", req.Version, minHeadlessVersionText)
@@ -66,7 +66,11 @@ func (adapter) Headless(req harness.HeadlessRequest) (harness.Invocation, error)
 	if req.Model != "" {
 		args = append(args, "--model", req.Model)
 	}
-	args = append(args, "--permission-mode", "dontAsk", "--permission-prompts", "none")
+	permissionMode := "dontAsk"
+	if req.Mode == harness.PermissionAuto {
+		permissionMode = "auto"
+	}
+	args = append(args, "--permission-mode", permissionMode, "--permission-prompts", "none")
 	settings, err := restrictedSettings(req)
 	if err != nil {
 		return harness.Invocation{}, err
@@ -84,18 +88,22 @@ type permissionSettings struct {
 	} `json:"permissions"`
 }
 
-// restrictedSettings is the --settings JSON of a restricted run. There is
+// restrictedSettings is the --settings JSON of a run: in auto mode only the
+// protected-path denies remain. There is
 // deliberately no bare Edit or Read rule: a bare allow also covers paths
 // outside the project.
 func restrictedSettings(req harness.HeadlessRequest) (string, error) {
 	var s permissionSettings
 	p := &s.Permissions
-	p.Allow = []string{"Edit(./**)"}
-	for _, c := range req.Allow.Commands {
-		p.Allow = append(p.Allow, "Bash("+c+")")
-	}
-	for _, t := range req.Allow.Tools {
-		p.Allow = append(p.Allow, "mcp__"+req.MCP.Name+"__"+t)
+	p.Allow = []string{}
+	if req.Mode != harness.PermissionAuto {
+		p.Allow = append(p.Allow, "Edit(./**)")
+		for _, c := range req.Allow.Commands {
+			p.Allow = append(p.Allow, "Bash("+c+")")
+		}
+		for _, t := range req.Allow.Tools {
+			p.Allow = append(p.Allow, "mcp__"+req.MCP.Name+"__"+t)
+		}
 	}
 	p.Deny = []string{}
 	for _, path := range append(append([]string(nil), req.Allow.Protected...), ownProtected...) {

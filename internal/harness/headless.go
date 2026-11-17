@@ -24,6 +24,14 @@ func (m PermissionMode) Valid() bool {
 	return m == PermissionRestricted || m == PermissionAuto
 }
 
+// CheckMode fails when req asks for the automatic mode and a has none.
+func CheckMode(a Adapter, req HeadlessRequest) error {
+	if req.Mode == PermissionAuto && !a.Capabilities().Auto {
+		return fmt.Errorf("%s has no automatic mode; set headless.permissions to restricted", a.Name())
+	}
+	return nil
+}
+
 // Allowlist is what a restricted run may do beyond editing project files.
 type Allowlist struct {
 	// Tools are ralph tools by bare name.

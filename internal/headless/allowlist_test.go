@@ -1,6 +1,7 @@
 package headless
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -113,5 +114,72 @@ func TestNewRequestFromConfig(t *testing.T) {
 	}
 	if _, err := NewRequest(cfg, "relative", "x", mcp); err == nil {
 		t.Error("relative root accepted")
+	}
+}
+
+func modeConfig(t *testing.T, root, userYAML, projYAML string) *config.Config {
+	t.Helper()
+	user := filepath.Join(t.TempDir(), "user.yaml")
+	if userYAML != "" {
+		if err := os.WriteFile(user, []byte(userYAML), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if projYAML != "" {
+		dir := filepath.Join(root, ".ralph")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "project.yaml"), []byte(projYAML), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg, err := config.Load(config.Options{
+		Registry:    config.DefaultRegistry(),
+		UserFile:    user,
+		ProjectRoot: root,
+		Getenv:      func(string) (string, bool) { return "", false },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg
+}
+
+var modeMCP = harness.MCPServer{Name: "ralph", Command: "ralph", Args: []string{"mcp"}}
+
+func TestNewRequestModeRestrictedByDefault(t *testing.T) {
+	root := t.TempDir()
+	req, err := NewRequest(modeConfig(t, root, "", ""), root, "x", modeMCP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.Mode != harness.PermissionRestricted || len(req.Allow.Commands) == 0 || len(req.Allow.Tools) == 0 {
+		t.Errorf("req = %+v", req)
+	}
+}
+
+func TestNewRequestModeAutoHasNoAllowlist(t *testing.T) {
+	root := t.TempDir()
+	req, err := NewRequest(modeConfig(t, root, "headless:\n  permissions: auto\n  allow:\n    - ls\n", ""), root, "x", modeMCP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.Mode != harness.PermissionAuto || len(req.Allow.Commands) != 0 || len(req.Allow.Tools) != 0 {
+		t.Errorf("req = %+v", req)
+	}
+	if want := []string{".git/", ".ralph/"}; !reflect.DeepEqual(req.Allow.Protected, want) {
+		t.Errorf("Protected = %q, want %q", req.Allow.Protected, want)
+	}
+}
+
+func TestNewRequestModeIsFromUserSettingOnly(t *testing.T) {
+	root := t.TempDir()
+	req, err := NewRequest(modeConfig(t, root, "", "headless:\n  permissions: auto\n"), root, "x", modeMCP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.Mode != harness.PermissionRestricted {
+		t.Errorf("Mode = %q", req.Mode)
 	}
 }

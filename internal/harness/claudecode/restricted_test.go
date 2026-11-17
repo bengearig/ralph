@@ -98,3 +98,43 @@ func TestClaudeRestrictedParenthesesInPatternUnchanged(t *testing.T) {
 		t.Errorf("allow = %q", p.Permissions.Allow)
 	}
 }
+
+func autoReq() harness.HeadlessRequest {
+	req := headlessReq()
+	req.Mode = harness.PermissionAuto
+	req.Allow = harness.Allowlist{Protected: []string{".git/", ".ralph/"}}
+	return req
+}
+
+const wantAutoSettings = `{"permissions":{"allow":[],"deny":["Edit(.git/**)","Edit(.ralph/**)","Edit(.claude/**)","Edit(.mcp.json)"]}}`
+
+func TestClaudeAutoArgsGolden(t *testing.T) {
+	inv, err := New().Headless(autoReq())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"-p", "--output-format", "stream-json", "--verbose", "--no-session-persistence",
+		"--setting-sources", "user,local", "--strict-mcp-config", "--mcp-config", wantMCPConfig,
+		"--permission-mode", "auto", "--permission-prompts", "none", "--settings", wantAutoSettings}
+	if !reflect.DeepEqual(inv.Args, want) {
+		t.Errorf("Args =\n%q\nwant\n%q", inv.Args, want)
+	}
+}
+
+func TestClaudeAutoStillStrictAboutSettingsAndMCP(t *testing.T) {
+	inv, err := New().Headless(autoReq())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range []string{"--strict-mcp-config", "--mcp-config", "--setting-sources"} {
+		if !slices.Contains(inv.Args, a) {
+			t.Errorf("%s missing from %q", a, inv.Args)
+		}
+	}
+	if i := slices.Index(inv.Args, "--setting-sources"); inv.Args[i+1] != "user,local" {
+		t.Errorf("setting sources = %q", inv.Args[i+1])
+	}
+	if i := slices.Index(inv.Args, "--mcp-config"); inv.Args[i+1] != wantMCPConfig {
+		t.Errorf("mcp config = %q", inv.Args[i+1])
+	}
+}

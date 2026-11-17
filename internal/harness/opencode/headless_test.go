@@ -106,14 +106,6 @@ func TestOpenCodeCapabilities(t *testing.T) {
 	}
 }
 
-func TestOpenCodeHeadlessAutoNotYetSupported(t *testing.T) {
-	req := headlessReq()
-	req.Mode = harness.PermissionAuto
-	if _, err := New().Headless(req); err == nil || err.Error() != "auto mode is not implemented yet" {
-		t.Errorf("error = %v", err)
-	}
-}
-
 func parse(stream string) harness.Outcome {
 	p := New().NewParser()
 	for _, l := range strings.Split(stream, "\n") {
