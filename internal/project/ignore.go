@@ -22,6 +22,7 @@ func LocalIgnoreEntries() []string {
 		"/" + IntegrationLocalFile,
 		"/" + RunsDirName + "/",
 		"/" + LoopLockFile,
+		"/" + IndexFile + "*",
 	}
 }
 

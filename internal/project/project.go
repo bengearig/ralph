@@ -28,6 +28,9 @@ const (
 	// RunsDirName holds the loop's run records; LoopLockFile is its lock.
 	RunsDirName  = "runs"
 	LoopLockFile = "loop.lock"
+
+	// IndexFile is the derived vector index for semantic search.
+	IndexFile = "index.db"
 )
 
 var (
@@ -91,6 +94,11 @@ func RalphDir(root string) string {
 // StorePath returns the database file of the project at root.
 func StorePath(root string) string {
 	return filepath.Join(RalphDir(root), StoreFile)
+}
+
+// IndexPath returns the vector index file of the project at root.
+func IndexPath(root string) string {
+	return filepath.Join(RalphDir(root), IndexFile)
 }
 
 // BackupsDir returns the directory holding database backups.
