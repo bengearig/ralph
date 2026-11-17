@@ -65,7 +65,8 @@ func RunTask(ctx context.Context, d Deps, in TaskInput) (TaskResult, error) {
 		previous = failureOf(att)
 	}
 	last := res.Attempts[len(res.Attempts)-1]
-	res.Reason = fmt.Sprintf("stalled after %d failed attempts: %s", in.MaxFailures, last.Failure)
+	res.Reason = newRedactor(SecretValues(d.Config)).String(
+		fmt.Sprintf("stalled after %d failed attempts: %s", in.MaxFailures, last.Failure))
 	if err := stall(ctx, d, in.Task.ID, res.Reason); err != nil {
 		return res, err
 	}

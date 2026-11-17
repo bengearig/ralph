@@ -9,9 +9,6 @@ Status: draft
 | Is the monitor's final name `ralph monitor`, and what is the acting command called? | workflow |
 | Does branch deletion after merge cover the local branch, the remote branch, or both? | workflow |
 | How does ralph read feedback from a pull request, and which feedback becomes a bottom unit? | workflow |
-| Does verification run after each bottom unit, after each middle unit, or both? | workflow |
-| How is a failed iteration retried, and what is the stall threshold's default? | workflow |
-| How much can the loop push into a prompt, and what is dropped first when the limit is hit? | documents |
 | How are chunk size and boundaries chosen, and what Ollama models are supported or required? | documents |
 | How are keyword and semantic results combined in one ranking? | documents |
 | What is the rebuild command's name, and does it also cover rebuilding the keyword index? | documents |
@@ -40,7 +37,6 @@ Status: draft
 | Where is the record of written files kept, how is the managed section marked, and how does `ralph init` remove files? | harness-integration |
 | Which other actions, if any, must exist as both CLI commands and MCP tools? | harness-integration |
 | What must an adapter declare about a harness's capabilities, and what does ralph do when one is missing? | harness-integration |
-| How does the loop build the prompt for a bottom unit, given that linked documents are pushed in (0019)? | harness-integration |
 | Does OpenCode offer a way to layer a user's own permission rules under ralph's, so a user could widen a restricted run without letting a project's rules in? | harness-integration |
 | Which ralph tools beyond the read-only ones may a loop agent call, for example adding a note to its unit? | harness-integration |
 | What does the loop do with the suggestions in a run record: does the monitor show them, or are they applied only by the user? | harness-integration |
@@ -51,8 +47,6 @@ Status: draft
 | Should semantic search come before the loop? | first-release |
 | How many pre-migration backups are kept, and how are old ones removed? | local-state |
 | What are the names of the backup command and the setting that requires explicit migration? | local-state |
-| How long are run records kept by default, how are they purged, and how are secrets that appear in them handled? | local-state |
-| How does the loop behave when the checkout is on a different branch than the unit's, or when the branch already exists? | local-state |
 | What is the portable export's format, and when is it designed? | local-state |
 | How does a pull request carry a closing reference, for each provider, so that the issue source links or closes the issue? | task-manager-and-issues |
 | Which later release adds the API server, and what is its first slice? | first-release |

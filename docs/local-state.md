@@ -50,15 +50,25 @@ run it from a second clone. Worktrees are a later option behind the same seam.
 
 ## Run records
 
-The loop keeps a record of each iteration, stored in a gitignored directory in the ralph directory:
-- The prompt sent to the harness.
-- The harness's output.
-- The output of verification.
-- Actions that were denied by the permission mode, so the user can see what to allow.
-- Cost and duration.
+The loop keeps a record of each iteration, stored in a gitignored directory in the ralph directory, `.ralph/runs/`.
+It is local and is never committed or sent to a server. Each attempt has a directory named for its start time, attempt
+and unit under the directory of its middle unit, with these files:
+- `prompt.md`: the prompt sent to the harness.
+- `output.jsonl`: the harness's output.
+- `verify.txt`: the output of verification, left out when the attempt failed before verification.
+- `record.json`: the outcome, failure, commit, cost and duration, and the actions that were denied by the permission
+  mode with the line to add to `headless.allow`, so the user can see what to allow.
 
-A short summary of each iteration is attached to its unit, so `ralph monitor` and status can show it. How long run
-records are kept is configurable.
+A short summary of each attempt is attached to its unit as a note, so `ralph monitor` and status can show it. It says
+how the attempt ended, names the record and carries the denial suggestions.
+
+Values of the secret settings are replaced by `[redacted]` in the records and the notes, including a value split
+across the harness's output. Redaction knows only those values, and ignores any shorter than eight characters; a secret
+that came from elsewhere, such as a file the agent printed, is not found. Treat a record as sensitive.
+
+Records older than `runs.keep_days` days (default 30; 0 keeps them) are removed when a loop starts. `ralph runs purge`
+removes them by hand: give `--older-than DURATION`, `--slice <ID>` or both, and it lists what it would remove unless
+`--yes` is given. Only directories holding a readable `record.json` are removed.
 
 ## Open
 

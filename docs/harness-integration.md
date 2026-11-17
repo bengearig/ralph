@@ -31,7 +31,8 @@ and a tool; other actions are decided as they are added. See [0016](decisions/00
 
 ## Headless invocation
 
-Used by the loop. See [workflow.md](workflow.md). The design record is the headless-invocation document in ralph's
+Used by the loop: each attempt on a bottom unit is one headless run, and the loop checks the result itself. See
+[the loop](workflow.md#loop). The design record is the headless-invocation document in ralph's
 store; this section is the settled behavior.
 
 ### The process

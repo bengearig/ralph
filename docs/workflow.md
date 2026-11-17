@@ -52,16 +52,32 @@ Input: a middle unit whose bottom units are ready.
 
 - The loop runs headless, outside the user's session, as a ralph command that drives the harness non-interactively. See
   [0008](decisions/0008-feature-flow.md).
-- Each iteration works one ready bottom unit, in order, producing one commit. A middle unit that waits for another
-  that is not done is not started, and its bottom units are not worked. The prompt includes the unit and the
-  documents linked to it, and the agent can search for more through the MCP server.
-- The loop works in the user's checkout, on the middle unit's branch, and refuses to start when the working tree has
-  uncommitted changes. See [0023](decisions/0023-loop-workspace.md).
+- `ralph loop <slice>` works one middle unit, named by its ID. Each iteration works one ready bottom unit, in order,
+  producing one commit. A middle unit that waits for another that is not done is not started, and its bottom units are
+  not worked. The loop stops at the first bottom unit that is not ready, and `--dry-run` prints the plan and changes
+  nothing. Nothing is pushed.
+- The prompt includes the unit and the documents linked to it, and the agent can search for more through the MCP
+  server. The `loop.prompt_documents_bytes` setting limits the linked-document text, and a document that does not fit
+  is replaced by a pointer to read it with `doc_get`.
+- The loop works in the user's checkout, on the middle unit's branch. It starts from the base branch and creates the
+  branch, or continues on the branch when the checkout is already on it, and refuses to start on any other branch, when
+  the branch already exists while the checkout is on the base, or when the working tree has uncommitted changes. Only
+  one loop runs in a project at a time. See [0023](decisions/0023-loop-workspace.md).
 - Each iteration leaves a run record, and the unit gets a summary. See [local-state.md](local-state.md).
-- A failing iteration is retried. After a configured number of consecutive failures on a unit, the loop stops and asks
-  for help (Stall Statute).
-- Verification is dictated by project configuration, by the unit's acceptance criteria, or both. Whether it runs after
-  each bottom unit, after each middle unit, or both is open.
+- Ralph, not the agent, makes the commit. After the agent finishes, ralph runs the verification commands and then
+  commits the whole tree once, with the unit's ID in the subject and a `Ralph-Task` trailer. An attempt that changes
+  nothing fails.
+- A failing iteration is retried, and the retry prompt says what failed. After `loop.max_failures` consecutive
+  failures on a unit, the loop blocks the unit with the reason, leaves the tree as the last attempt left it, stops with
+  exit status 2 and asks for help (Stall Statute). The next run refuses until the tree is committed or discarded; once
+  the unit is unblocked with a reason, the count starts again.
+- Verification is dictated by project configuration, by the unit's acceptance criteria, or both. The configured
+  commands run after each bottom unit, before it is committed; a failure fails the attempt. Acceptance criteria are for
+  the agent and the reviewer, and ralph does not run them. See
+  [0009](decisions/0009-review-feedback-and-verification.md).
+- An interrupt ends the harness's whole process group, returns the unit to ready with the reason `loop interrupted`
+  and leaves the tree as it is; the loop exits with status 130. A unit left in progress by a loop that was killed is
+  settled by the next run: done when the branch holds its commit, ready again when it does not.
 
 ## Pull request
 

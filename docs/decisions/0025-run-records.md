@@ -24,5 +24,10 @@ evidence to act on. Under the restricted permission mode of
 ## Consequences
 
 - Run records may contain code and command output, so they are local and never sent to a server.
-- The prompt and output can include secrets that appeared in the project. Their handling is open.
-- Retention needs a default and a way to purge.
+- The records are in `.ralph/runs/`, one directory per attempt with `prompt.md`, `output.jsonl`, `verify.txt` and
+  `record.json`, and the summary is a note on the unit. See [local-state.md](../local-state.md).
+- The prompt and output can include secrets that appeared in the project. The values of the secret settings are
+  replaced by `[redacted]` before anything is written; a secret ralph does not know is not found, so a record stays
+  sensitive.
+- Records are kept for `runs.keep_days` days, 30 by default, removed when a loop starts, and `ralph runs purge` removes
+  them by hand, listing first unless `--yes` is given.

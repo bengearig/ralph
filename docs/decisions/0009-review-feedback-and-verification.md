@@ -24,3 +24,5 @@ Different people and projects verify differently.
 
 - The pull request provider integration must read review feedback, not only create pull requests.
 - A middle unit can gain bottom units after its pull request is open, so its state must allow that.
+- The loop runs the configured verification commands after each bottom unit, before committing it, and a failure fails
+  the attempt. See [workflow.md](../workflow.md).

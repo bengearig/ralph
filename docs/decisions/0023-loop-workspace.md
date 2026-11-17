@@ -24,6 +24,9 @@ caches and local environment files, so verification often fails there until a se
 ## Consequences
 
 - The checkout is occupied while the loop runs.
+- The loop starts from the base branch, creating the middle unit's branch, or continues on that branch, and refuses on
+  any other branch, and when the branch already exists while the checkout is on the base. Nothing is pushed.
+- A lock file in the ralph directory lets one loop run in a project at a time; it is released when the process ends.
 - Quick work, which runs in the user's own session, branches from the same checkout, so the clean-tree rule also
   applies when it starts.
 - Moving to worktrees later must not change where the database and configuration are found. See

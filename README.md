@@ -34,6 +34,10 @@ The project is under construction. The design is in [docs/](docs/README.md).
 - `ralph search <words>` finds documents, briefs, slices, tasks and notes by their words; `--kind` and `--limit` narrow
   the results and `--all` includes archived and superseded documents and cancelled tasks.
 - `ralph mcp` serves ralph's records to an agent over the Model Context Protocol on standard input and output.
+- `ralph loop <slice>` works a slice's ready tasks in order on its own branch, one verified commit per task and nothing
+  pushed; it retries a failed attempt and blocks the task after `loop.max_failures`. `--dry-run` prints the plan.
+- `ralph runs purge` removes run records under `.ralph/runs/` (`--older-than DURATION`, `--slice <ID>`; it lists unless
+  `--yes`), and a loop removes those older than `runs.keep_days` when it starts.
 - Headless runs, which the loop uses, are set by `headless.permissions` (user-only, `restricted` by default or `auto`),
   `headless.allow` (user-only shell command patterns that widen a restricted run), `headless.budget_usd` (a cost cap per
   run) and `headless.timeout`. A restricted run cannot be widened from a committed file. See
