@@ -59,6 +59,7 @@ func newTicketsSyncCommand(a *app) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 			defer stop()
+			ctx = a.actorContext(ctx, cmd)
 			d, system, settings, err := openTicketsEnv(ctx, a)
 			if err != nil {
 				return err
@@ -108,6 +109,7 @@ func newTicketsCheckCommand(a *app) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 			defer stop()
+			ctx = a.actorContext(ctx, cmd)
 			d, system, settings, err := openTicketsEnv(ctx, a)
 			if err != nil {
 				return err
@@ -394,6 +396,7 @@ func newTicketsResolveCommand(a *app, action string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 			defer stop()
+			ctx = a.actorContext(ctx, cmd)
 			d, system, settings, err := openTicketsEnv(ctx, a)
 			if err != nil {
 				return err
