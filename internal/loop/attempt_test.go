@@ -259,7 +259,7 @@ func TestAttemptDoneCommitsOnce(t *testing.T) {
 	if n := a.noteCount(t, units.NoteGeneral); n != 1 {
 		t.Errorf("attempt notes = %d, want 1", n)
 	}
-	want := "Attempt 1 of 3 passed: commit " + head[:12]
+	want := "Attempt 1 of 3 passed: commit " + head[:12] + " (0s)"
 	if got := a.attemptNote(t); got != want {
 		t.Errorf("note = %q, want %q", got, want)
 	}
@@ -328,7 +328,7 @@ func TestAttemptNoChangesFails(t *testing.T) {
 	if a.state(t) != units.StateInProgress || a.commits() != "1" {
 		t.Errorf("state = %s commits = %s", a.state(t), a.commits())
 	}
-	if got := a.attemptNote(t); got != "Attempt 1 of 3 failed: the agent made no changes" {
+	if got := a.attemptNote(t); got != "Attempt 1 of 3 failed: the agent made no changes (0s)" {
 		t.Errorf("note = %q", got)
 	}
 }

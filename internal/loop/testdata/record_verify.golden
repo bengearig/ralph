@@ -1,0 +1,16 @@
+$ go build ./...
+exit 0
+1.5s
+
+ok
+
+$ go test ./...
+exit 1
+20s
+
+FAIL one
+FAIL two
+
+$ sleep 99
+timed out
+1m0s

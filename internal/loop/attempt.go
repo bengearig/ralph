@@ -310,10 +310,7 @@ func (a *attempt) conclude(ctx context.Context, failure string) error {
 	}
 	a.finishRecord()
 
-	body := fmt.Sprintf("Attempt %d of %d failed: %s", in.Attempt, in.MaxAttempts, failure)
-	if failure == "" {
-		body = fmt.Sprintf("Attempt %d of %d passed: commit %s", in.Attempt, in.MaxAttempts, short(a.res.Commit))
-	}
+	body := AttemptSummary(in.Attempt, in.MaxAttempts, a.res, SecretValues(a.d.Config))
 	if failure == "" {
 		if err := a.d.Units.AddLink(ctx, task.ID, units.LinkExternal, commitLinkPrefix+a.res.Commit); err != nil {
 			return a.fail(err)
