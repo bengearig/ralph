@@ -212,7 +212,7 @@ func seedTask(e *statusEnv) {
 		b := e.create(s, units.LevelBrief, "", "B", "")
 		sl := e.create(s, units.LevelSlice, b, "The slice", "")
 		id := e.create(s, units.LevelTask, sl, "The task", units.StateTodo)
-		if err := s.AddLink(e.ctx, id, units.LinkDocument, "D-1"); err != nil {
+		if err := s.AddLink(e.ctx, id, units.LinkExternal, "https://example.com"); err != nil {
 			e.t.Fatal(err)
 		}
 		if _, err := s.AddNote(e.ctx, id, units.NoteGeneral, "first note"); err != nil {
@@ -237,7 +237,7 @@ func TestStatusTask(t *testing.T) {
 	requireLine(t, out, "Acceptance criteria:")
 	requireLine(t, out, "criteria of The task")
 	requireLine(t, out, "Links:")
-	requireLine(t, out, "document D-1")
+	requireLine(t, out, "external https://example.com")
 	requireLine(t, out, "Notes:")
 	if !strings.Contains(out, "created: ") || !strings.Contains(out, " by Ann <ann@example.com>\n") {
 		t.Errorf("actor missing:\n%s", out)

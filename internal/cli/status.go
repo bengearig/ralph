@@ -13,6 +13,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/bengearig/ralph/internal/db"
+	"github.com/bengearig/ralph/internal/doclinks"
 	"github.com/bengearig/ralph/internal/harness/all"
 	"github.com/bengearig/ralph/internal/integration"
 	"github.com/bengearig/ralph/internal/units"
@@ -48,7 +49,8 @@ func newStatusCommand(a *app) *cobra.Command {
 			defer func() { _ = d.Close() }()
 			svc := units.NewService(d)
 			if len(args) == 1 {
-				return statusUnit(ctx, cmd.OutOrStdout(), svc, args[0], asJSON)
+				links := doclinks.New(svc, newDocumentsService(a, d))
+				return statusUnit(ctx, cmd.OutOrStdout(), cmd.ErrOrStderr(), svc, links, args[0], asJSON)
 			}
 			return statusSummary(ctx, cmd.OutOrStdout(), svc, all, asJSON, outdatedPaths(ctx, a.root))
 		},
@@ -170,7 +172,7 @@ func writeJSON(out io.Writer, v any) error {
 	return enc.Encode(v)
 }
 
-func statusUnit(ctx context.Context, out io.Writer, svc units.Service, arg string, asJSON bool) error {
+func statusUnit(ctx context.Context, out, errOut io.Writer, svc units.Service, links *doclinks.Service, arg string, asJSON bool) error {
 	id := strings.ToUpper(arg)
 	if !unitIDPattern.MatchString(id) {
 		return fmt.Errorf("%q is not a unit ID: expected B-, S- or T- followed by digits", arg)
@@ -178,6 +180,11 @@ func statusUnit(ctx context.Context, out io.Writer, svc units.Service, arg strin
 	v, err := view.UnitDetail(ctx, svc, id)
 	if err != nil {
 		return err
+	}
+	if withDocs, err := view.AttachDocuments(ctx, v, links); err != nil {
+		_, _ = fmt.Fprintf(errOut, "ralph: warning: could not read linked documents: %v\n", err)
+	} else {
+		v = withDocs
 	}
 	if asJSON {
 		return writeJSON(out, v)
@@ -236,11 +243,21 @@ func printUnit(out io.Writer, v view.UnitView) error {
 			w("%s  %s  %s%s\n", d.ID, d.Status, d.Title, waiting)
 		}
 	}
-	if len(v.Links) > 0 {
+	var external []view.Link
+	for _, l := range v.Links {
+		if l.Kind != string(units.LinkDocument) {
+			external = append(external, l)
+		}
+	}
+	if len(external) > 0 {
 		w("\nLinks:\n")
-		for _, l := range v.Links {
+		for _, l := range external {
 			w("%s %s\n", l.Kind, l.Target)
 		}
+	}
+	if len(v.Documents) > 0 || len(v.InheritedDocuments) > 0 {
+		w("\n")
+		writeDocumentsBlock(out, v.Documents, v.InheritedDocuments)
 	}
 	if len(v.Notes) > 0 {
 		w("\nNotes:\n")
