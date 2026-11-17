@@ -56,6 +56,7 @@ type server struct {
 
 	noticeMu sync.Mutex
 	seen     map[Notice]struct{}
+	queued   []Notice
 }
 
 // New builds a server with ralph's tools registered.

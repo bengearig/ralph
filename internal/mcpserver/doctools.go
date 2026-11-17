@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bengearig/ralph/internal/db"
+	"github.com/bengearig/ralph/internal/doclinks"
 	"github.com/bengearig/ralph/internal/documents"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -70,6 +71,8 @@ type docGetResult struct {
 	UpdatedBy    string `json:"updated_by,omitempty"`
 	Fingerprint  string `json:"fingerprint,omitempty"`
 	Current      *bool  `json:"current,omitempty" jsonschema:"only when a version was asked for: whether it is the document's current version"`
+
+	LinkedUnits []doclinks.UnitRef `json:"linked_units" jsonschema:"the units explicitly linked to the document (id, level, title); empty when none"`
 }
 
 type docSummary struct {
@@ -219,7 +222,7 @@ func (s *server) addDocTools(srv *mcp.Server) {
 
 	addDocTool(s, srv, &mcp.Tool{
 		Name: "doc_get",
-		Description: `Read one document: its kind, brief_id (empty when project-wide), title, body, status, superseded_by, version, who created and last changed it, and its fingerprint. Call this before changing a document, and again after a "stale" error. A SUPERSEDED document names its replacement in superseded_by: read that one instead.
+		Description: `Read one document: its kind, brief_id (empty when project-wide), title, body, status, superseded_by, version, who created and last changed it, its fingerprint and linked_units (the briefs, slices and tasks linked to it, each with id, level and title; empty when none). Call this before changing a document, and again after a "stale" error. A SUPERSEDED document names its replacement in superseded_by: read that one instead.
 
 With version, read that version of the document instead: the earlier or the current one, as id, version, current (whether it is the current version), kind, title, body, created_at and created_by. A version has no fingerprint; use the document itself for writes.
 
@@ -236,10 +239,14 @@ With version, read that version of the document instead: the earlier or the curr
 			if err != nil {
 				return nil, "", err
 			}
+			linked, err := s.linkedUnits(ctx, svc, id)
+			if err != nil {
+				return nil, "", err
+			}
 			cur := v.Current
 			out := docGetResult{
 				ID: v.ID, Kind: string(v.Kind), Title: v.Title, Body: v.Body, Version: v.Version,
-				CreatedAt: formatTime(v.CreatedAt), CreatedBy: v.CreatedBy, Current: &cur,
+				CreatedAt: formatTime(v.CreatedAt), CreatedBy: v.CreatedBy, Current: &cur, LinkedUnits: linked,
 			}
 			label := "version"
 			if cur {
@@ -251,7 +258,18 @@ With version, read that version of the document instead: the earlier or the curr
 		if err != nil {
 			return nil, "", err
 		}
-		return docOut(d)
+		linked, err := s.linkedUnits(ctx, svc, id)
+		if err != nil {
+			return nil, "", err
+		}
+		out := docGetResult{
+			ID: d.ID, Kind: string(d.Kind), Title: d.Title, Body: d.Body, Version: d.Version,
+			CreatedAt: formatTime(d.CreatedAt), CreatedBy: d.CreatedBy, BriefID: d.BriefID,
+			Status: string(d.Status), SupersededBy: d.SupersededBy,
+			UpdatedAt: formatTime(d.UpdatedAt), UpdatedBy: d.UpdatedBy, Fingerprint: d.Fingerprint,
+			LinkedUnits: linked,
+		}
+		return out, docText(d, linked), nil
 	})
 
 	addDocTool(s, srv, &mcp.Tool{
@@ -396,10 +414,23 @@ func docOut(d documents.Document) (any, string, error) {
 		CreatedAt: formatTime(d.CreatedAt), CreatedBy: d.CreatedBy,
 		UpdatedAt: formatTime(d.UpdatedAt), UpdatedBy: d.UpdatedBy, Fingerprint: d.Fingerprint,
 	}
-	return out, docText(d), nil
+	return out, docText(d, nil), nil
 }
 
-func docText(d documents.Document) string {
+// linkedUnits lists the units linked to a document, with the empty array
+// rather than nil when there are none.
+func (s *server) linkedUnits(ctx context.Context, docs documents.Service, id string) ([]doclinks.UnitRef, error) {
+	if s.opts.Open == nil {
+		return []doclinks.UnitRef{}, nil
+	}
+	svc, err := s.service(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return doclinks.New(svc, docs).UnitsOf(ctx, id)
+}
+
+func docText(d documents.Document, linked []doclinks.UnitRef) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s %s %s %s\nfingerprint: %s\nversion: %d\n", d.ID, d.Kind, d.Status, d.Title, d.Fingerprint, d.Version)
 	if d.BriefID != "" {
@@ -407,6 +438,9 @@ func docText(d documents.Document) string {
 	}
 	if d.SupersededBy != "" {
 		fmt.Fprintf(&b, "superseded by: %s\n", d.SupersededBy)
+	}
+	for _, u := range linked {
+		fmt.Fprintf(&b, "linked: %s %s %s\n", u.ID, u.Level, u.Title)
 	}
 	fmt.Fprintf(&b, "\n%s", d.Body)
 	return b.String()

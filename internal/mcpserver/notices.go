@@ -72,6 +72,7 @@ func (s *server) collectNotices(ctx context.Context) []Notice {
 	s.mu.Lock()
 	srcs := append(slices.Clone(s.opts.Sources), s.unitSources...)
 	s.mu.Unlock()
+	fresh = append(fresh, s.takeQueued()...)
 	for i, src := range srcs {
 		if src == nil {
 			continue
@@ -94,6 +95,32 @@ func (s *server) collectNotices(ctx context.Context) []Notice {
 		}
 		s.noticeMu.Unlock()
 	}
+	return fresh
+}
+
+// queueNotice holds a notice raised by a tool for the delivery that follows it.
+func (s *server) queueNotice(n Notice) {
+	s.noticeMu.Lock()
+	defer s.noticeMu.Unlock()
+	s.queued = append(s.queued, n)
+}
+
+func (s *server) takeQueued() []Notice {
+	s.noticeMu.Lock()
+	defer s.noticeMu.Unlock()
+	var fresh []Notice
+	for _, n := range s.queued {
+		n.Message = truncateNotice(n.Message)
+		if _, dup := s.seen[n]; dup {
+			continue
+		}
+		if s.seen == nil {
+			s.seen = map[Notice]struct{}{}
+		}
+		s.seen[n] = struct{}{}
+		fresh = append(fresh, n)
+	}
+	s.queued = nil
 	return fresh
 }
 

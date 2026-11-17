@@ -442,7 +442,7 @@ func TestNoteAdd(t *testing.T) {
 func TestLinkAddRemove(t *testing.T) {
 	cs, _ := newClient(t)
 	create(t, cs, map[string]any{"level": "brief", "title": "B", "body": "goal"})
-	args := map[string]any{"id": "B-1", "kind": "document", "target": "D-1"}
+	args := map[string]any{"id": "B-1", "kind": "external", "target": "JIRA-1"}
 	for range 2 {
 		if got := ok(t, cs, "link_add", args); len(got["links"].([]any)) != 1 {
 			t.Errorf("links = %v", got["links"])
@@ -453,7 +453,7 @@ func TestLinkAddRemove(t *testing.T) {
 			t.Errorf("links = %v", got["links"])
 		}
 	}
-	fails(t, cs, "link_add", map[string]any{"id": "B-1", "kind": "document", "target": "has space"}, "invalid")
+	fails(t, cs, "link_add", map[string]any{"id": "B-1", "kind": "external", "target": "has space"}, "invalid")
 }
 
 func TestWritesRecordActor(t *testing.T) {

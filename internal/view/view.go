@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/bengearig/ralph/internal/doclinks"
 	"github.com/bengearig/ralph/internal/quick"
 	"github.com/bengearig/ralph/internal/units"
 )
@@ -89,6 +90,10 @@ type UnitView struct {
 	Children           []Item  `json:"children"`
 	Links              []Link  `json:"links"`
 	Notes              []Note  `json:"notes"`
+
+	// Documents and InheritedDocuments are filled by AttachDocuments; UnitDetail leaves them empty.
+	Documents          []doclinks.Linked `json:"documents"`
+	InheritedDocuments []doclinks.Linked `json:"inherited_documents"`
 
 	DependsOn []Dependency `json:"depends_on,omitempty"`
 	WaitingOn []string     `json:"waiting_on,omitempty"`
@@ -217,6 +222,7 @@ func UnitDetail(ctx context.Context, svc units.Service, id string) (UnitView, er
 		CreatedAt: stamp(u.CreatedAt), CreatedBy: u.CreatedBy,
 		UpdatedAt: stamp(u.UpdatedAt), UpdatedBy: u.UpdatedBy,
 		Children: []Item{}, Links: []Link{}, Notes: []Note{},
+		Documents: []doclinks.Linked{}, InheritedDocuments: []doclinks.Linked{},
 	}
 	if u.ParentID != "" {
 		p, err := svc.Get(ctx, u.ParentID)
@@ -277,6 +283,23 @@ func UnitDetail(ctx context.Context, svc units.Service, id string) (UnitView, er
 			}
 		}
 	}
+	return v, nil
+}
+
+// AttachDocuments fills the documents linked to the unit and those inherited
+// from its ancestors.
+func AttachDocuments(ctx context.Context, v UnitView, links *doclinks.Service) (UnitView, error) {
+	direct, inherited, err := links.DocumentsOf(ctx, v.ID)
+	if err != nil {
+		return v, err
+	}
+	if direct == nil {
+		direct = []doclinks.Linked{}
+	}
+	if inherited == nil {
+		inherited = []doclinks.Linked{}
+	}
+	v.Documents, v.InheritedDocuments = direct, inherited
 	return v, nil
 }
 

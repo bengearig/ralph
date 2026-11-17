@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/bengearig/ralph/internal/db"
+	"github.com/bengearig/ralph/internal/doclinks"
+	"github.com/bengearig/ralph/internal/documents"
 	"github.com/bengearig/ralph/internal/testutil"
 	"github.com/bengearig/ralph/internal/units"
 )
@@ -278,10 +280,119 @@ func TestNoDependenciesOutputUnchanged(t *testing.T) {
 				t.Errorf("%s json has %s: %s", id, k, raw)
 			}
 		}
-		for _, k := range []string{"id", "level", "title", "status", "parent", "body", "created_at", "updated_at", "children", "links", "notes"} {
+		for _, k := range []string{"id", "level", "title", "status", "parent", "body", "created_at", "updated_at", "children", "links", "notes", "documents", "inherited_documents"} {
 			if _, ok := m[k]; !ok {
 				t.Errorf("%s json lacks %s", id, k)
 			}
 		}
+	}
+}
+
+func docFixture(t *testing.T) (units.Service, *doclinks.Service, documents.Service) {
+	t.Helper()
+	d := testutil.NewDB(t, db.Migrations)
+	us, ds := units.NewService(d), documents.NewService(d)
+	return us, doclinks.New(us, ds), ds
+}
+
+func newDoc(t *testing.T, ds documents.Service, title string) documents.Document {
+	t.Helper()
+	doc, err := ds.Create(context.Background(), documents.NewDocument{Kind: documents.KindDesign, Title: title, Body: "body"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return doc
+}
+
+func TestAttachDocumentsFillsBothLists(t *testing.T) {
+	ctx := context.Background()
+	us, links, ds := docFixture(t)
+	mk := func(level units.Level, parent, title string) units.Unit {
+		n := units.NewUnit{Level: level, ParentID: parent, Title: title, Body: "b"}
+		if level == units.LevelTask {
+			n.AcceptanceCriteria = "c"
+		}
+		u, err := us.Create(ctx, n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return u
+	}
+	b := mk(units.LevelBrief, "", "brief")
+	s := mk(units.LevelSlice, b.ID, "slice")
+	task := mk(units.LevelTask, s.ID, "task")
+	own, inherited := newDoc(t, ds, "own"), newDoc(t, ds, "inherited")
+	if err := links.Link(ctx, own.ID, task.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := links.Link(ctx, inherited.ID, s.ID); err != nil {
+		t.Fatal(err)
+	}
+	v, err := UnitDetail(ctx, us, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := AttachDocuments(ctx, v, links)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Documents) != 1 || got.Documents[0].ID != own.ID || got.Documents[0].Title != "own" || got.Documents[0].From != "" {
+		t.Errorf("documents = %+v", got.Documents)
+	}
+	if len(got.InheritedDocuments) != 1 || got.InheritedDocuments[0].ID != inherited.ID || got.InheritedDocuments[0].From != s.ID {
+		t.Errorf("inherited = %+v", got.InheritedDocuments)
+	}
+	if got.ID != task.ID || got.Title != "task" {
+		t.Errorf("the rest of the view changed: %+v", got)
+	}
+}
+
+func TestAttachDocumentsEmptyAreNonNil(t *testing.T) {
+	ctx := context.Background()
+	us, links, _ := docFixture(t)
+	u, err := us.Create(ctx, units.NewUnit{Level: units.LevelBrief, Title: "b", Body: "b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, err := UnitDetail(ctx, us, u.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := AttachDocuments(ctx, v, links)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Documents == nil || got.InheritedDocuments == nil || len(got.Documents)+len(got.InheritedDocuments) != 0 {
+		t.Fatalf("documents = %#v, inherited = %#v", got.Documents, got.InheritedDocuments)
+	}
+	raw, _ := json.Marshal(got)
+	if !strings.Contains(string(raw), `"documents":[]`) || !strings.Contains(string(raw), `"inherited_documents":[]`) {
+		t.Errorf("json = %s", raw)
+	}
+}
+
+func TestAttachDocumentsUnknownUnitFails(t *testing.T) {
+	_, links, _ := docFixture(t)
+	if _, err := AttachDocuments(context.Background(), UnitView{ID: "T-9"}, links); !errors.Is(err, units.ErrNotFound) {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestUnitDetailDoesNotFillDocuments(t *testing.T) {
+	ctx := context.Background()
+	us, links, ds := docFixture(t)
+	u, err := us.Create(ctx, units.NewUnit{Level: units.LevelBrief, Title: "b", Body: "b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := links.Link(ctx, newDoc(t, ds, "d").ID, u.ID); err != nil {
+		t.Fatal(err)
+	}
+	v, err := UnitDetail(ctx, us, u.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(v.Documents) != 0 || len(v.InheritedDocuments) != 0 {
+		t.Errorf("documents = %+v, inherited = %+v", v.Documents, v.InheritedDocuments)
 	}
 }

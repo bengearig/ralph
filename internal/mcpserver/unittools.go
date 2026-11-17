@@ -2,10 +2,13 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 
+	"github.com/bengearig/ralph/internal/doclinks"
+	"github.com/bengearig/ralph/internal/documents"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/view"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -137,7 +140,7 @@ func (s *server) addUnitTools(srv *mcp.Server) {
 
 	addTool(s, srv, &mcp.Tool{
 		Name: "unit_get",
-		Description: `Read one unit: its title, body, acceptance criteria, derived status, parent, children (id, level, title, status), links, notes (oldest first) and its fingerprint. A slice also shows its dependencies: depends_on (id, title, status and whether each is satisfied) and waiting_on (the IDs not yet satisfied), both left out when it has none. Call this before updating a unit, and again after a "stale" error.
+		Description: `Read one unit: its title, body, acceptance criteria, derived status, parent, children (id, level, title, status), links, the documents linked to it (documents: id, title, kind, status, and superseded_by for a superseded one; MISSING when the link names no stored document) and the documents inherited from the slice and brief above it (inherited_documents, each with from, the ancestor it comes from), notes (oldest first) and its fingerprint. A slice also shows its dependencies: depends_on (id, title, status and whether each is satisfied) and waiting_on (the IDs not yet satisfied), both left out when it has none. Call this before updating a unit, and again after a "stale" error.
 
 ` + levelsText + `
 
@@ -150,7 +153,7 @@ func (s *server) addUnitTools(srv *mcp.Server) {
 		if err != nil {
 			return nil, "", err
 		}
-		return unitOut(ctx, svc, id)
+		return s.unitOut(ctx, svc, id)
 	})
 
 	addTool(s, srv, &mcp.Tool{
@@ -195,7 +198,7 @@ Parents: a slice's parent_id is a brief; a task's parent_id is a slice, or omitt
 		if err != nil {
 			return nil, "", err
 		}
-		return unitOut(ctx, svc, u.ID)
+		return s.unitOut(ctx, svc, u.ID)
 	})
 
 	addTool(s, srv, &mcp.Tool{
@@ -217,7 +220,7 @@ Parents: a slice's parent_id is a brief; a task's parent_id is a slice, or omitt
 		if err != nil {
 			return nil, "", err
 		}
-		return unitOut(ctx, svc, u.ID)
+		return s.unitOut(ctx, svc, u.ID)
 	})
 
 	addTool(s, srv, &mcp.Tool{
@@ -239,7 +242,7 @@ Parents: a slice's parent_id is a brief; a task's parent_id is a slice, or omitt
 		if err != nil {
 			return nil, "", err
 		}
-		return unitOut(ctx, svc, u.ID)
+		return s.unitOut(ctx, svc, u.ID)
 	})
 
 	addTool(s, srv, &mcp.Tool{
@@ -274,7 +277,7 @@ Parents: a slice's parent_id is a brief; a task's parent_id is a slice, or omitt
 		InputSchema:  schemaFor[dependencyInput](nil),
 		OutputSchema: outputFor[unitResult](),
 	}, func(ctx context.Context, svc units.Service, in dependencyInput) (any, string, error) {
-		return changeDependency(ctx, svc, in, svc.AddDependency)
+		return s.changeDependency(ctx, svc, in, svc.AddDependency)
 	})
 	addTool(s, srv, &mcp.Tool{
 		Name:         "dependency_remove",
@@ -283,27 +286,27 @@ Parents: a slice's parent_id is a brief; a task's parent_id is a slice, or omitt
 		InputSchema:  schemaFor[dependencyInput](nil),
 		OutputSchema: outputFor[unitResult](),
 	}, func(ctx context.Context, svc units.Service, in dependencyInput) (any, string, error) {
-		return changeDependency(ctx, svc, in, svc.RemoveDependency)
+		return s.changeDependency(ctx, svc, in, svc.RemoveDependency)
 	})
 
 	linkSchema := func(p map[string]*jsonschema.Schema) { p["kind"] = enum(kindEnum) }
 	addTool(s, srv, &mcp.Tool{
 		Name:         "link_add",
-		Description:  `Link a unit to a project document (kind "document", target a document ID) or to an item in an outside system (kind "external", target a reference such as a URL or issue key, with no whitespace). Adding a link that exists changes nothing. Returns the unit's links.`,
+		Description:  `Link a unit to a project document (kind "document", target a document ID) or to an item in an outside system (kind "external", target a reference such as a URL or issue key, with no whitespace). A document link must name an ACTIVE document: a missing one fails with error_code "not_found", and an archived or superseded one with error_code "invalid" (for a superseded one the message names its replacement, so link that instead; for an archived one, ask the user whether to restore it with doc_restore or to link another). Adding a link that exists changes nothing. Returns the unit's links.`,
 		Annotations:  writes(true),
 		InputSchema:  schemaFor[linkInput](linkSchema),
 		OutputSchema: outputFor[linksResult](),
 	}, func(ctx context.Context, svc units.Service, in linkInput) (any, string, error) {
-		return changeLink(ctx, svc, in, svc.AddLink)
+		return s.changeLink(ctx, svc, in, true)
 	})
 	addTool(s, srv, &mcp.Tool{
 		Name:         "link_remove",
-		Description:  `Remove a link from a unit; removing a link that does not exist changes nothing. Kind and target are as given to link_add. Returns the unit's links.`,
+		Description:  `Remove a link from a unit; removing a link that does not exist changes nothing. Kind and target are as given to link_add. A link to a document of any status, even one that no longer exists, can be removed. Returns the unit's links.`,
 		Annotations:  writes(true),
 		InputSchema:  schemaFor[linkInput](linkSchema),
 		OutputSchema: outputFor[linksResult](),
 	}, func(ctx context.Context, svc units.Service, in linkInput) (any, string, error) {
-		return changeLink(ctx, svc, in, svc.RemoveLink)
+		return s.changeLink(ctx, svc, in, false)
 	})
 }
 
@@ -319,7 +322,20 @@ func noteView(n units.Note) view.Note {
 	return view.Note{Kind: string(n.Kind), Author: n.Author, Body: n.Body, CreatedAt: n.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00")}
 }
 
-func unitOut(ctx context.Context, svc units.Service, id string) (any, string, error) {
+// docLinks builds the document link service over the documents service the
+// document tools use.
+func (s *server) docLinks(ctx context.Context, svc units.Service) (*doclinks.Service, error) {
+	if s.opts.Documents == nil {
+		return nil, errors.New("documents are not available in this server")
+	}
+	docs, err := s.documents(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return doclinks.New(svc, docs), nil
+}
+
+func (s *server) unitOut(ctx context.Context, svc units.Service, id string) (any, string, error) {
 	u, err := svc.Get(ctx, id)
 	if err != nil {
 		return nil, "", err
@@ -327,6 +343,13 @@ func unitOut(ctx context.Context, svc units.Service, id string) (any, string, er
 	d, err := view.UnitDetail(ctx, svc, id)
 	if err != nil {
 		return nil, "", err
+	}
+	if s.opts.Documents != nil {
+		if links, err := s.docLinks(ctx, svc); err != nil {
+			s.queueNotice(Notice{Code: "documents_unreadable", Message: "The documents linked to this unit could not be read: " + err.Error()})
+		} else if d, err = view.AttachDocuments(ctx, d, links); err != nil {
+			return nil, "", err
+		}
 	}
 	return unitResult{UnitView: d, Fingerprint: u.Fingerprint}, unitText(d, u.Fingerprint), nil
 }
@@ -356,10 +379,26 @@ func unitText(d view.UnitView, fingerprint string) string {
 	for _, l := range d.Links {
 		fmt.Fprintf(&b, "link: %s %s\n", l.Kind, l.Target)
 	}
+	for _, l := range d.Documents {
+		fmt.Fprintf(&b, "document: %s\n", documentLine(l))
+	}
+	for _, l := range d.InheritedDocuments {
+		fmt.Fprintf(&b, "document (from %s): %s\n", l.From, documentLine(l))
+	}
 	for _, n := range d.Notes {
 		fmt.Fprintf(&b, "note (%s %s): %s\n", n.CreatedAt, n.Author, n.Body)
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+func documentLine(l doclinks.Linked) string {
+	switch l.Status {
+	case doclinks.StatusMissing:
+		return l.ID + " " + l.Status
+	case string(documents.StatusSuperseded):
+		return fmt.Sprintf("%s %s SUPERSEDED by %s %s", l.ID, l.Kind, l.SupersededBy, l.Title)
+	}
+	return fmt.Sprintf("%s %s %s %s", l.ID, l.Kind, l.Status, l.Title)
 }
 
 func listUnits(ctx context.Context, svc units.Service, in listInput) (any, string, error) {
@@ -413,7 +452,7 @@ func listUnits(ctx context.Context, svc units.Service, in listInput) (any, strin
 	return out, strings.TrimRight(b.String(), "\n"), nil
 }
 
-func changeDependency(ctx context.Context, svc units.Service, in dependencyInput, op func(context.Context, string, string) error) (any, string, error) {
+func (s *server) changeDependency(ctx context.Context, svc units.Service, in dependencyInput, op func(context.Context, string, string) error) (any, string, error) {
 	id, err := parseID(in.ID)
 	if err != nil {
 		return nil, "", err
@@ -425,16 +464,35 @@ func changeDependency(ctx context.Context, svc units.Service, in dependencyInput
 	if err := op(ctx, id, on); err != nil {
 		return nil, "", err
 	}
-	return unitOut(ctx, svc, id)
+	return s.unitOut(ctx, svc, id)
 }
 
-func changeLink(ctx context.Context, svc units.Service, in linkInput, op func(context.Context, string, units.LinkKind, string) error) (any, string, error) {
+func (s *server) changeLink(ctx context.Context, svc units.Service, in linkInput, add bool) (any, string, error) {
 	id, err := parseID(in.ID)
 	if err != nil {
 		return nil, "", err
 	}
-	if err := op(ctx, id, units.LinkKind(in.Kind), in.Target); err != nil {
-		return nil, "", err
+	if units.LinkKind(in.Kind) == units.LinkDocument {
+		links, err := s.docLinks(ctx, svc)
+		if err != nil {
+			return nil, "", err
+		}
+		if add {
+			err = links.Link(ctx, in.Target, id)
+		} else {
+			err = links.Unlink(ctx, in.Target, id)
+		}
+		if err != nil {
+			return nil, "", err
+		}
+	} else {
+		op := svc.RemoveLink
+		if add {
+			op = svc.AddLink
+		}
+		if err := op(ctx, id, units.LinkKind(in.Kind), in.Target); err != nil {
+			return nil, "", err
+		}
 	}
 	links, err := svc.Links(ctx, id)
 	if err != nil {
