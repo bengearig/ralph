@@ -50,3 +50,27 @@ func TestLoopHarnessNamesMatchAdapters(t *testing.T) {
 		t.Fatalf("harnessNames = %s, adapters = %s", got, want)
 	}
 }
+
+func TestRunsKeepDaysSetting(t *testing.T) {
+	r := DefaultRegistry()
+	s, ok := r.Lookup("runs.keep_days")
+	if !ok || s.Scope != ScopeProject || s.Default != "30" || s.Description == "" {
+		t.Fatalf("runs.keep_days = %+v, %v", s, ok)
+	}
+	for _, v := range []string{"0", "7", "30"} {
+		if err := s.Validate(v); err != nil {
+			t.Errorf("%q: %v", v, err)
+		}
+	}
+	for _, v := range []string{"-1", "x", "", "1.5"} {
+		if err := s.Validate(v); err == nil {
+			t.Errorf("%q was accepted", v)
+		}
+	}
+	f := newFixture(t)
+	f.reg = r
+	write(t, f.projFile, "runs:\n  keep_days: 7\n")
+	if v, _ := mustLoad(t, f.opts(nil, nil)).Get("runs.keep_days"); v.Value != "7" {
+		t.Errorf("loaded %q", v.Value)
+	}
+}

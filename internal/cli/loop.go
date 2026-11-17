@@ -276,6 +276,8 @@ func printLoopEvent(w io.Writer, e loop.Event) {
 		_, _ = fmt.Fprintln(w, line)
 	case loop.EventTaskStalled:
 		_, _ = fmt.Fprintf(w, "%s  stalled: %s\n", e.Task, e.Message)
+	case loop.EventInfo:
+		_, _ = fmt.Fprintf(w, "info: %s\n", e.Message)
 	case loop.EventWarning:
 		_, _ = fmt.Fprintf(w, "warning: %s\n", e.Message)
 	}

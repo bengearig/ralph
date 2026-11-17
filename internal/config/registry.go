@@ -378,6 +378,18 @@ func DefaultRegistry() *Registry {
 			},
 		},
 		Setting{
+			Path:        "runs.keep_days",
+			Description: "Run records older than this many days are removed when a loop starts; 0 keeps them for ever",
+			Default:     "30",
+			Validate: func(v string) error {
+				n, err := strconv.Atoi(v)
+				if err != nil || n < 0 {
+					return errors.New("must be a whole number of at least 0, such as 30")
+				}
+				return nil
+			},
+		},
+		Setting{
 			Path:        "loop.harness",
 			Description: "The harness the loop runs, by adapter name; empty means the one installed harness, and several installed is an error",
 			Validate: func(v string) error {

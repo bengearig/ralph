@@ -52,6 +52,7 @@ const (
 	EventTaskDone       EventKind = "task_done"
 	EventTaskStalled    EventKind = "task_stalled"
 	EventWarning        EventKind = "warning"
+	EventInfo           EventKind = "info"
 )
 
 // Event is one thing the loop reports as it works.

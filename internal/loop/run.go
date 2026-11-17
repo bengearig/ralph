@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 )
 
 // RunInput is a prepared slice to work through.
@@ -35,6 +36,9 @@ func Run(ctx context.Context, d Deps, in RunInput) (Summary, error) {
 	if err != nil {
 		return sum, err
 	}
+	if err := trimRecords(d); err != nil {
+		return sum, err
+	}
 	for _, task := range plan.Runnable {
 		if err := ctx.Err(); err != nil {
 			return sum, err
@@ -61,6 +65,38 @@ func Run(ctx context.Context, d Deps, in RunInput) (Summary, error) {
 		sum.Stopped = plan.Stop.Reason
 	}
 	return sum, nil
+}
+
+func trimRecords(d Deps) error {
+	days, err := intSetting(d, "runs.keep_days")
+	if err != nil {
+		return err
+	}
+	if days <= 0 {
+		return nil
+	}
+	report := func(e Event) {
+		if d.Report != nil {
+			d.Report(e)
+		}
+	}
+	res, err := PurgeRecords(d.Root, PurgeSelection{OlderThan: time.Duration(days) * 24 * time.Hour}, false, time.Now())
+	if err != nil {
+		for _, e := range unwrapAll(err) {
+			report(Event{Kind: EventWarning, Message: e.Error()})
+		}
+	}
+	if res.Removed > 0 {
+		report(Event{Kind: EventInfo, Message: fmt.Sprintf("removed %d run records older than %d days", res.Removed, days)})
+	}
+	return nil
+}
+
+func unwrapAll(err error) []error {
+	if j, ok := err.(interface{ Unwrap() []error }); ok {
+		return j.Unwrap()
+	}
+	return []error{err}
 }
 
 func intSetting(d Deps, path string) (int, error) {
