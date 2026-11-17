@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "type": "doc",
+  "content": [
+    {"type": "heading", "attrs": {"level": 2}, "content": [{"type": "text", "text": "Overview"}]},
+    {"type": "paragraph", "content": [
+      {"type": "text", "text": "Reported by "},
+      {"type": "mention", "attrs": {"id": "5b10a2844c20165700ede21g", "text": "@Alex Doe", "accessLevel": ""}},
+      {"type": "text", "text": " on "},
+      {"type": "date", "attrs": {"timestamp": "1582152559000"}},
+      {"type": "text", "text": ". See "},
+      {"type": "inlineCard", "attrs": {"url": "https://example.atlassian.net/browse/PROJ-1"}},
+      {"type": "text", "text": " and "},
+      {"type": "text", "text": "the docs", "marks": [{"type": "link", "attrs": {"href": "https://example.com/docs"}}, {"type": "strong"}]},
+      {"type": "text", "text": " "},
+      {"type": "emoji", "attrs": {"shortName": ":smile:", "id": "1f604", "text": "😄"}},
+      {"type": "text", "text": " "},
+      {"type": "status", "attrs": {"text": "In progress", "color": "blue", "localId": "abc"}}
+    ]},
+    {"type": "panel", "attrs": {"panelType": "info"}, "content": [
+      {"type": "paragraph", "content": [{"type": "text", "text": "Heads up: ", "marks": [{"type": "em"}]}, {"type": "text", "text": "this is a panel."}]}
+    ]},
+    {"type": "bulletList", "content": [
+      {"type": "listItem", "content": [
+        {"type": "paragraph", "content": [{"type": "text", "text": "first"}]},
+        {"type": "orderedList", "attrs": {"order": 3}, "content": [
+          {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "nested"}]}]}
+        ]}
+      ]},
+      {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "second"}]}]}
+    ]},
+    {"type": "table", "attrs": {"isNumberColumnEnabled": false, "layout": "default"}, "content": [
+      {"type": "tableRow", "content": [
+        {"type": "tableHeader", "attrs": {}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Name"}]}]},
+        {"type": "tableHeader", "attrs": {}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Value"}]}]}
+      ]},
+      {"type": "tableRow", "content": [
+        {"type": "tableCell", "attrs": {}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "alpha"}]}]},
+        {"type": "tableCell", "attrs": {}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "1"}]}]}
+      ]}
+    ]},
+    {"type": "expand", "attrs": {"title": "Details"}, "content": [
+      {"type": "paragraph", "content": [{"type": "text", "text": "hidden text"}]}
+    ]},
+    {"type": "mediaSingle", "attrs": {"layout": "center"}, "content": [
+      {"type": "media", "attrs": {"id": "a559980d-cd47-43e2-8377-27359fcb905f", "type": "file", "collection": "MediaServicesSample", "width": 250, "height": 250}}
+    ]},
+    {"type": "codeBlock", "attrs": {"language": "go"}, "content": [{"type": "text", "text": "fmt.Println(\"hi\")\n```\nx"}]},
+    {"type": "blockquote", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "quoted"}]}]},
+    {"type": "rule"},
+    {"type": "blockCard", "attrs": {"url": "https://example.com/card"}},
+    {"type": "futureNode", "attrs": {"x": 1}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "from the future"}]}]}
+  ]
+}
