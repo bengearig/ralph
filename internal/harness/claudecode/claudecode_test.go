@@ -6,10 +6,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bengearig/ralph/internal/documents"
 	"github.com/bengearig/ralph/internal/harness"
 	"github.com/bengearig/ralph/internal/harness/harnesstest"
 	"github.com/bengearig/ralph/internal/mcpserver"
 	"github.com/bengearig/ralph/internal/quick"
+	"github.com/bengearig/ralph/internal/search"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/workflow"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -163,10 +165,12 @@ func TestSectionListsQuickCommand(t *testing.T) {
 func TestToolNamesExistOnTheServer(t *testing.T) {
 	ctx := context.Background()
 	srv := mcpserver.New(mcpserver.Options{
-		Name:    "ralph",
-		Version: "test",
-		Open:    func(context.Context) (units.Service, error) { return nil, nil },
-		Quick:   func(context.Context, units.Service) (mcpserver.Quick, error) { return stubQuick{}, nil },
+		Name:      "ralph",
+		Version:   "test",
+		Open:      func(context.Context) (units.Service, error) { return nil, nil },
+		Quick:     func(context.Context, units.Service) (mcpserver.Quick, error) { return stubQuick{}, nil },
+		Documents: func(context.Context) (documents.Service, error) { return nil, nil },
+		Search:    func(context.Context) (search.Service, error) { return nil, nil },
 	})
 	st, ct := mcp.NewInMemoryTransports()
 	ss, err := srv.Connect(ctx, st, nil)
@@ -341,5 +345,27 @@ func TestArticulateCommandUsesClaudeNames(t *testing.T) {
 	}
 	if strings.Contains(c, "{{") {
 		t.Errorf("content has an unrendered template action:\n%s", c)
+	}
+}
+
+func TestInstructionsRenderForBothHarnesses(t *testing.T) {
+	arts, err := New().Artifacts(inputs(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string][]string{
+		".claude/commands/ralph/receive.md":    {"search", "doc_create", "doc_update", "link_add"},
+		".claude/commands/ralph/articulate.md": {"search", "doc_get", "doc_create", "link_add"},
+	}
+	for _, a := range arts {
+		for _, tool := range want[a.Path] {
+			if !strings.Contains(string(a.Content), "`mcp__ralph__"+tool+"`") {
+				t.Errorf("%s lacks mcp__ralph__%s", a.Path, tool)
+			}
+		}
+		delete(want, a.Path)
+	}
+	for path := range want {
+		t.Errorf("no artifact %s", path)
 	}
 }

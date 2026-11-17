@@ -65,3 +65,30 @@ func TestProjectNotesListsArticulate(t *testing.T) {
 		}
 	}
 }
+
+func TestProjectNotesMentionDocumentsAndSearch(t *testing.T) {
+	got, _ := notesFor(t)
+	paras := strings.Split(got, "\n\n")
+	levels := -1
+	for i, p := range paras {
+		if strings.HasPrefix(p, "Work has three levels") {
+			levels = i
+		}
+	}
+	if levels < 0 || levels+1 >= len(paras) {
+		t.Fatalf("no paragraph after the levels paragraph:\n%s", got)
+	}
+	next := paras[levels+1]
+	for _, want := range []string{"`search`", "`doc_`", "`link_add`", "kind `document`"} {
+		if !strings.Contains(next, want) {
+			t.Errorf("paragraph after the levels lacks %q:\n%s", want, next)
+		}
+	}
+}
+
+func TestProjectNotesStillMentionNotices(t *testing.T) {
+	got, _ := notesFor(t)
+	if !strings.Contains(got, "Notice for the user:") {
+		t.Errorf("notes lack the notice line:\n%s", got)
+	}
+}

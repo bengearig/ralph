@@ -5,8 +5,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bengearig/ralph/internal/documents"
 	"github.com/bengearig/ralph/internal/mcpserver"
 	"github.com/bengearig/ralph/internal/quick"
+	"github.com/bengearig/ralph/internal/search"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/workflow"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -47,10 +49,12 @@ func (stubQuick) Finish(context.Context, quick.FinishInput) (quick.Finished, err
 func TestToolNamesExistOnTheServerOpenCode(t *testing.T) {
 	ctx := context.Background()
 	srv := mcpserver.New(mcpserver.Options{
-		Name:    "ralph",
-		Version: "test",
-		Open:    func(context.Context) (units.Service, error) { return nil, nil },
-		Quick:   func(context.Context, units.Service) (mcpserver.Quick, error) { return stubQuick{}, nil },
+		Name:      "ralph",
+		Version:   "test",
+		Open:      func(context.Context) (units.Service, error) { return nil, nil },
+		Quick:     func(context.Context, units.Service) (mcpserver.Quick, error) { return stubQuick{}, nil },
+		Documents: func(context.Context) (documents.Service, error) { return nil, nil },
+		Search:    func(context.Context) (search.Service, error) { return nil, nil },
 	})
 	st, ct := mcp.NewInMemoryTransports()
 	ss, err := srv.Connect(ctx, st, nil)
@@ -94,6 +98,27 @@ func TestArticulateCommandUsesBareNames(t *testing.T) {
 	for _, bad := range []string{"mcp__", "{{"} {
 		if strings.Contains(c, bad) {
 			t.Errorf("content contains %q", bad)
+		}
+	}
+}
+
+func TestInstructionsRenderForBothHarnesses(t *testing.T) {
+	for name, tools := range map[string][]string{
+		"receive":    {"search", "doc_create", "doc_update", "link_add"},
+		"articulate": {"search", "doc_get", "doc_create", "link_add"},
+	} {
+		in, ok, err := workflow.Get(name)
+		if err != nil || !ok {
+			t.Fatal(name, ok, err)
+		}
+		c := oneCommand(t, in, "ralph")
+		for _, tool := range tools {
+			if !strings.Contains(c, "`"+tool+"`") {
+				t.Errorf("%s lacks bare %s", name, tool)
+			}
+		}
+		if strings.Contains(c, "mcp__") || strings.Contains(c, "ralph_") {
+			t.Errorf("%s has a tool prefix", name)
 		}
 	}
 }

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"text/template"
+	"text/template/parse"
 )
 
 func TestAllLoadsArticulateReceiveStatusAndQuick(t *testing.T) {
@@ -286,7 +288,7 @@ func TestReceiveFrontMatter(t *testing.T) {
 }
 
 func TestReceiveToolsReferenced(t *testing.T) {
-	want := []string{"dependency_add", "note_add", "planning_settings", "status", "task_set_state", "unit_create", "unit_get", "unit_list", "unit_update"}
+	want := []string{"dependency_add", "doc_create", "doc_update", "link_add", "note_add", "planning_settings", "search", "status", "task_set_state", "unit_create", "unit_get", "unit_list", "unit_update"}
 	if got := receiveInstruction(t).Tools(); !reflect.DeepEqual(got, want) {
 		t.Errorf("Tools() = %v, want %v", got, want)
 	}
@@ -329,16 +331,139 @@ func TestReceiveHarnessNeutralBody(t *testing.T) {
 	}
 }
 
-func TestReceiveNamesNoLoopOrDocumentTools(t *testing.T) {
+func TestReceiveNamesNoLoopTools(t *testing.T) {
 	in := receiveInstruction(t)
 	for _, tool := range in.Tools() {
-		if strings.HasPrefix(tool, "doc_") || strings.Contains(tool, "loop") {
+		if strings.Contains(tool, "loop") {
 			t.Errorf("references tool %q", tool)
 		}
 	}
-	for _, bad := range []string{"doc_", "ralph loop", "document"} {
-		if strings.Contains(in.Body, bad) {
-			t.Errorf("body mentions %q", bad)
+	if strings.Contains(in.Body, "ralph loop") {
+		t.Error("body names a loop command")
+	}
+}
+
+func renderNeutral(t *testing.T, in Instruction) string {
+	t.Helper()
+	out, err := in.Render(neutralContext())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+func requireAll(t *testing.T, out string, wants ...string) {
+	t.Helper()
+	for _, want := range wants {
+		if !strings.Contains(out, want) {
+			t.Errorf("rendered text lacks %q", want)
+		}
+	}
+}
+
+func TestReceiveSearchesAndLinksDocuments(t *testing.T) {
+	requireAll(t, renderNeutral(t, receiveInstruction(t)),
+		"`search`", "`doc_create`", "`doc_update`", "`link_add`", "kind `document`",
+		"search for related briefs, tasks and documents",
+		"A decision, design or architecture that matters beyond a single note becomes a document tied to the brief",
+		"`documents` in the result",
+	)
+}
+
+func TestReceiveStillRecordsAnswersAsNotes(t *testing.T) {
+	requireAll(t, renderNeutral(t, receiveInstruction(t)), "record it with the `note_add` tool on the brief")
+}
+
+func TestArticulateReadsLinkedDocuments(t *testing.T) {
+	requireAll(t, renderNeutral(t, articulateInstruction(t)),
+		"`unit_get`", "`doc_get`", "`documents`", "`inherited_documents`",
+		"A document shown as superseded or archived is old material: check it against its replacement before relying on it",
+	)
+}
+
+func TestArticulateSearchesAndLinks(t *testing.T) {
+	requireAll(t, renderNeutral(t, articulateInstruction(t)),
+		"`search`", "`link_add`", "`doc_create`",
+		"prior decisions before asking the user a question the project may already have answered",
+		"linked to each task it affects",
+	)
+}
+
+func TestTieIsNotLinkSentence(t *testing.T) {
+	for _, in := range []Instruction{receiveInstruction(t), articulateInstruction(t)} {
+		requireAll(t, renderNeutral(t, in), "A document tied to a brief is not linked to anything until a link is made.")
+	}
+}
+
+func TestInstructionsStayNeutral(t *testing.T) {
+	all, err := All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, in := range all {
+		tmpl, err := template.New(in.Name).Funcs(template.FuncMap{
+			"tool":        func(string) string { return "" },
+			"arguments":   func() string { return "" },
+			"harnessText": func(string) string { return "" },
+		}).Parse(in.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var text strings.Builder
+		for _, n := range tmpl.Root.Nodes {
+			if tn, ok := n.(*parse.TextNode); ok {
+				text.Write(tn.Text)
+			}
+		}
+		for _, bad := range []string{"mcp__ralph__", "ralph_"} {
+			if strings.Contains(text.String(), bad) {
+				t.Errorf("%s: text outside tool calls contains %q", in.Name, bad)
+			}
+		}
+		for _, name := range in.Tools() {
+			if strings.Contains(text.String(), "`"+name+"`") {
+				t.Errorf("%s: names tool %q outside a tool call", in.Name, name)
+			}
+		}
+	}
+}
+
+func TestExistingStepsUnchanged(t *testing.T) {
+	receive := renderNeutral(t, receiveInstruction(t))
+	articulate := renderNeutral(t, articulateInstruction(t))
+	for _, want := range []string{
+		"to look for related briefs. Mention anything relevant to the user, and let them say whether the new instructions belong with an existing brief.",
+		"If `confirm_outline` is true, the outline needs the user's approval before anything in it is created.",
+		"A brief's body is never edited, so nothing the user said is lost.",
+		"Read the project's code only as far as you need to see where the work lands.",
+		"Leave implementation details to the articulate command.",
+		"Each slice must be independently reviewable and leave the result working.",
+		"Do not write acceptance criteria or detailed descriptions.",
+		"Do not end by asking whether they agree.",
+		"Never delete anything.",
+		"Suggest running the articulate command with the brief's ID, or with a slice's ID to start with one slice.",
+		"Read the brief's notes, in particular any KICKBACK notes that prompted the revision",
+		"Note each decision on the brief with the `note_add` tool.",
+		"Always get the user's approval before applying a revision, as step 9 describes.",
+		"This command does not work out task details, write acceptance criteria, promote any task, or write code.",
+	} {
+		if !strings.Contains(receive, want) {
+			t.Errorf("receive lacks %q", want)
+		}
+	}
+	for _, want := range []string{
+		"Read the brief, the notes recorded on it during receive (the clarifications the user gave), and the neighbouring slices, so you know what comes before and after.",
+		"Take the PROPOSED tasks in scope one task at a time, in slice order and then position order.",
+		"Read the code it will touch.",
+		"Do not ask what the brief, its notes or the code already answer.",
+		"Do this without asking for separate permission.",
+		"Each task must be small enough to finish in one iteration and must never depend on a later task.",
+		"Explain the problem to the user, and suggest planning the brief again with the receive command and the brief's ID.",
+		"Leave TODO tasks alone unless the user wants to revisit one.",
+		"This command writes no production code.",
+	} {
+		if !strings.Contains(articulate, want) {
+			t.Errorf("articulate lacks %q", want)
 		}
 	}
 }
@@ -363,7 +488,7 @@ func TestArticulateFrontMatter(t *testing.T) {
 }
 
 func TestArticulateToolsReferenced(t *testing.T) {
-	want := []string{"dependency_add", "note_add", "status", "task_set_state", "unit_create", "unit_get", "unit_update"}
+	want := []string{"dependency_add", "doc_create", "doc_get", "link_add", "note_add", "search", "status", "task_set_state", "unit_create", "unit_get", "unit_update"}
 	if got := articulateInstruction(t).Tools(); !reflect.DeepEqual(got, want) {
 		t.Errorf("Tools() = %v, want %v", got, want)
 	}
