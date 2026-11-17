@@ -86,6 +86,10 @@ Bitbucket Cloud has two kinds of credential, told apart by `bitbucket.user`:
 - A repository, project or workspace access token with `bitbucket.user` empty. It is sent as a Bearer token and acts as
   a bot identity, so pull requests are the bot's. It only reaches what it was created for.
 
+Jira, the task manager of [task-manager-and-issues.md](task-manager-and-issues.md), takes the same kind of Atlassian
+credential for its own site: an API token named by `jira.token` and the account email in `jira.user`. It is a separate
+setting from `bitbucket.token`, because the two systems are reached at different addresses.
+
 Either needs permission to read and write pull requests. A missing or rejected credential is an unauthorized error naming
 `bitbucket.token`, and `bitbucket.user` when Basic authentication was used. A forbidden answer is the same error, and says
 which permission is missing.

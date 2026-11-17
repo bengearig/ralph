@@ -15,7 +15,8 @@ description with the ticket's description.
 - Which side is the source of truth is configurable. The supported arrangements include ralph as the source with
   changes pushed out, the outside system as the source with changes copied in, and the outside system as the only holder
   of some data with ralph reading through to it.
-- Which arrangements exist in the first release is decided in [0020](0020-task-manager-and-issue-source.md).
+- Which arrangements exist in the first release is decided in [0020](0020-task-manager-and-issue-source.md); the first
+  release has ralph as the source with changes pushed out to the task manager.
 
 ## Alternatives rejected
 

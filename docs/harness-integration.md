@@ -36,6 +36,11 @@ provider. It names what differs and asks the agent to put the question to the us
 cost money. The project instruction entries that ralph writes say that a notice can ask for a decision: the agent
 relays it, asks the user, and does nothing until they answer.
 
+When tickets differ from ralph's values because a person edited them in Jira, or failed to sync, the MCP server adds a
+notice with the code `tickets_need_attention` to a tool result, once for each session, reading only the local ticket rows.
+It says what differs and asks the agent to put the question to the user: the agent does not run `ralph tickets accept` or
+`overwrite` on its own. See [task-manager-and-issues.md](task-manager-and-issues.md).
+
 The MCP server covers only what agents need. The CLI covers what people run, such as installing integration files and
 monitoring. Actions an agent needs to finish its own work, such as finalizing quick work, are MCP tools, and
 [0007](decisions/0007-orphan-task-delivery.md) also names a CLI form for it. Quick start and finish are both a command
@@ -208,7 +213,9 @@ before the one ralph supports. `ralph init` prints the reason and skips an unsup
 `ralph init --harness opencode` fails before writing anything.
 
 The project notes name tools by their bare names and say how commands are written in each harness, so they are the
-same for every harness. Two harnesses that read one instruction file, such as Claude Code and OpenCode with a
+same for every harness. They also say that ralph can mirror units to Jira tickets and keeps ralph's values, and that when a notice such as
+`tickets_need_attention` says tickets differ or failed, the agent tells the user and lets them choose between
+`ralph tickets accept` and `ralph tickets overwrite`. Two harnesses that read one instruction file, such as Claude Code and OpenCode with a
 `CLAUDE.md`, share one section, and the second application is reported as unchanged.
 
 ## Workflow instructions

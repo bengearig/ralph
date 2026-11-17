@@ -36,6 +36,16 @@ contain it, and it can be deleted and filled again with `ralph index`. A rebuild
 runs from writing at once. Both are excluded from version control, and the rebuild file can be deleted to start a
 rebuild again. See [documents-and-search.md](documents-and-search.md).
 
+## Tickets
+
+When the task manager is on, the database keeps a row for each unit that has a ticket, and a small table of the pass's
+own state (the time of the last read for edits made in Jira, and the time a rate limit lasts until). A lock file
+`.ralph/tickets.lock` keeps two ticket passes from running at once: an automatic pass that finds it held does nothing,
+and a command says that another sync is running. The lock file is excluded from version control and is made only when a
+pass runs, so it does not exist when `taskmanager.provider` is `none`. The rows are the record of what was pushed, not a
+copy of the tickets; deleting them makes ralph adopt the tickets by their links and labels, not create them again. See
+[task-manager-and-issues.md](task-manager-and-issues.md).
+
 ## Upgrades
 
 - The database stores its schema version.

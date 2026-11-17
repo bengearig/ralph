@@ -39,5 +39,10 @@ linked, and the source of truth is configurable.
   [0018](0018-configuration-layers-scope-and-secrets.md).
 - A ticket can be created by a person, read by ralph as an issue, and then updated by ralph as a unit's mirror. Ralph
   must never create a duplicate for it.
-- A change made in the task manager to data ralph owns needs a defined result. This is open.
+- A change made in the task manager to data ralph owns: ralph keeps its own value and reports the difference, nothing is
+  pushed over it, and the user chooses to accept Jira's value or to overwrite it. Neither is ever automatic.
+- The task manager of the first release is Jira Cloud only. The requests were written from Atlassian's published API and
+  are checked against a stub; a live check against a real site is how they are verified there.
+- A ticket carries a label that names the unit it was made for, so a ticket made just before ralph could record it is
+  found and adopted, and no duplicate is created.
 - The per-level mapping adds configuration, and a level's mapping must be valid for the system's ticket types.

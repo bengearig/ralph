@@ -8,9 +8,6 @@ Status: draft
 | Should search cover tickets and issues after the first release? | documents |
 | Is the fixed set of levels right, or should nesting be arbitrary? | concepts, workflow |
 | Does the same in-session option apply to feature work, or only to orphan tasks? | workflow |
-| What does ralph do when a ticket whose data it owns is changed in the task manager (overwrite, warn, import)? | task-manager-and-issues |
-| Is the bottom unit mapped to tickets by default, and what are the defaults for other levels? | task-manager-and-issues |
-| How are ralph's states mapped to Jira's workflow states, including workflows that do not allow every jump? | task-manager-and-issues |
 | When a unit starts from a Jira ticket whose type the level mapping does not cover, what does ralph do? | task-manager-and-issues |
 | Does ralph comment on or move an issue it started work from, beyond the reference in the pull request? | task-manager-and-issues |
 | What does the issue-source interface look like (listing, searching, reading), and how does a user find an issue to start from? | task-manager-and-issues |

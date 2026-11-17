@@ -54,6 +54,14 @@ The project is under construction. The design is in [docs/](docs/README.md).
   or by the user-only setting `follow_up.auto`, which is empty by default; `follow_up.delete_branches` (`local` by
   default, `both` or `none`) says which branches a close deletes, and only when the branch holds nothing the merged pull
   request did not have.
+- Jira Cloud can hold a ticket for each brief and slice: set `taskmanager.provider` to `jira` and the user-only
+  `jira.site`, `jira.user` and `jira.token` (a reference such as `env:JIRA_TOKEN`) and the project `jira.project`. Ralph
+  pushes after each command or tool call that wrote something, `ralph tickets` lists the tickets and
+  `ralph tickets sync` pushes on demand, and a ticket a person edited in Jira is held until `ralph tickets accept` or
+  `ralph tickets overwrite`; see [docs/task-manager-and-issues.md](docs/task-manager-and-issues.md). The requests were
+  written from Atlassian's published API and are checked against a stub; `RALPH_JIRA_LIVE=1` with `RALPH_JIRA_SITE`,
+  `RALPH_JIRA_USER`, `RALPH_JIRA_TOKEN` and `RALPH_JIRA_PROJECT` runs the checks against a real site, in a project you
+  can write to, and `RALPH_JIRA_DELETE=1` removes the tickets the checks made.
 - `ralph runs purge` removes run records under `.ralph/runs/` (`--older-than DURATION`, `--slice <ID>`; it lists unless
   `--yes`), and a loop removes those older than `runs.keep_days` when it starts.
 - Headless runs, which the loop uses, are set by `headless.permissions` (user-only, `restricted` by default or `auto`),
