@@ -55,5 +55,10 @@ func planOne(o Observation, opt PlanOptions) []Followup {
 		(o.LocalBranchExists || (opt.DeleteBranches == DeleteBoth && o.RemoteBranchExists)) {
 		out = append(out, add(KindClose, "delete branch "+o.LocalBranch))
 	}
+	if state == units.PullRequestMerged && o.NextSlice != "" {
+		f := add(KindContinue, "start the loop for "+o.NextSlice)
+		f.Number, f.Next = 0, o.NextSlice
+		out = append(out, f)
+	}
 	return out
 }

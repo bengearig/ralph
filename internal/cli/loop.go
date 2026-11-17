@@ -90,25 +90,37 @@ func runLoop(cmd *cobra.Command, a *app, sliceID string, f loopFlags) error {
 	}
 	defer func() { _ = d.Close() }()
 
+	deps, choice, err := buildLoopDeps(ctx, a, d, f)
+	if err != nil {
+		return err
+	}
+	return executeLoop(ctx, cmd.OutOrStdout(), deps, choice, sliceID, f.dryRun)
+}
+
+// buildLoopDeps chooses the harness, model and permissions from the flags and
+// settings and builds the loop's dependencies.
+func buildLoopDeps(ctx context.Context, a *app, d *db.DB, f loopFlags) (loop.Deps, loopChoice, error) {
 	choice, err := chooseLoopSettings(ctx, a, f)
 	if err != nil {
-		return err
+		return loop.Deps{}, choice, err
 	}
 	deps, err := newLoopDeps(a, d, choice)
-	if err != nil {
-		return err
-	}
-	out := cmd.OutOrStdout()
+	return deps, choice, err
+}
+
+// executeLoop prepares and runs the loop for a slice, printing to out. A stall
+// and an interruption end in an exitStatusError.
+func executeLoop(ctx context.Context, out io.Writer, deps loop.Deps, choice loopChoice, sliceID string, dryRun bool) error {
 	deps.Report = func(e loop.Event) { printLoopEvent(out, e) }
 
-	plan, err := loop.Prepare(ctx, deps, loop.PrepareInput{Slice: sliceID, DryRun: f.dryRun})
+	plan, err := loop.Prepare(ctx, deps, loop.PrepareInput{Slice: sliceID, DryRun: dryRun})
 	if err != nil {
 		return err
 	}
 	defer plan.Close()
 
 	printLoopHeader(out, plan, choice, deps.Verify.Commands)
-	if f.dryRun {
+	if dryRun {
 		printLoopTasks(out, plan)
 		return nil
 	}

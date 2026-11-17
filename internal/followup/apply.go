@@ -29,9 +29,12 @@ type ApplyResult struct {
 	NotApplied      int      `json:"not_applied"`
 	Failures        []string `json:"failures"`
 	NothingObserved bool     `json:"nothing_observed"`
+	// LoopStatus is the non-zero status of the loop a continue follow-up
+	// started, or 1 when the runner failed without one.
+	LoopStatus int `json:"loop_status"`
 }
 
-var kindFlags = map[Kind]string{KindClose: "--close", KindFeedback: "--feedback"}
+var kindFlags = map[Kind]string{KindClose: "--close", KindFeedback: "--feedback", KindContinue: "--continue"}
 
 // Apply observes the slices, records what the host reports, and applies the
 // follow-ups of the selected kinds. A failure of one applier is reported and
@@ -63,6 +66,7 @@ func Apply(ctx context.Context, d Deps, opt ApplyOptions) (ApplyResult, error) {
 	kinds := append([]Kind(nil), opt.Kinds...)
 	sort.SliceStable(kinds, func(i, j int) bool { return kinds[i].Order() < kinds[j].Order() })
 
+	continued := false
 	for _, o := range obs.Observations {
 		id := o.Slice.ID
 		if err := ctx.Err(); err != nil {
@@ -87,6 +91,12 @@ func Apply(ctx context.Context, d Deps, opt ApplyOptions) (ApplyResult, error) {
 			res.Recorded++
 			res.Lines = append(res.Lines, fmt.Sprintf("recorded %s: %s", id, change.Message))
 			o.Record.State = units.PullRequestState(o.PullRequest.State)
+			if o.Record.State == units.PullRequestMerged && o.NextSlice == "" {
+				if o.NextSlice, err = NextSlice(ctx, d.Units, o.Slice); err != nil {
+					fail("%s: look for the next slice: %v", id, err)
+					continue
+				}
+			}
 		}
 
 		for _, f := range Plan([]Observation{o}, popt) {
@@ -103,6 +113,18 @@ func Apply(ctx context.Context, d Deps, opt ApplyOptions) (ApplyResult, error) {
 				applyFeedback(ctx, d, id, &res, fail)
 			case f.Kind == KindClose:
 				applyClose(ctx, d, o, &res, fail)
+			case f.Kind == KindContinue:
+				switch {
+				case continued:
+					res.NotApplied++
+					res.Lines = append(res.Lines, "not applied: continue: only one slice is started per run")
+				case d.Loop == nil:
+					res.NotApplied++
+					res.Lines = append(res.Lines, "not applied: continue: no loop runner")
+				default:
+					continued = true
+					applyContinue(ctx, d, f, &res, fail)
+				}
 			}
 		}
 	}
@@ -160,5 +182,21 @@ func applyClose(ctx context.Context, d Deps, o Observation, res *ApplyResult, fa
 	}
 	if err != nil {
 		fail("%s: close failed: %v", id, err)
+	}
+}
+
+func applyContinue(ctx context.Context, d Deps, f Followup, res *ApplyResult, fail func(string, ...any)) {
+	cr, err := Continue(ctx, d, d.Loop, f)
+	res.Lines = append(res.Lines, cr.Lines...)
+	res.LoopStatus = cr.Status
+	if err != nil {
+		if res.LoopStatus == 0 {
+			res.LoopStatus = 1
+		}
+		fail("%s: continue failed: %v", f.Slice, err)
+		return
+	}
+	if cr.Status != 0 {
+		fail("%s: the loop for %s ended with status %d", f.Slice, cr.Slice, cr.Status)
 	}
 }

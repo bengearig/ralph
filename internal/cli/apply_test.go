@@ -90,7 +90,7 @@ func TestApplyOutputGolden(t *testing.T) {
 func TestApplyNothingAppliedHint(t *testing.T) {
 	e, _ := applyEnv(t)
 	code, stdout, _ := run(t, "apply")
-	hint := "nothing was applied; name what to apply with --close or --feedback, or set follow_up.auto\n"
+	hint := "nothing was applied; name what to apply with --close, --feedback or --continue, or set follow_up.auto\n"
 	if code != 0 || !strings.HasSuffix(stdout, hint) || !branchExists(e) || len(e.tasks(t)) != 2 {
 		t.Errorf("code = %d, stdout = %q", code, stdout)
 	}
@@ -175,7 +175,7 @@ func TestApplyHelpListsFlags(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d", code)
 	}
-	for _, s := range []string{"--close", "--feedback", "--json", "follow_up.auto"} {
+	for _, s := range []string{"--close", "--feedback", "--continue", "--json", "follow_up.auto"} {
 		if !strings.Contains(stdout, s) {
 			t.Errorf("help lacks %s:\n%s", s, stdout)
 		}

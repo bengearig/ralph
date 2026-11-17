@@ -38,6 +38,8 @@ type Followup struct {
 	Summary string `json:"summary"`
 	// Number is the pull request the follow-up is about.
 	Number int `json:"number"`
+	// Next is the slice a continue follow-up starts.
+	Next string `json:"next,omitempty"`
 }
 
 // Branch deletion modes.

@@ -23,7 +23,7 @@ import (
 var harnessNames = []string{"claude-code", "opencode"}
 
 // followUpAutoKinds are the entries follow_up.auto accepts.
-var followUpAutoKinds = []string{"close", "feedback"}
+var followUpAutoKinds = []string{"close", "feedback", "continue"}
 
 // Scope says which files may set a setting.
 type Scope int
@@ -254,7 +254,7 @@ func DefaultRegistry() *Registry {
 		},
 		Setting{
 			Path:        "follow_up.auto",
-			Description: "The kinds of follow-up that ralph apply with no flags, and ralph monitor --watch --apply, apply by themselves: close and feedback; each kind is applied with the same checks as when a flag names it",
+			Description: "The kinds of follow-up that ralph apply with no flags, and ralph monitor --watch --apply, apply by themselves: close, feedback and continue; each kind is applied with the same checks as when a flag names it, and continue starts the loop for the next slice of a brief after a merge, which runs a coding agent and spends money",
 			Kind:        KindList,
 			Scope:       ScopeUser,
 			ValidateItem: func(v string) error {

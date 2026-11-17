@@ -30,15 +30,16 @@ func TestFollowUpAutoSetting(t *testing.T) {
 		"close":    {`["close"]`, []string{"close"}},
 		"feedback": {`["feedback"]`, []string{"feedback"}},
 		"both":     {`["close", "feedback"]`, []string{"close", "feedback"}},
+		"continue": {`["close", "feedback", "continue"]`, []string{"close", "feedback", "continue"}},
 	} {
 		c := mustLoad(t, f.opts(map[string]string{"RALPH_FOLLOW_UP_AUTO": tc.value}, nil))
 		if l, _ := c.List("follow_up.auto"); !slices.Equal(l, tc.want) {
 			t.Errorf("%s: list = %q, want %q", name, l, tc.want)
 		}
 	}
-	for name, value := range map[string]string{"continue": `["continue"]`, "all": `["all"]`, "empty": `["close", ""]`, "mixed": `["close", "all"]`} {
+	for name, value := range map[string]string{"all": `["all"]`, "empty": `["close", ""]`, "mixed": `["close", "all"]`} {
 		ps := loadProblems(t, f, map[string]string{"RALPH_FOLLOW_UP_AUTO": value})
-		if len(ps) != 1 || !strings.Contains(ps[0].Message, "close, feedback") {
+		if len(ps) != 1 || !strings.Contains(ps[0].Message, "close, feedback, continue") {
 			t.Errorf("%s: problems = %+v", name, ps)
 		}
 	}
@@ -74,5 +75,22 @@ func TestFollowUpAutoFromEnvironment(t *testing.T) {
 	}
 	if v, _ := c.Get("follow_up.auto"); v.Layer != LayerEnv {
 		t.Errorf("layer = %v", v.Layer)
+	}
+}
+
+func TestFollowUpAutoAcceptsContinue(t *testing.T) {
+	f := newFixture(t)
+	f.reg = DefaultRegistry()
+	c := mustLoad(t, f.opts(map[string]string{"RALPH_FOLLOW_UP_AUTO": `["close", "feedback", "continue"]`}, nil))
+	if l, _ := c.List("follow_up.auto"); !slices.Equal(l, []string{"close", "feedback", "continue"}) {
+		t.Errorf("list = %q", l)
+	}
+	ps := loadProblems(t, f, map[string]string{"RALPH_FOLLOW_UP_AUTO": `["start"]`})
+	if len(ps) != 1 || !strings.Contains(ps[0].Message, "close, feedback, continue") {
+		t.Errorf("problems = %+v", ps)
+	}
+	write(t, f.projFile, "follow_up:\n  auto:\n    - continue\n")
+	if l, _ := mustLoad(t, f.opts(nil, nil)).List("follow_up.auto"); len(l) != 0 {
+		t.Errorf("project file set follow_up.auto: %q", l)
 	}
 }

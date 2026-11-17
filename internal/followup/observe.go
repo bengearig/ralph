@@ -20,6 +20,8 @@ type Deps struct {
 	Provider  func(context.Context) (hosting.Provider, error)
 	// DeleteBranches is local, both or none; empty means local.
 	DeleteBranches string
+	// Loop runs the loop for a continue follow-up; nil means none can run.
+	Loop LoopRunner
 }
 
 // ObserveOptions says which slices to observe and whether to ask the host.
@@ -45,7 +47,10 @@ type Observation struct {
 	LocalBranchExists bool
 	// RemoteBranchExists is set only for a merged slice with DeleteBranches both.
 	RemoteBranchExists bool
-	Err                error
+	// NextSlice is the slice a continue follow-up would start; set only for a
+	// merged slice that has one.
+	NextSlice string
+	Err       error
 }
 
 // ObserveResult is what Observe saw. A provider that could not be built and a
@@ -97,6 +102,11 @@ func Observe(ctx context.Context, d Deps, opt ObserveOptions) (ObserveResult, er
 			_, o.RemoteBranchExists, err = d.Workspace.RemoteBranchTip(ctx, d.PR.Config.Remote, o.LocalBranch)
 			if err != nil && o.Err == nil {
 				o.Err = fmt.Errorf("look for branch %s on %s: %w", o.LocalBranch, d.PR.Config.Remote, err)
+			}
+		}
+		if effectiveState(o) == units.PullRequestMerged {
+			if o.NextSlice, err = NextSlice(ctx, d.Units, s.slice); err != nil && o.Err == nil {
+				o.Err = err
 			}
 		}
 		res.Observations = append(res.Observations, o)
