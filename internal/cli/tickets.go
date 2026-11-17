@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -38,6 +39,7 @@ func newTicketsCommand(a *app) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print JSON")
 	cmd.AddCommand(newTicketsSyncCommand(a))
+	cmd.AddCommand(newTicketsCheckCommand(a))
 	return cmd
 }
 
@@ -89,6 +91,112 @@ func newTicketsSyncCommand(a *app) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print JSON")
 	return cmd
+}
+
+func newTicketsCheckCommand(a *app) *cobra.Command {
+	var asJSON bool
+	cmd := &cobra.Command{
+		Use:   "check [<unit>...]",
+		Short: "Look for tickets changed in the task manager and record the differences",
+		Long: "Read the tickets of the units (all that have one, when none are named) and record where they differ from what ralph\n" +
+			"last pushed: the title, the body, the status, or a ticket that no longer exists. A ticket that moved to a new key is followed.\n" +
+			"Nothing is changed in ralph's units or in the task manager. The command exits 1 only when the task manager cannot be\n" +
+			"reached or refuses.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
+			d, system, settings, err := openTicketsEnv(ctx, a)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = d.Close() }()
+			deps := tickets.Deps{
+				Units: units.NewService(d), DB: d, System: system, Settings: settings,
+				ProjectID: a.setting("project.id"), Dir: project.RalphDir(a.root), Now: time.Now,
+			}
+			res, err := tickets.Check(ctx, deps, tickets.ObserveOptions{Units: args})
+			if err != nil {
+				return err
+			}
+			out := cmd.OutOrStdout()
+			if asJSON {
+				return writeJSON(out, checkJSON(res))
+			}
+			return writeCheck(out, res)
+		},
+	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "print JSON")
+	return cmd
+}
+
+type driftJSON struct {
+	Unit    string   `json:"unit"`
+	Key     string   `json:"key"`
+	Fields  []string `json:"fields"`
+	MovedTo string   `json:"moved_to"`
+}
+
+type checkReportJSON struct {
+	Drifts   []driftJSON `json:"drifts"`
+	Found    int         `json:"found"`
+	Cleared  int         `json:"cleared"`
+	Followed int         `json:"followed"`
+}
+
+func checkJSON(res tickets.CheckResult) checkReportJSON {
+	out := checkReportJSON{Drifts: make([]driftJSON, 0, len(res.Drifts)), Found: res.Result.Found, Cleared: res.Result.Cleared, Followed: res.Result.Followed}
+	for _, dr := range res.Drifts {
+		fields := dr.Fields
+		if fields == nil {
+			fields = []string{}
+		}
+		out.Drifts = append(out.Drifts, driftJSON{Unit: dr.Unit, Key: dr.Key, Fields: fields, MovedTo: dr.MovedTo})
+	}
+	return out
+}
+
+func writeCheck(out io.Writer, res tickets.CheckResult) error {
+	differing := 0
+	for _, dr := range res.Drifts {
+		if len(dr.Fields) == 0 {
+			continue
+		}
+		differing++
+		if _, err := fmt.Fprintf(out, "%s %s: %s\n", dr.Unit, dr.Key, driftText(dr.Fields)); err != nil {
+			return err
+		}
+	}
+	for _, dr := range res.Drifts {
+		if dr.MovedTo == "" {
+			continue
+		}
+		if _, err := fmt.Fprintf(out, "followed %s %s -> %s (moved in Jira)\n", dr.Unit, dr.Key, dr.MovedTo); err != nil {
+			return err
+		}
+	}
+	if differing == 0 {
+		_, err := fmt.Fprintln(out, "tickets: no differences")
+		return err
+	}
+	_, err := fmt.Fprintf(out, "tickets: %d with differences\n", differing)
+	return err
+}
+
+func driftText(fields []string) string {
+	if len(fields) == 1 && fields[0] == "deleted" {
+		return "ticket no longer exists in Jira"
+	}
+	return joinAnd(fields) + " differ in Jira"
+}
+
+func joinAnd(items []string) string {
+	switch len(items) {
+	case 1:
+		return items[0]
+	case 2:
+		return items[0] + " and " + items[1]
+	}
+	return strings.Join(items[:len(items)-1], ", ") + " and " + items[len(items)-1]
 }
 
 // openTicketsEnv opens the database and the task manager; the database comes first so a project that is not

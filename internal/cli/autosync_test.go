@@ -158,7 +158,7 @@ func TestPostRunWarningCountsAndPlural(t *testing.T) {
 	f.syncedWithEdits(s.slice)
 	f.srv.FailWith(http.StatusServiceUnavailable, "down")
 	_, _, stderr := run(t, f.writeCommand(s)...)
-	if stderr != `ralph: warning: 1 ticket failed to sync; run "ralph tickets"`+"\n" {
+	if !strings.HasSuffix(stderr, `ralph: warning: 1 ticket failed to sync; run "ralph tickets"`+"\n") || strings.Contains(stderr, "tickets failed") {
 		t.Fatalf("stderr = %q", stderr)
 	}
 }

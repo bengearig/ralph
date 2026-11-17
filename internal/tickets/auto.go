@@ -92,9 +92,26 @@ func Auto(ctx context.Context, d Deps) error {
 		return nil
 	}
 	d.Report = nil
+	poll(ctx, d)
 	_, err := Sync(ctx, d, SyncOptions{Automatic: true})
 	if errors.Is(err, ErrSyncBusy) || errors.Is(err, ErrPaused) {
 		return nil
 	}
 	return err
+}
+
+// poll checks the tickets for edits made in the system when the last check is older than the poll interval. A
+// failure is logged and does not stop the pass.
+func poll(ctx context.Context, d Deps) {
+	last, err := NewStore(d.DB).State(ctx, stateLastPoll)
+	if err != nil {
+		slog.Warn("ticket poll failed", "error", err)
+		return
+	}
+	if at, perr := time.Parse(time.RFC3339, last); perr == nil && d.now().Sub(at) < d.Settings.PollInterval {
+		return
+	}
+	if _, err := Check(ctx, d, ObserveOptions{}); err != nil {
+		slog.Warn("ticket poll failed", "error", err)
+	}
 }
