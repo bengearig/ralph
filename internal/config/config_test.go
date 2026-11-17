@@ -103,7 +103,7 @@ func TestDefaultRegistry(t *testing.T) {
 	for _, s := range got {
 		paths = append(paths, s.Path)
 	}
-	want := []string{"bitbucket.api_url", "bitbucket.repo", "bitbucket.token", "bitbucket.user", "bitbucket.workspace", "documents.versions.keep", "git.branch_template", "git.commit_template", "git.commit_trailer", "github.api_url", "github.owner", "github.repo", "github.token", "log.level", "plan.confirm_outline", "pr.base_branch", "pr.draft", "pr.provider", "pr.remote", "pr.timeout", "project.id", "storage.backups.keep", "storage.migrate", "verify.commands", "verify.timeout"}
+	want := []string{"bitbucket.api_url", "bitbucket.repo", "bitbucket.token", "bitbucket.user", "bitbucket.workspace", "documents.export.dir", "documents.versions.keep", "git.branch_template", "git.commit_template", "git.commit_trailer", "github.api_url", "github.owner", "github.repo", "github.token", "log.level", "plan.confirm_outline", "pr.base_branch", "pr.draft", "pr.provider", "pr.remote", "pr.timeout", "project.id", "storage.backups.keep", "storage.migrate", "verify.commands", "verify.timeout"}
 	if !slices.Equal(paths, want) {
 		t.Fatalf("settings = %v, want %v", paths, want)
 	}

@@ -3,8 +3,10 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os/signal"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -12,7 +14,9 @@ import (
 	"time"
 
 	"github.com/bengearig/ralph/internal/db"
+	"github.com/bengearig/ralph/internal/docexport"
 	"github.com/bengearig/ralph/internal/documents"
+	"github.com/bengearig/ralph/internal/units"
 	"github.com/spf13/cobra"
 )
 
@@ -51,7 +55,7 @@ func newDocsCommand(a *app) *cobra.Command {
 			return cmd.Help()
 		},
 	}
-	cmd.AddCommand(newDocsPurgeCommand(a))
+	cmd.AddCommand(newDocsPurgeCommand(a), newDocsExportCommand(a))
 	return cmd
 }
 
@@ -160,4 +164,151 @@ func newDocsPurgeCommand(a *app) *cobra.Command {
 	cmd.Flags().BoolVar(&yes, "yes", false, "remove the versions instead of listing them")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print one JSON object")
 	return cmd
+}
+
+type exportJSONFile struct {
+	Path   string `json:"path"`
+	ID     string `json:"id"`
+	Action string `json:"action"`
+}
+
+type exportJSONConflict struct {
+	Path string `json:"path"`
+	ID   string `json:"id"`
+}
+
+type exportJSON struct {
+	Dir       string               `json:"dir"`
+	Files     []exportJSONFile     `json:"files"`
+	Created   int                  `json:"created"`
+	Updated   int                  `json:"updated"`
+	Removed   int                  `json:"removed"`
+	Unchanged int                  `json:"unchanged"`
+	Conflicts []exportJSONConflict `json:"conflicts"`
+}
+
+func newDocsExportCommand(a *app) *cobra.Command {
+	var (
+		check  bool
+		asJSON bool
+	)
+	cmd := &cobra.Command{
+		Use:   "export",
+		Short: "Write the active documents to generated markdown files",
+		Long: "Write one generated markdown file per active document into the directory of the setting documents.export.dir.\n" +
+			"Files there that ralph generated are overwritten, and removed when their document is no longer exported.\n" +
+			"Other files are never changed; a planned name taken by one is reported as a conflict and the command exits 1.\n" +
+			"With --check nothing is written; the command exits 1 if an export would change anything or conflict.\n" +
+			"Nothing is committed.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
+			d, err := openStore(ctx, a, db.Options{MustExist: true})
+			if errors.Is(err, fs.ErrNotExist) {
+				return errors.New(errNoDatabase)
+			}
+			if err != nil {
+				return err
+			}
+			defer func() { _ = d.Close() }()
+
+			setting, ok := a.cfg.Get("documents.export.dir")
+			if !ok {
+				return errors.New("documents.export.dir is not set")
+			}
+			relDir := path.Clean(setting.Value)
+			dir, err := docexport.ResolveDir(a.root, relDir)
+			if err != nil {
+				return err
+			}
+			plan, err := docexport.BuildPlan(ctx, newDocumentsService(a, d), units.NewService(d), dir)
+			if err != nil {
+				return err
+			}
+
+			var res docexport.Result
+			if check {
+				res = tallyPlan(plan)
+			} else if res, err = plan.Apply(); err != nil {
+				return err
+			}
+
+			out := cmd.OutOrStdout()
+			if asJSON {
+				doc := exportJSON{
+					Dir: relDir, Files: []exportJSONFile{}, Conflicts: []exportJSONConflict{},
+					Created: res.Created, Updated: res.Updated, Removed: res.Removed, Unchanged: res.Unchanged,
+				}
+				for _, c := range plan.Changes {
+					p := path.Join(relDir, c.Name)
+					doc.Files = append(doc.Files, exportJSONFile{Path: p, ID: c.ID, Action: string(c.Action)})
+					if c.Action == docexport.ActionConflict {
+						doc.Conflicts = append(doc.Conflicts, exportJSONConflict{Path: p, ID: c.ID})
+					}
+				}
+				if err := writeJSON(out, doc); err != nil {
+					return err
+				}
+			} else {
+				writeExportText(out, relDir, plan, check)
+				changes := res.Created + res.Updated + res.Removed
+				switch {
+				case !check:
+					_, _ = fmt.Fprintf(out, "exported: created %d, updated %d, removed %d, unchanged %d\n", res.Created, res.Updated, res.Removed, res.Unchanged)
+				case changes == 0 && len(res.Conflicts) == 0:
+					_, _ = fmt.Fprintln(out, "up to date")
+				}
+			}
+
+			switch changes := res.Created + res.Updated + res.Removed; {
+			case len(res.Conflicts) > 0 && check:
+				return &reportedError{errors.New("export would conflict")}
+			case len(res.Conflicts) > 0:
+				return &reportedError{errors.New("export left conflicts")}
+			case check && changes > 0:
+				return &reportedError{errors.New("export would change files")}
+			}
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&check, "check", false, "write nothing; exit 1 if the export would change a file or conflict")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "print one JSON object")
+	return cmd
+}
+
+func tallyPlan(p docexport.Plan) docexport.Result {
+	var res docexport.Result
+	for _, c := range p.Changes {
+		switch c.Action {
+		case docexport.ActionCreated:
+			res.Created++
+		case docexport.ActionUpdated:
+			res.Updated++
+		case docexport.ActionRemoved:
+			res.Removed++
+		case docexport.ActionUnchanged:
+			res.Unchanged++
+		case docexport.ActionConflict:
+			res.Conflicts = append(res.Conflicts, c)
+		}
+	}
+	return res
+}
+
+func writeExportText(out io.Writer, relDir string, p docexport.Plan, check bool) {
+	for _, c := range p.Changes {
+		file := path.Join(relDir, c.Name)
+		switch c.Action {
+		case docexport.ActionConflict:
+			_, _ = fmt.Fprintf(out, "conflict %s: %s\n", file, c.Detail)
+		case docexport.ActionUnchanged:
+		case docexport.ActionCreated, docexport.ActionUpdated, docexport.ActionRemoved:
+			verb := string(c.Action)
+			if check {
+				verb = "would " + strings.TrimSuffix(verb, "d")
+			}
+			_, _ = fmt.Fprintf(out, "%s %s\n", verb, file)
+		}
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -149,6 +150,12 @@ func DefaultRegistry() *Registry {
 				}
 				return nil
 			},
+		},
+		Setting{
+			Path:        "documents.export.dir",
+			Description: "Directory, relative to the project root, that receives one generated markdown file per active document; files in it that ralph generated are overwritten and removed when stale",
+			Default:     "docs/ralph",
+			Validate:    validateExportDir,
 		},
 		Setting{
 			Path:        "github.owner",
@@ -380,4 +387,29 @@ func validateAPIURL(v string) error {
 		}
 	}
 	return errors.New("must use https unless the host is a loopback address")
+}
+
+func validateExportDir(v string) error {
+	switch {
+	case v == "":
+		return errors.New("must not be empty")
+	case strings.ContainsRune(v, '\\'):
+		return errors.New("must use forward slashes")
+	case strings.HasPrefix(v, "/") || (len(v) >= 2 && v[1] == ':'):
+		return errors.New("must be relative to the project root")
+	}
+	clean := path.Clean(v)
+	if clean == "." {
+		return errors.New("must be a directory below the project root, not the root itself")
+	}
+	elems := strings.Split(clean, "/")
+	for _, e := range elems {
+		if e == ".." {
+			return errors.New("must stay inside the project: no \"..\" element")
+		}
+	}
+	if elems[0] == ".git" || elems[0] == ".ralph" {
+		return fmt.Errorf("must not be inside %s", elems[0])
+	}
+	return nil
 }
