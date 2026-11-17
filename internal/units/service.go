@@ -47,6 +47,9 @@ type Service interface {
 	// RecordPullRequest inserts a pull request of a slice, or updates the URL,
 	// branches and state of the one with the same number.
 	RecordPullRequest(ctx context.Context, rec PullRequestRecord) error
+	// SetPullRequestState sets the state of a recorded pull request; the
+	// record must exist (ErrNotFound) and the state must be valid.
+	SetPullRequestState(ctx context.Context, sliceID string, number int, state PullRequestState) error
 	// PullRequests returns a slice's pull requests, oldest first.
 	PullRequests(ctx context.Context, sliceID string) ([]PullRequestRecord, error)
 }

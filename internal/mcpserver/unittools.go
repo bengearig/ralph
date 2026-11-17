@@ -140,7 +140,7 @@ func (s *server) addUnitTools(srv *mcp.Server) {
 
 	addTool(s, srv, &mcp.Tool{
 		Name: "unit_get",
-		Description: `Read one unit: its title, body, acceptance criteria, derived status, parent, children (id, level, title, status), links, the documents linked to it (documents: id, title, kind, status, and superseded_by for a superseded one; MISSING when the link names no stored document) and the documents inherited from the slice and brief above it (inherited_documents, each with from, the ancestor it comes from), notes (oldest first) and its fingerprint. A slice also shows its dependencies: depends_on (id, title, status and whether each is satisfied) and waiting_on (the IDs not yet satisfied), both left out when it has none. Call this before updating a unit, and again after a "stale" error.
+		Description: `Read one unit: its title, body, acceptance criteria, derived status, parent, children (id, level, title, status), links, the documents linked to it (documents: id, title, kind, status, and superseded_by for a superseded one; MISSING when the link names no stored document) and the documents inherited from the slice and brief above it (inherited_documents, each with from, the ancestor it comes from), notes (oldest first) and its fingerprint. A slice also shows its dependencies: depends_on (id, title, status and whether each is satisfied) and waiting_on (the IDs not yet satisfied), both left out when it has none. A slice also lists its pull_requests (number, url, state and resolution, oldest first), left out when it has none; its status is NEEDS_ATTENTION when the latest one was closed without merging and has no decision yet. Call this before updating a unit, and again after a "stale" error.
 
 ` + levelsText + `
 

@@ -13,9 +13,9 @@ import (
 
 const statusDescription = `Summarize the project's work and how far along it is. Call this first to see what exists.
 
-Work has three levels. A brief (ID like B-1) is a request or goal as the user stated it. A slice (S-1) is one independently deliverable part of a brief. A task (T-1) is one concrete step, small enough for a single working session, and is the only level that has a state of its own: PROPOSED, TODO, IN_PROGRESS, BLOCKED, DONE or CANCELLED. A brief's and a slice's status is derived from the tasks beneath it. A task with no slice is an orphan task; orphan tasks are listed separately under "tasks".
+Work has three levels. A brief (ID like B-1) is a request or goal as the user stated it. A slice (S-1) is one independently deliverable part of a brief. A task (T-1) is one concrete step, small enough for a single working session, and is the only level that has a state of its own: PROPOSED, TODO, IN_PROGRESS, BLOCKED, DONE or CANCELLED. A brief's and a slice's status is derived from the tasks beneath it, with one more status: NEEDS_ATTENTION, for a slice whose latest pull request was closed without merging and has no decision yet (a brief with such a slice is NEEDS_ATTENTION too unless one is BLOCKED). A task with no slice is an orphan task; orphan tasks are listed separately under "tasks".
 
-The result lists unfinished briefs with their slices and a count of tasks per state in each slice, then the orphan tasks. Finished work (DONE or CANCELLED) is left out unless "all" is true.`
+The result lists unfinished briefs with their slices and a count of tasks per state in each slice, then the orphan tasks. A slice that needs attention is not finished and is always listed. Finished work (DONE or CANCELLED) is left out unless "all" is true.`
 
 type statusInput struct {
 	All bool `json:"all,omitempty" jsonschema:"include finished (DONE or CANCELLED) work; default false"`

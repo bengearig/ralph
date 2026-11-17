@@ -10,6 +10,7 @@ import (
 	"github.com/bengearig/ralph/internal/hosting"
 	"github.com/bengearig/ralph/internal/naming"
 	"github.com/bengearig/ralph/internal/project"
+	"github.com/bengearig/ralph/internal/prstep"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/workspace"
 )
@@ -129,6 +130,9 @@ func Prepare(ctx context.Context, d Deps, in PrepareInput) (plan Plan, err error
 	}
 	if slice.Level != units.LevelSlice {
 		return Plan{}, &NotSliceError{ID: slice.ID, Level: slice.Level}
+	}
+	if err := prstep.Decision(ctx, d.Units, slice.ID); err != nil {
+		return Plan{}, err
 	}
 	waiting, err := d.Units.Waiting(ctx, slice.ID)
 	if err != nil {

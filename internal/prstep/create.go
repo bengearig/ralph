@@ -106,6 +106,9 @@ func Create(ctx context.Context, d Deps, in CreateInput) (CreateResult, error) {
 	if slice.Level != units.LevelSlice {
 		return CreateResult{}, &NotSliceError{ID: slice.ID, Level: slice.Level}
 	}
+	if err := Decision(ctx, d.Units, slice.ID); err != nil {
+		return CreateResult{}, err
+	}
 	done, err := checkTasks(ctx, d.Units, slice)
 	if err != nil {
 		return CreateResult{}, err

@@ -159,3 +159,14 @@ func TestUnitGetSliceShowsDependencies(t *testing.T) {
 		t.Errorf("text = %q", text(res))
 	}
 }
+
+func TestStatusAndUnitGetDescriptionsMentionNeedsAttention(t *testing.T) {
+	cs, _ := newClient(t)
+	got := tools(t, cs)
+	if d := got["status"].Description; !strings.Contains(d, "NEEDS_ATTENTION") || !strings.Contains(d, "pull request") {
+		t.Errorf("status description = %q", d)
+	}
+	if d := got["unit_get"].Description; !strings.Contains(d, "NEEDS_ATTENTION") || !strings.Contains(d, "pull_requests") {
+		t.Errorf("unit_get description lacks pull_requests: %q", d)
+	}
+}

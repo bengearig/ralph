@@ -75,6 +75,14 @@ type Dependency struct {
 	Satisfied bool   `json:"satisfied"`
 }
 
+// PullRequest is a pull request ralph opened for a slice.
+type PullRequest struct {
+	Number     int    `json:"number"`
+	URL        string `json:"url"`
+	State      string `json:"state"`
+	Resolution string `json:"resolution"`
+}
+
 type UnitView struct {
 	ID                 string  `json:"id"`
 	Level              string  `json:"level"`
@@ -97,6 +105,8 @@ type UnitView struct {
 
 	DependsOn []Dependency `json:"depends_on,omitempty"`
 	WaitingOn []string     `json:"waiting_on,omitempty"`
+
+	PullRequests []PullRequest `json:"pull_requests,omitempty"`
 }
 
 // NotFoundError reports a unit ID with no unit; it unwraps to units.ErrNotFound.
@@ -281,6 +291,13 @@ func UnitDetail(ctx context.Context, svc units.Service, id string) (UnitView, er
 			if !d.Satisfied {
 				v.WaitingOn = append(v.WaitingOn, d.ID)
 			}
+		}
+		prs, err := svc.PullRequests(ctx, id)
+		if err != nil {
+			return UnitView{}, err
+		}
+		for _, r := range prs {
+			v.PullRequests = append(v.PullRequests, PullRequest{Number: r.Number, URL: r.URL, State: string(r.State), Resolution: r.Resolution})
 		}
 	}
 	return v, nil

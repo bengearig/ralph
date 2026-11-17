@@ -410,3 +410,32 @@ func TestPrepareNothingToDo(t *testing.T) {
 		t.Fatalf("summary = %+v, %v", sum, err)
 	}
 }
+
+func TestLoopPrepareRefusesStoppedSlice(t *testing.T) {
+	p := newPrepFixture(t, 1)
+	other := p.unit(t, units.LevelSlice, p.brief.ID, "Earlier slice", "Body.", "")
+	if err := p.units.AddDependency(ctx, p.slice.ID, other.ID); err != nil {
+		t.Fatal(err)
+	}
+	p.unit(t, units.LevelTask, other.ID, "Unfinished", "Body.", "- x")
+	err := p.units.RecordPullRequest(ctx, units.PullRequestRecord{
+		SliceID: p.slice.ID, Number: 3, URL: "https://x.test/pull/3", Head: loopBranch, Base: "main", State: units.PullRequestClosed,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, dry := range []bool{false, true} {
+		got := p.refusal(t, dry)
+		want := "S-1 needs a decision: pull request #3 (https://x.test/pull/3) was closed without merging. Choose one: ralph pr reopen S-1, ralph pr rearticulate S-1 or ralph pr cancel S-1"
+		if got.Error() != want {
+			t.Errorf("dry=%v: err = %q", dry, got)
+		}
+	}
+	if _, err := os.Stat(lockPathFor(p.repo.Dir)); err == nil {
+		t.Error("a lock file was left")
+	}
+}
+
+func lockPathFor(root string) string {
+	return filepath.Join(project.RalphDir(root), project.LoopLockFile)
+}

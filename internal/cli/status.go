@@ -233,6 +233,16 @@ func printUnit(out io.Writer, v view.UnitView) error {
 			return err
 		}
 	}
+	if len(v.PullRequests) > 0 {
+		w("\nPull requests:\n")
+		for _, r := range v.PullRequests {
+			resolution := ""
+			if r.Resolution != "" {
+				resolution = "  (" + r.Resolution + ")"
+			}
+			w("#%d  %s  %s%s\n", r.Number, r.State, r.URL, resolution)
+		}
+	}
 	if len(v.DependsOn) > 0 {
 		w("\nDepends on:\n")
 		for _, d := range v.DependsOn {

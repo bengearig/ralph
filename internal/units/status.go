@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 )
 
 // Status is a task's state, or for a slice or brief the status derived from
@@ -21,6 +22,8 @@ const (
 	StatusEmpty        Status = "EMPTY"
 	StatusArticulating Status = "ARTICULATING"
 	StatusReady        Status = "READY"
+
+	StatusNeedsAttention Status = "NEEDS_ATTENTION"
 )
 
 // DeriveStatus derives the status of a slice from its tasks' statuses or of a
@@ -53,6 +56,9 @@ func DeriveStatus(level Level, children []Status) Status {
 	}
 	if has(StatusBlocked) {
 		return StatusBlocked
+	}
+	if level == LevelBrief && has(StatusNeedsAttention) {
+		return StatusNeedsAttention
 	}
 	done := true
 	for _, c := range live {
@@ -162,5 +168,54 @@ func statusIn(ctx context.Context, tx *sql.Tx, id string, memo map[string]Status
 		}
 		statuses[i] = st
 	}
+	if Level(level) == LevelSlice {
+		if overlay, err := pullRequestOverlay(ctx, tx, id); err != nil || overlay != "" {
+			return overlay, err
+		}
+	}
 	return DeriveStatus(Level(level), statuses), nil
+}
+
+// pullRequestOverlay returns the status a slice's latest pull request forces
+// on it, or "" when the derivation from its tasks stands.
+func pullRequestOverlay(ctx context.Context, tx *sql.Tx, sliceID string) (Status, error) {
+	rows, err := tx.QueryContext(ctx,
+		"SELECT number, state, resolution, created_at FROM pull_requests WHERE slice_id = ?", sliceID)
+	if err != nil {
+		return "", fmt.Errorf("units: pull requests of %q: %w", sliceID, err)
+	}
+	defer func() { _ = rows.Close() }()
+	var (
+		found             bool
+		number            int
+		state, resolution string
+		created           time.Time
+	)
+	for rows.Next() {
+		var n int
+		var st, res, at string
+		if err := rows.Scan(&n, &st, &res, &at); err != nil {
+			return "", fmt.Errorf("units: pull requests of %q: %w", sliceID, err)
+		}
+		t, err := time.Parse(time.RFC3339Nano, at)
+		if err != nil {
+			return "", fmt.Errorf("units: pull request %d of %s has bad created_at %q: %w", n, sliceID, at, err)
+		}
+		if !found || t.After(created) || (t.Equal(created) && n > number) {
+			found, number, state, resolution, created = true, n, st, res, t
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return "", fmt.Errorf("units: pull requests of %q: %w", sliceID, err)
+	}
+	if !found || PullRequestState(state) != PullRequestClosed {
+		return "", nil
+	}
+	switch resolution {
+	case "":
+		return StatusNeedsAttention, nil
+	case "cancelled":
+		return StatusCancelled, nil
+	}
+	return "", nil
 }

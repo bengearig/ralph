@@ -3,6 +3,7 @@ package units
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -112,4 +113,32 @@ func (s *Store) PullRequests(ctx context.Context, sliceID string) ([]PullRequest
 		return out[i].Number < out[j].Number
 	})
 	return out, nil
+}
+
+// SetPullRequestState records the state the host reports for a pull request.
+// Setting the state it already has changes nothing.
+func (s *Store) SetPullRequestState(ctx context.Context, sliceID string, number int, state PullRequestState) error {
+	if !state.valid() {
+		return fmt.Errorf("%w: pull request state %q is not open, closed or merged", ErrInvalid, state)
+	}
+	return s.db.WriteTx(ctx, func(tx *sql.Tx) error {
+		var current string
+		err := tx.QueryRowContext(ctx,
+			"SELECT state FROM pull_requests WHERE slice_id = ? AND number = ?", sliceID, number).Scan(&current)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: pull request %d of %s", ErrNotFound, number, sliceID)
+		}
+		if err != nil {
+			return fmt.Errorf("units: pull request %d of %s: %w", number, sliceID, err)
+		}
+		if current == string(state) {
+			return nil
+		}
+		if _, err := tx.ExecContext(ctx,
+			"UPDATE pull_requests SET state = ?, updated_at = ? WHERE slice_id = ? AND number = ?",
+			string(state), s.stamp(), sliceID, number); err != nil {
+			return fmt.Errorf("units: set state of pull request %d of %s: %w", number, sliceID, err)
+		}
+		return nil
+	})
 }
