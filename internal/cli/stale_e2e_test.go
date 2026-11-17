@@ -495,7 +495,7 @@ func TestE2EStaleNoticeInMCP(t *testing.T) {
 	}
 
 	notes := e.readFile(t, filepath.Join(e.dir, "CLAUDE.md"))
-	if !strings.Contains(notes, "A notice can ask for a decision: relay it, ask the user, and do nothing until they answer.") {
+	if !strings.Contains(notes, "A notice can ask for a decision: relay it, ask the user, and do nothing until they answer") {
 		t.Error("CLAUDE.md lacks the sentence about asking before a decision")
 	}
 }

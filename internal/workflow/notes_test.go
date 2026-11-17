@@ -95,8 +95,16 @@ func TestProjectNotesStillMentionNotices(t *testing.T) {
 
 func TestProjectNotesAskBeforeNoticeDecision(t *testing.T) {
 	got, _ := notesFor(t)
-	const want = "A notice can ask for a decision: relay it, ask the user, and do nothing until they answer."
+	const want = "A notice can ask for a decision: relay it, ask the user, and do nothing until they answer"
 	if strings.Count(got, want) != 1 {
 		t.Errorf("notes lack the sentence once:\n%s", got)
+	}
+}
+
+func TestProjectNotesMentionTicketsAndAskingFirst(t *testing.T) {
+	got, _ := notesFor(t)
+	const want = "Ralph can mirror units to Jira tickets and keeps ralph's values; if a notice says tickets differ or failed, tell the user and let them choose between `ralph tickets accept` and `ralph tickets overwrite`."
+	if strings.Count(got, want) != 1 || !strings.Contains(got, "do nothing until they answer. "+want) {
+		t.Errorf("notes lack the sentence once, after the notice sentence:\n%s", got)
 	}
 }

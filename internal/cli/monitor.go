@@ -13,6 +13,7 @@ import (
 
 	"github.com/bengearig/ralph/internal/db"
 	"github.com/bengearig/ralph/internal/followup"
+	"github.com/bengearig/ralph/internal/tickets"
 	"github.com/spf13/cobra"
 )
 
@@ -102,11 +103,11 @@ func runMonitor(cmd *cobra.Command, a *app, id string, f monitorFlags) error {
 			}
 			return err
 		}
-		sem := localSummary(ctx, a, d)
+		sem, tk := localSummary(ctx, a, d), localTicketSummary(ctx, a, d)
 		if f.asJSON {
-			err = writeJSON(out, monitorJSON{View: view, SemanticIndex: semanticJSON(sem)})
+			err = writeJSON(out, monitorJSON{View: view, SemanticIndex: semanticJSON(sem), Tickets: ticketsJSONValue(tk)})
 		} else {
-			err = writeMonitor(out, view, semanticLine(sem))
+			err = writeMonitor(out, view, semanticLine(sem), ticketsBlock(tk))
 		}
 		if err != nil {
 			return err
@@ -140,9 +141,10 @@ func applyRound(ctx context.Context, out io.Writer, fd followup.Deps, kinds []fo
 type monitorJSON struct {
 	followup.View
 	SemanticIndex *semanticIndexJSON `json:"semantic_index,omitempty"`
+	Tickets       *tickets.Summary   `json:"tickets,omitempty"`
 }
 
-func writeMonitor(out io.Writer, v followup.View, semLine string) error {
+func writeMonitor(out io.Writer, v followup.View, semLine, ticketsText string) error {
 	var b strings.Builder
 	w := func(format string, args ...any) { _, _ = fmt.Fprintf(&b, format, args...) }
 	w("ralph monitor  %s  provider: %s\n", v.At.UTC().Format("2006-01-02 15:04:05 UTC"), v.Provider)
@@ -179,6 +181,7 @@ func writeMonitor(out io.Writer, v followup.View, semLine string) error {
 	if semLine != "" {
 		w("\n%s\n", semLine)
 	}
+	b.WriteString(ticketsText)
 	switch n := len(v.Followups); n {
 	case 0:
 		w("nothing to do\n")

@@ -134,7 +134,7 @@ func TestTicketsCommandCheckGivenUnits(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, r := range rows {
-		if (r.Unit == "S-2") != (r.Drift == "deleted") {
+		if (r.Unit == "S-2") != (strings.Join(r.Drift, ",") == "deleted") {
 			t.Fatalf("row %+v", r)
 		}
 	}
@@ -163,7 +163,7 @@ func TestTicketsCommandCheckJiraDownExitsOne(t *testing.T) {
 	}
 	f.srv.Heal()
 	_, list, _ := run(t, "tickets", "--json")
-	if strings.Contains(list, `"drift":"deleted"`) {
+	if strings.Contains(list, `"deleted"`) {
 		t.Fatalf("a failed check invented a drift: %q", list)
 	}
 }

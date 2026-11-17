@@ -288,22 +288,22 @@ func syncJSON(r tickets.Report) syncReportJSON {
 }
 
 type ticketJSON struct {
-	Unit         string `json:"unit"`
-	System       string `json:"system"`
-	Key          string `json:"key"`
-	TicketID     string `json:"ticket_id"`
-	Type         string `json:"type"`
-	Title        string `json:"title"`
-	PushedStatus string `json:"pushed_status"`
-	PushedParent string `json:"pushed_parent"`
-	Scheduled    bool   `json:"scheduled"`
-	Detached     bool   `json:"detached"`
-	Drift        string `json:"drift"`
-	FailedStep   string `json:"failed_step"`
-	FailedAt     string `json:"failed_at"`
-	LastError    string `json:"last_error"`
-	Attempts     int    `json:"attempts"`
-	SyncedAt     string `json:"synced_at"`
+	Unit         string   `json:"unit"`
+	System       string   `json:"system"`
+	Key          string   `json:"key"`
+	TicketID     string   `json:"ticket_id"`
+	Type         string   `json:"type"`
+	Title        string   `json:"title"`
+	PushedStatus string   `json:"pushed_status"`
+	PushedParent string   `json:"pushed_parent"`
+	Scheduled    bool     `json:"scheduled"`
+	Detached     bool     `json:"detached"`
+	Drift        []string `json:"drift"`
+	FailedStep   string   `json:"failed_step"`
+	FailedAt     string   `json:"failed_at"`
+	LastError    string   `json:"last_error"`
+	Attempts     int      `json:"attempts"`
+	SyncedAt     string   `json:"synced_at"`
 }
 
 func listTickets(ctx context.Context, out io.Writer, d *db.DB, settings taskmanager.Settings, asJSON bool) error {
@@ -326,7 +326,7 @@ func listTickets(ctx context.Context, out io.Writer, d *db.DB, settings taskmana
 			Unit: r.UnitID, System: r.System, Key: r.Key, TicketID: r.ID, Type: settings.Types[string(u.Level)], Title: u.Title,
 			PushedStatus: r.PushedStatus, PushedParent: r.PushedParent, Scheduled: r.Scheduled,
 			Detached: r.LinkConfirmed && tickets.LinkKey(links) == "",
-			Drift:    r.Drift, FailedStep: r.FailedStep, FailedAt: timeText(r.FailedAt), LastError: r.LastError,
+			Drift:    driftFields(r.Drift), FailedStep: r.FailedStep, FailedAt: timeText(r.FailedAt), LastError: r.LastError,
 			Attempts: r.Attempts, SyncedAt: timeText(r.SyncedAt),
 		})
 	}
@@ -346,6 +346,9 @@ func listTickets(ctx context.Context, out io.Writer, d *db.DB, settings taskmana
 			typ = "-"
 		}
 		line := fmt.Sprintf("%s  %s  %s  %s  %s", t.Unit, t.Key, status, typ, t.Title)
+		if len(t.Drift) > 0 {
+			line += fmt.Sprintf("  (differs in Jira: %s)", strings.Join(t.Drift, ", "))
+		}
 		if t.FailedStep != "" {
 			line += fmt.Sprintf("  (failed %s: %s)", t.FailedStep, t.LastError)
 		}
@@ -357,6 +360,13 @@ func listTickets(ctx context.Context, out io.Writer, d *db.DB, settings taskmana
 		}
 	}
 	return nil
+}
+
+func driftFields(drift string) []string {
+	if drift == "" {
+		return []string{}
+	}
+	return strings.Split(drift, ",")
 }
 
 func timeText(t time.Time) string {

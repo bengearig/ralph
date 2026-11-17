@@ -129,7 +129,7 @@ func runMCP(ctx context.Context, a *app, t mcp.Transport) error {
 		Actor:       identity.Resolve(ctx, a.root),
 		Planning:    mcpserver.PlanningSettings{ConfirmOutline: a.setting("plan.confirm_outline") == "true"},
 		AfterWrite:  autoSync,
-		Sources:     []mcpserver.NoticeSource{integrationNotice(a.root), semanticNotice(a, store)},
+		Sources:     []mcpserver.NoticeSource{integrationNotice(a.root), semanticNotice(a, store), ticketsNotice(a, store)},
 		UnitSources: []func(units.Service) mcpserver.NoticeSource{quickNotice},
 		Quick: func(ctx context.Context, svc units.Service) (mcpserver.Quick, error) {
 			return newQuickService(ctx, a, svc)
