@@ -428,18 +428,3 @@ func TestNormalizeBodyMatchesAdfNormalize(t *testing.T) {
 		}
 	}
 }
-
-func TestMoveAndScheduleNotImplementedYet(t *testing.T) {
-	srv, c := newStub(t, jiratest.Options{})
-	_, err := c.Move(ctx, "RAL-1", "Done", nil)
-	if !errors.Is(err, taskmanager.ErrInvalid) || !strings.Contains(err.Error(), "not implemented yet") {
-		t.Errorf("Move err = %v", err)
-	}
-	err = c.Schedule(ctx, "RAL-1", "Sprint 1")
-	if !errors.Is(err, taskmanager.ErrInvalid) || !strings.Contains(err.Error(), "not implemented yet") {
-		t.Errorf("Schedule err = %v", err)
-	}
-	if n := len(srv.Requests()); n != 0 {
-		t.Errorf("%d requests", n)
-	}
-}

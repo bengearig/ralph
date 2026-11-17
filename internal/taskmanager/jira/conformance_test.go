@@ -15,6 +15,8 @@ import (
 
 func TestConformance(t *testing.T) {
 	srv, c := newStub(t, jiratest.Options{Types: []string{"Task", "Feature"}})
+	srv.AddBoard(1, "Conformance board", srv.Project())
+	srv.AddSprint(1, 10, "Conformance sprint", "active")
 	taskmanagertest.Run(t, taskmanagertest.Subject{
 		System: c,
 		Controls: taskmanagertest.Controls{
@@ -25,7 +27,7 @@ func TestConformance(t *testing.T) {
 			Delete:           srv.Delete,
 			Edit:             srv.Edit,
 		},
-		Without: []string{"Move", "Schedule"},
+		Plan: "Conformance sprint",
 	})
 }
 
@@ -82,6 +84,31 @@ func TestJiraTestServerSpeaksDocumentedShapes(t *testing.T) {
 	bad := get("POST", "/rest/api/3/issue", map[string]any{"fields": map[string]any{"project": map[string]any{"key": "RAL"}, "issuetype": map[string]any{"name": "Nope"}, "summary": "s"}})
 	if errs, _ := bad["errors"].(map[string]any); errs["issuetype"] == nil || bad["errorMessages"] == nil {
 		t.Errorf("error body = %v", bad)
+	}
+	trs := get("GET", "/rest/api/3/issue/"+child+"/transitions", nil)
+	list, _ := trs["transitions"].([]any)
+	if len(list) != 1 {
+		t.Fatalf("transitions = %v", trs)
+	}
+	first0, _ := list[0].(map[string]any)
+	to, _ := first0["to"].(map[string]any)
+	if first0["id"] == nil || first0["name"] == nil || to["name"] != "In Progress" {
+		t.Errorf("transition = %v", first0)
+	}
+	if bad := get("POST", "/rest/api/3/issue/"+child+"/transitions", map[string]any{"transition": map[string]any{"id": "nope"}}); bad["errorMessages"] == nil {
+		t.Errorf("unknown transition = %v", bad)
+	}
+	srv.AddBoard(7, "Board", "RAL")
+	srv.AddSprint(7, 70, "Sprint 1", "active")
+	boards := get("GET", "/rest/agile/1.0/board?projectKeyOrId=RAL&type=scrum", nil)
+	bl, _ := boards["values"].([]any)
+	if len(bl) != 1 || boards["isLast"] != true || boards["startAt"] == nil || boards["maxResults"] == nil || bl[0].(map[string]any)["id"] != float64(7) {
+		t.Errorf("boards = %v", boards)
+	}
+	sprints := get("GET", "/rest/agile/1.0/board/7/sprint?state=active,future", nil)
+	sl, _ := sprints["values"].([]any)
+	if len(sl) != 1 || sprints["isLast"] != true || sl[0].(map[string]any)["name"] != "Sprint 1" || sl[0].(map[string]any)["state"] != "active" {
+		t.Errorf("sprints = %v", sprints)
 	}
 	if _, err := c.Create(ctx, taskmanager.New{Type: "Task", Title: "x"}); err != nil {
 		t.Errorf("Create: %v", err)

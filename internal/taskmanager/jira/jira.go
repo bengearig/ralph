@@ -318,16 +318,6 @@ func (c *Client) getOne(ctx context.Context, key string) (taskmanager.Ticket, bo
 	return i.ticket(), true, nil
 }
 
-// Move is not implemented yet.
-func (c *Client) Move(context.Context, string, string, []string) (taskmanager.Move, error) {
-	return taskmanager.Move{}, fmt.Errorf("%w: not implemented yet", taskmanager.ErrInvalid)
-}
-
-// Schedule is not implemented yet.
-func (c *Client) Schedule(context.Context, string, string) error {
-	return fmt.Errorf("%w: not implemented yet", taskmanager.ErrInvalid)
-}
-
 var lineBreaks = strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ")
 
 func normalizeTitle(s string) string {

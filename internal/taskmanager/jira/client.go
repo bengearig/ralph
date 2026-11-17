@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bengearig/ralph/internal/taskmanager"
@@ -42,6 +43,9 @@ type Config struct {
 	Site    string
 	User    string
 	Project string
+	// Board is the id of the board whose sprints Schedule uses; zero means the
+	// project's only scrum board.
+	Board int
 	// Token is called for every request so a changed secret is picked up.
 	Token      func() (string, error)
 	Timeout    time.Duration
@@ -57,6 +61,11 @@ type Client struct {
 	token     func() (string, error)
 	client    *http.Client
 	userAgent string
+	board     int
+
+	mu         sync.Mutex
+	foundBoard int
+	sprints    map[string]int
 }
 
 var _ taskmanager.System = (*Client)(nil)
@@ -73,6 +82,9 @@ func New(cfg Config) (*Client, error) {
 	if cfg.Token == nil {
 		return nil, errors.New("jira: a token function is required")
 	}
+	if cfg.Board < 0 {
+		return nil, errors.New("jira: the board id must not be negative")
+	}
 	timeout := cfg.Timeout
 	if timeout <= 0 {
 		timeout = defaultTimeout
@@ -85,7 +97,7 @@ func New(cfg Config) (*Client, error) {
 	if ua == "" {
 		ua = defaultUserAgent
 	}
-	return &Client{site: site, user: cfg.User, project: cfg.Project, token: cfg.Token, client: client, userAgent: ua}, nil
+	return &Client{site: site, user: cfg.User, project: cfg.Project, token: cfg.Token, client: client, userAgent: ua, board: cfg.Board, sprints: map[string]int{}}, nil
 }
 
 func checkSite(raw string) error {

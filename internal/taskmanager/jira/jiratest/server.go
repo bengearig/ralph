@@ -92,6 +92,27 @@ type Server struct {
 	rejected bool
 	limit    time.Duration
 	failure  *failure
+
+	workflow map[string][]transitionDef
+	required map[[2]string]bool
+	nextTr   int
+	boards   []*boardDef
+	sprints  []*sprintDef
+}
+
+type transitionDef struct{ id, name, to string }
+
+type boardDef struct {
+	id      int
+	name    string
+	project string
+}
+
+type sprintDef struct {
+	id, board int
+	name      string
+	state     string
+	issues    []string
 }
 
 type failure struct {
@@ -127,7 +148,14 @@ func NewServer(t testing.TB, opts Options) *Server {
 		aliases: map[string]string{},
 		nextID:  10000,
 		clock:   time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+
+		required: map[[2]string]bool{},
 	}
+	s.setWorkflow(map[string][]string{
+		"To Do":       {"In Progress"},
+		"In Progress": {"To Do", "Done"},
+		"Done":        {"In Progress"},
+	})
 	s.srv = httptest.NewServer(http.HandlerFunc(s.serve))
 	t.Cleanup(s.srv.Close)
 	return s
@@ -262,6 +290,96 @@ func (s *Server) ResetRequests() {
 	s.requests = nil
 }
 
+// SetWorkflow replaces the workflow: transitions maps a status name to the
+// names of the statuses a ticket in it can move to. The server invents the
+// transition ids and names.
+func (s *Server) SetWorkflow(initial string, transitions map[string][]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if initial != "" {
+		s.opts.Initial = initial
+	}
+	s.setWorkflow(transitions)
+}
+
+func (s *Server) setWorkflow(transitions map[string][]string) {
+	s.workflow = map[string][]transitionDef{}
+	s.required = map[[2]string]bool{}
+	froms := make([]string, 0, len(transitions))
+	for from := range transitions {
+		froms = append(froms, from)
+	}
+	sort.Strings(froms)
+	for _, from := range froms {
+		for _, to := range transitions[from] {
+			s.nextTr++
+			s.workflow[from] = append(s.workflow[from], transitionDef{
+				id: strconv.Itoa(10 * s.nextTr), name: "Transition " + strconv.Itoa(s.nextTr), to: to,
+			})
+		}
+	}
+}
+
+// RequireFieldsFor makes the transition from one status to another answer 400
+// because a field is missing.
+func (s *Server) RequireFieldsFor(from, to string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.required[[2]string{from, to}] = true
+}
+
+// AddBoard adds a scrum board of a project.
+func (s *Server) AddBoard(id int, name, projectKey string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.boards = append(s.boards, &boardDef{id: id, name: name, project: projectKey})
+}
+
+// AddSprint adds a sprint to a board; state is active, future or closed.
+func (s *Server) AddSprint(boardID, id int, name, state string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sprints = append(s.sprints, &sprintDef{id: id, board: boardID, name: name, state: state})
+}
+
+// SetSprintState changes the state of a sprint, as closing it in Jira would.
+func (s *Server) SetSprintState(id int, state string) {
+	s.t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, sp := range s.sprints {
+		if sp.id == id {
+			sp.state = state
+			return
+		}
+	}
+	s.t.Fatalf("jiratest: no sprint %d", id)
+}
+
+// SprintIssues returns the keys of the tickets put in a sprint.
+func (s *Server) SprintIssues(id int) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, sp := range s.sprints {
+		if sp.id == id {
+			return slices.Clone(sp.issues)
+		}
+	}
+	return nil
+}
+
+// Status returns the status a ticket is in.
+func (s *Server) Status(key string) string {
+	s.t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st := s.lookup(key)
+	if st == nil {
+		s.t.Fatalf("jiratest: no ticket %s", key)
+	}
+	return st.status
+}
+
 func adfOf(md string) json.RawMessage {
 	if strings.TrimSpace(md) == "" {
 		return nil
@@ -334,6 +452,12 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) route(w http.ResponseWriter, r *http.Request, body any) {
 	const api = "/rest/api/3/"
+	if agile, ok := strings.CutPrefix(r.URL.Path, "/rest/agile/1.0/"); ok {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.agile(w, r, agile, body)
+		return
+	}
 	path, ok := strings.CutPrefix(r.URL.Path, api)
 	if !ok {
 		notFound(w, "")
@@ -354,6 +478,10 @@ func (s *Server) route(w http.ResponseWriter, r *http.Request, body any) {
 		s.create(w, body)
 	case len(parts) == 2 && parts[0] == "issue" && r.Method == "GET":
 		s.get(w, r, parts[1])
+	case len(parts) == 3 && parts[0] == "issue" && parts[2] == "transitions" && r.Method == "GET":
+		s.listTransitions(w, parts[1])
+	case len(parts) == 3 && parts[0] == "issue" && parts[2] == "transitions" && r.Method == "POST":
+		s.transition(w, parts[1], body)
 	case len(parts) == 2 && parts[0] == "issue" && r.Method == "PUT":
 		s.update(w, parts[1], body)
 	case r.Method == "POST" && path == "search/jql":
@@ -612,4 +740,133 @@ func (s *Server) search(w http.ResponseWriter, body any) {
 func number(key string) int {
 	n, _ := strconv.Atoi(key[strings.LastIndex(key, "-")+1:])
 	return n
+}
+
+func (s *Server) listTransitions(w http.ResponseWriter, key string) {
+	st := s.lookup(key)
+	if st == nil {
+		writeJSON(w, http.StatusNotFound, errorBody("Issue does not exist or you do not have permission to see it."))
+		return
+	}
+	list := []map[string]any{}
+	for _, t := range s.workflow[st.status] {
+		list = append(list, map[string]any{
+			"id": t.id, "name": t.name, "hasScreen": false, "isAvailable": true,
+			"to": map[string]any{"id": "3" + t.id, "name": t.to},
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"expand": "transitions", "transitions": list})
+}
+
+func (s *Server) transition(w http.ResponseWriter, key string, body any) {
+	st := s.lookup(key)
+	if st == nil {
+		writeJSON(w, http.StatusNotFound, errorBody("Issue does not exist or you do not have permission to see it."))
+		return
+	}
+	in, _ := body.(map[string]any)
+	tr, _ := in["transition"].(map[string]any)
+	id, _ := tr["id"].(string)
+	for _, t := range s.workflow[st.status] {
+		if t.id != id {
+			continue
+		}
+		if s.required[[2]string{st.status, t.to}] {
+			writeJSON(w, http.StatusBadRequest, fieldError("resolution", "Field 'resolution' is required"))
+			return
+		}
+		st.status = t.to
+		st.updated = s.tick()
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	writeJSON(w, http.StatusBadRequest, errorBody("Transition id '"+id+"' is not valid for this issue."))
+}
+
+func (s *Server) agile(w http.ResponseWriter, r *http.Request, path string, body any) {
+	parts := strings.Split(path, "/")
+	q := r.URL.Query()
+	switch {
+	case r.Method == "GET" && path == "board":
+		var match []map[string]any
+		for _, b := range s.boards {
+			if b.project == q.Get("projectKeyOrId") && (q.Get("type") == "" || q.Get("type") == "scrum") {
+				match = append(match, map[string]any{"id": b.id, "name": b.name, "type": "scrum"})
+			}
+		}
+		s.page(w, q, match)
+	case r.Method == "GET" && len(parts) == 3 && parts[0] == "board" && parts[2] == "sprint":
+		id, _ := strconv.Atoi(parts[1])
+		if !slices.ContainsFunc(s.boards, func(b *boardDef) bool { return b.id == id }) {
+			writeJSON(w, http.StatusNotFound, errorBody("Board does not exist or you do not have permission to see it."))
+			return
+		}
+		states := strings.Split(q.Get("state"), ",")
+		var match []map[string]any
+		for _, sp := range s.sprints {
+			if sp.board == id && (q.Get("state") == "" || slices.Contains(states, sp.state)) {
+				match = append(match, map[string]any{"id": sp.id, "name": sp.name, "state": sp.state, "originBoardId": id})
+			}
+		}
+		s.page(w, q, match)
+	case r.Method == "POST" && len(parts) == 3 && parts[0] == "sprint" && parts[2] == "issue":
+		s.addToSprint(w, parts[1], body)
+	default:
+		writeJSON(w, http.StatusNotFound, errorBody("The requested resource does not exist."))
+	}
+}
+
+func (s *Server) page(w http.ResponseWriter, q url.Values, all []map[string]any) {
+	start, _ := strconv.Atoi(q.Get("startAt"))
+	size := s.opts.PageSize
+	if m, err := strconv.Atoi(q.Get("maxResults")); err == nil && m > 0 {
+		size = min(size, m)
+	}
+	start = min(max(start, 0), len(all))
+	end := min(start+size, len(all))
+	values := all[start:end]
+	if values == nil {
+		values = []map[string]any{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"maxResults": size, "startAt": start, "isLast": end == len(all), "values": values})
+}
+
+func (s *Server) addToSprint(w http.ResponseWriter, rawID string, body any) {
+	id, _ := strconv.Atoi(rawID)
+	var sp *sprintDef
+	for _, c := range s.sprints {
+		if c.id == id {
+			sp = c
+		}
+	}
+	if sp == nil {
+		writeJSON(w, http.StatusNotFound, errorBody("Sprint does not exist or you do not have permission to view it."))
+		return
+	}
+	in, _ := body.(map[string]any)
+	list, _ := in["issues"].([]any)
+	if len(list) == 0 {
+		writeJSON(w, http.StatusBadRequest, errorBody("issues must not be empty"))
+		return
+	}
+	if sp.state == "closed" {
+		writeJSON(w, http.StatusBadRequest, errorBody("Cannot add issues to a closed sprint."))
+		return
+	}
+	var keys []string
+	for _, v := range list {
+		k, _ := v.(string)
+		st := s.lookup(k)
+		if st == nil {
+			writeJSON(w, http.StatusNotFound, errorBody("Issue does not exist or you do not have permission to see it."))
+			return
+		}
+		keys = append(keys, st.key)
+	}
+	for _, k := range keys {
+		if !slices.Contains(sp.issues, k) {
+			sp.issues = append(sp.issues, k)
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

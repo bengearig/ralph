@@ -85,6 +85,28 @@ func TestLiveJira(t *testing.T) {
 	if g := got[tk.Key]; g.Title != want.Title || strings.TrimSpace(g.Body) != want.Body {
 		t.Errorf("read back %q / %q, want %q / %q", g.Title, g.Body, want.Title, want.Body)
 	}
+
+	if to := os.Getenv("RALPH_JIRA_STATUS_TO"); to != "" {
+		var flow []string
+		for _, f := range strings.Split(os.Getenv("RALPH_JIRA_FLOW"), ",") {
+			if f = strings.TrimSpace(f); f != "" {
+				flow = append(flow, f)
+			}
+		}
+		m, err := c.Move(ctx, tk.Key, to, flow)
+		if err != nil {
+			t.Fatalf("Move to %q: %v (moved %+v)", to, err, m)
+		}
+		t.Logf("moved %s: %+v", tk.Key, m)
+		if g, err := c.Get(ctx, []string{tk.Key}); err != nil || !strings.EqualFold(g[tk.Key].Status, to) {
+			t.Errorf("status after Move = %q, %v; want %q", g[tk.Key].Status, err, to)
+		}
+	}
+	if sprint := os.Getenv("RALPH_JIRA_SPRINT"); sprint != "" {
+		if err := c.Schedule(ctx, tk.Key, sprint); err != nil {
+			t.Fatalf("Schedule into %q: %v", sprint, err)
+		}
+	}
 }
 
 // deleteForTest removes a ticket the live test created.
