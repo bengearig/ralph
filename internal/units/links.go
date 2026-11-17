@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -20,6 +21,8 @@ const (
 )
 
 const maxTargetLen = 512
+
+var qualifiedColumns = "u." + strings.ReplaceAll(columns, ", ", ", u.")
 
 // Link ties a unit to a document or to an item in an outside system. Its
 // target is never checked against anything.
@@ -124,6 +127,31 @@ func (s *Store) Links(ctx context.Context, unitID string) ([]Link, error) {
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("units: links of %s: %w", unitID, err)
+	}
+	return out, nil
+}
+
+// UnitsLinkedTo returns the units that have the link, ordered by level
+// (brief, slice, task) and then number.
+func (s *Store) UnitsLinkedTo(ctx context.Context, kind LinkKind, target string) ([]Unit, error) {
+	rows, err := s.db.SQL().QueryContext(ctx,
+		"SELECT "+qualifiedColumns+" FROM units u JOIN links l ON l.unit_id = u.id WHERE l.kind = ? AND l.target = ? "+
+			"ORDER BY CASE u.level WHEN 'brief' THEN 0 WHEN 'slice' THEN 1 ELSE 2 END, u.number",
+		string(kind), target)
+	if err != nil {
+		return nil, fmt.Errorf("units: units linked to %q: %w", target, err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := []Unit{}
+	for rows.Next() {
+		u, err := scan(rows)
+		if err != nil {
+			return nil, fmt.Errorf("units: units linked to %q: %w", target, err)
+		}
+		out = append(out, u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("units: units linked to %q: %w", target, err)
 	}
 	return out, nil
 }

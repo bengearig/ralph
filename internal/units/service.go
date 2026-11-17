@@ -25,6 +25,9 @@ type Service interface {
 	RemoveLink(ctx context.Context, unitID string, kind LinkKind, target string) error
 	// Links returns a unit's links ordered by kind, then target.
 	Links(ctx context.Context, unitID string) ([]Link, error)
+	// UnitsLinkedTo returns the units that have the link, ordered by level
+	// (brief, slice, task) and then number.
+	UnitsLinkedTo(ctx context.Context, kind LinkKind, target string) ([]Unit, error)
 	// AddNote records a note on a unit of any level.
 	AddNote(ctx context.Context, unitID string, kind NoteKind, body string) (Note, error)
 	// Notes returns a unit's notes.

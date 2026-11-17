@@ -172,3 +172,61 @@ func TestLinksNoneReturnsEmptySlice(t *testing.T) {
 		t.Fatalf("links = %#v, err = %v", got, err)
 	}
 }
+
+func TestUnitsLinkedToOrdersByLevelThenNumber(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	b := brief(t, s)
+	sl := slice(t, s, b.ID)
+	t1 := task(t, s, sl.ID, "one")
+	t2 := task(t, s, sl.ID, "two")
+	for _, id := range []string{t2.ID, t1.ID, sl.ID, b.ID} {
+		if err := s.AddLink(ctx, id, units.LinkDocument, "D-1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := s.UnitsLinkedTo(ctx, units.LinkDocument, "D-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{b.ID, sl.ID, t1.ID, t2.ID}
+	if len(got) != len(want) {
+		t.Fatalf("units = %+v", got)
+	}
+	for i, u := range got {
+		if u.ID != want[i] || u.Title == "" || u.Fingerprint == "" {
+			t.Errorf("unit %d = %+v, want %s", i, u, want[i])
+		}
+	}
+}
+
+func TestUnitsLinkedToEmptyIsNonNil(t *testing.T) {
+	s := newStore(t)
+	got, err := s.UnitsLinkedTo(context.Background(), units.LinkDocument, "D-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || len(got) != 0 {
+		t.Fatalf("units = %#v", got)
+	}
+}
+
+func TestUnitsLinkedToIgnoresExternalAndOtherTargets(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	tk := linkTask(t, s)
+	other := task(t, s, tk.ParentID, "other")
+	if err := s.AddLink(ctx, tk.ID, units.LinkExternal, "D-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddLink(ctx, other.ID, units.LinkDocument, "D-2"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.UnitsLinkedTo(ctx, units.LinkDocument, "D-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("units = %+v", got)
+	}
+}

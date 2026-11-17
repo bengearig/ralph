@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/bengearig/ralph/internal/db"
 	"github.com/bengearig/ralph/internal/docexport"
+	"github.com/bengearig/ralph/internal/doclinks"
 	"github.com/bengearig/ralph/internal/documents"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/spf13/cobra"
@@ -55,7 +57,8 @@ func newDocsCommand(a *app) *cobra.Command {
 			return cmd.Help()
 		},
 	}
-	cmd.AddCommand(newDocsPurgeCommand(a), newDocsExportCommand(a))
+	cmd.AddCommand(newDocsPurgeCommand(a), newDocsExportCommand(a),
+		newDocsLinkCommand(a), newDocsUnlinkCommand(a), newDocsLinksCommand(a))
 	return cmd
 }
 
@@ -311,4 +314,174 @@ func writeExportText(out io.Writer, relDir string, p docexport.Plan, check bool)
 			_, _ = fmt.Fprintf(out, "%s %s\n", verb, file)
 		}
 	}
+}
+
+var docIDPattern = regexp.MustCompile(`^D-[0-9]+$`)
+
+func openLinks(ctx context.Context, a *app) (*doclinks.Service, func(), error) {
+	d, err := openStore(ctx, a, db.Options{MustExist: true})
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil, errors.New(errNoDatabase)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	return doclinks.New(units.NewService(d), newDocumentsService(a, d)), func() { _ = d.Close() }, nil
+}
+
+func newDocsLinkCommand(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:   "link <document> <unit>",
+		Short: "Link an active document to a brief, slice or task",
+		Long: "Link an active document to a brief, slice or task. Linking a document that is already linked changes nothing.\n" +
+			"A document tied to a brief is not linked by that tie; only links made with this command count.",
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
+			svc, closeStore, err := openLinks(ctx, a)
+			if err != nil {
+				return err
+			}
+			defer closeStore()
+			if err := svc.Link(ctx, args[0], args[1]); err != nil {
+				return err
+			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s is linked to %s\n", normalizeID(args[0]), normalizeID(args[1]))
+			return nil
+		},
+	}
+}
+
+func newDocsUnlinkCommand(a *app) *cobra.Command {
+	return &cobra.Command{
+		Use:   "unlink <document> <unit>",
+		Short: "Remove the link between a document and a unit",
+		Long: "Remove the link between a document and a unit, whatever the document's status.\n" +
+			"Removing a link that is not there changes nothing.",
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
+			svc, closeStore, err := openLinks(ctx, a)
+			if err != nil {
+				return err
+			}
+			defer closeStore()
+			if err := svc.Unlink(ctx, args[0], args[1]); err != nil {
+				return err
+			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s is not linked to %s\n", normalizeID(args[0]), normalizeID(args[1]))
+			return nil
+		},
+	}
+}
+
+func normalizeID(s string) string {
+	return strings.ToUpper(strings.TrimSpace(s))
+}
+
+type docLinksJSON struct {
+	ID    string             `json:"id"`
+	Units []doclinks.UnitRef `json:"units"`
+}
+
+type unitLinksJSON struct {
+	ID                 string            `json:"id"`
+	Documents          []doclinks.Linked `json:"documents"`
+	InheritedDocuments []doclinks.Linked `json:"inherited_documents"`
+}
+
+func newDocsLinksCommand(a *app) *cobra.Command {
+	var asJSON bool
+	cmd := &cobra.Command{
+		Use:   "links <id>",
+		Short: "Show the units linked to a document, or the documents linked to a unit",
+		Long: "Given a document ID such as D-3, list the units linked to it.\n" +
+			"Given a unit ID such as T-5, list the documents linked to it and those it inherits from its slice and brief.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id := normalizeID(args[0])
+			isDoc, isUnit := docIDPattern.MatchString(id), unitIDPattern.MatchString(id)
+			if !isDoc && !isUnit {
+				return fmt.Errorf("%q is neither a document ID (D- followed by digits) nor a unit ID (B-, S- or T- followed by digits)", args[0])
+			}
+			ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
+			defer stop()
+			svc, closeStore, err := openLinks(ctx, a)
+			if err != nil {
+				return err
+			}
+			defer closeStore()
+			out := cmd.OutOrStdout()
+			if isDoc {
+				refs, err := svc.UnitsOf(ctx, id)
+				if err != nil {
+					return err
+				}
+				if asJSON {
+					return writeJSON(out, docLinksJSON{ID: id, Units: refs})
+				}
+				if len(refs) == 0 {
+					_, _ = fmt.Fprintf(out, "no units are linked to %s\n", id)
+					return nil
+				}
+				w := newTabWriter(out)
+				for _, r := range refs {
+					_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n", r.ID, r.Level, r.Title)
+				}
+				return w.Flush()
+			}
+			direct, inherited, err := svc.DocumentsOf(ctx, id)
+			if err != nil {
+				return err
+			}
+			if asJSON {
+				return writeJSON(out, unitLinksJSON{ID: id, Documents: direct, InheritedDocuments: inherited})
+			}
+			if len(direct) == 0 && len(inherited) == 0 {
+				_, _ = fmt.Fprintf(out, "%s has no linked documents\n", id)
+				return nil
+			}
+			writeDocumentsBlock(out, direct, inherited)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "print one JSON object")
+	return cmd
+}
+
+// writeDocumentsBlock prints a unit's direct documents under "Documents:" and
+// then each contributing ancestor's under "Documents from <ID>:".
+func writeDocumentsBlock(out io.Writer, direct, inherited []doclinks.Linked) {
+	if len(direct) > 0 {
+		_, _ = fmt.Fprintln(out, "Documents:")
+		for _, l := range direct {
+			_, _ = fmt.Fprintln(out, linkedLine(l))
+		}
+	}
+	from := ""
+	for _, l := range inherited {
+		if l.From != from {
+			from = l.From
+			_, _ = fmt.Fprintf(out, "Documents from %s:\n", from)
+		}
+		_, _ = fmt.Fprintln(out, linkedLine(l))
+	}
+}
+
+func linkedLine(l doclinks.Linked) string {
+	status := l.Status
+	if l.Status == string(documents.StatusSuperseded) && l.SupersededBy != "" {
+		status += " (replaced by " + l.SupersededBy + ")"
+	}
+	parts := []string{l.ID}
+	if l.Kind != "" {
+		parts = append(parts, l.Kind)
+	}
+	parts = append(parts, status)
+	if l.Title != "" {
+		parts = append(parts, l.Title)
+	}
+	return strings.Join(parts, "  ")
 }

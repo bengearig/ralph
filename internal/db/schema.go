@@ -156,6 +156,10 @@ CREATE VIRTUAL TABLE search_fts USING fts5(
 );
 `
 
+const indexDocumentLinksSQL = `
+CREATE INDEX links_target ON links (kind, target);
+`
+
 const indexRecordsForSearchSQL = `
 INSERT INTO search_fts (rowid, title, body, kind, ref, unit)
 SELECT number * 5 + CASE level WHEN 'brief' THEN 0 WHEN 'slice' THEN 1 ELSE 2 END,

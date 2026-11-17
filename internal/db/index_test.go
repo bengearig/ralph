@@ -7,11 +7,11 @@ import (
 )
 
 func TestIndexMigrationApplies(t *testing.T) {
-	last := Migrations[len(Migrations)-1]
+	last := Migrations[8]
 	if last.Version != 9 || last.Name != "index records for search" {
-		t.Fatalf("last migration = %d %q", last.Version, last.Name)
+		t.Fatalf("migration 9 = %d %q", last.Version, last.Name)
 	}
-	fresh, err := openWith(t, filepath.Join(t.TempDir(), "fresh.db"), Migrations, MigrateAuto)
+	fresh, err := openWith(t, filepath.Join(t.TempDir(), "fresh.db"), Migrations[:9], MigrateAuto)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestIndexMigrationApplies(t *testing.T) {
 		t.Fatalf("old version = %d, want 8", v)
 	}
 	_ = old.Close()
-	migrated, err := openWith(t, path, Migrations, MigrateAuto)
+	migrated, err := openWith(t, path, Migrations[:9], MigrateAuto)
 	if err != nil {
 		t.Fatal(err)
 	}
