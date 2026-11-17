@@ -26,6 +26,40 @@ func create(t *testing.T, p *Provider, head string) hosting.PullRequest {
 	return pr
 }
 
+func TestFakeHeadCommitEmptyByDefault(t *testing.T) {
+	p := New()
+	pr := create(t, p, "feat")
+	if pr.HeadCommit != "" {
+		t.Errorf("created head commit = %q, want empty", pr.HeadCommit)
+	}
+	p.Merge(pr.Number)
+	got, err := p.GetPullRequest(ctx, pr.Number)
+	if err != nil || got.HeadCommit != "" {
+		t.Errorf("get = %+v, %v; want empty head commit", got, err)
+	}
+}
+
+func TestFakeHeadCommitSurvivesMergeAndClose(t *testing.T) {
+	const sha = "0123456789abcdef0123456789abcdef01234567"
+	p := New()
+	merged := create(t, p, "a")
+	closed := create(t, p, "b")
+	p.SetHeadCommit(merged.Number, sha)
+	p.SetHeadCommit(closed.Number, sha)
+	p.Merge(merged.Number)
+	p.Close(closed.Number)
+	for _, n := range []int{merged.Number, closed.Number} {
+		got, err := p.GetPullRequest(ctx, n)
+		if err != nil || got.HeadCommit != sha {
+			t.Errorf("get #%d = %+v, %v; want head commit %s", n, got, err, sha)
+		}
+	}
+	found, ok, err := p.FindPullRequest(ctx, "a")
+	if err != nil || !ok || found.HeadCommit != sha {
+		t.Errorf("find = %+v, %v, %v", found, ok, err)
+	}
+}
+
 func TestFakeCreateAndGet(t *testing.T) {
 	p := New()
 	pr := create(t, p, "a")

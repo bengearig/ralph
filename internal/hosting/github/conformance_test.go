@@ -31,6 +31,7 @@ func TestGitHubConformance(t *testing.T) {
 			Provider:          p,
 			Merge:             func(_ testing.TB, n int) { srv.Merge(n) },
 			Decline:           func(_ testing.TB, n int) { srv.Decline(n) },
+			SetHead:           func(_ testing.TB, n int, sha string) { srv.SetHead(n, sha) },
 			AddReview:         review,
 			AddInline:         comment(srv.AddInline),
 			AddComment:        comment(srv.AddComment),

@@ -17,6 +17,9 @@ type branchRef struct {
 	Repository struct {
 		FullName string `json:"full_name"`
 	} `json:"repository"`
+	Commit struct {
+		Hash string `json:"hash"`
+	} `json:"commit"`
 }
 
 type pullRequestJSON struct {
@@ -47,6 +50,8 @@ func (j pullRequestJSON) toPullRequest() hosting.PullRequest {
 		Base:   j.Destination.Branch.Name,
 		Draft:  j.Draft,
 		State:  hosting.StateClosed,
+
+		HeadCommit: j.Source.Commit.Hash,
 	}
 	switch j.State {
 	case "OPEN":

@@ -30,6 +30,10 @@ type PullRequest struct {
 	Draft       bool
 	State       PRState
 	MergeCommit string
+	// HeadCommit is the full hash of the head branch's tip as the host last
+	// knew it for the pull request (for a merged pull request, the commit
+	// that was merged). It is empty when the provider does not report one.
+	HeadCommit string
 }
 
 // NewPullRequest is what is needed to open a pull request.

@@ -35,6 +35,46 @@ func create(t *testing.T, s *Server, head string) (*http.Response, []byte) {
 	return do(t, s, http.MethodPost, "/pulls", `{"title":"T","head":"`+head+`","base":"main","body":"B","draft":true}`, s.Token())
 }
 
+func TestGitHubTestServerHeadCommit(t *testing.T) {
+	s := New(t, Config{})
+	headSHA := func(number string) string {
+		t.Helper()
+		_, raw := do(t, s, http.MethodGet, "/pulls/"+number, "", s.Token())
+		var pr struct {
+			Head struct {
+				SHA string `json:"sha"`
+			} `json:"head"`
+		}
+		if err := json.Unmarshal(raw, &pr); err != nil {
+			t.Fatal(err)
+		}
+		return pr.Head.SHA
+	}
+	create(t, s, "feature")
+	def := headSHA("1")
+	if def != branchCommit("feature") || len(def) != 40 {
+		t.Fatalf("default head = %q", def)
+	}
+	create(t, s, "other")
+	if headSHA("2") == def {
+		t.Error("different branches share a default head")
+	}
+	const sha = "0123456789abcdef0123456789abcdef01234567"
+	s.SetHead(1, sha)
+	if got := headSHA("1"); got != sha {
+		t.Errorf("head = %q, want %q", got, sha)
+	}
+	s.Merge(1)
+	if got := headSHA("1"); got != sha {
+		t.Errorf("head after merge = %q", got)
+	}
+	s.SetHead(2, sha)
+	s.Decline(2)
+	if got := headSHA("2"); got != sha {
+		t.Errorf("head after decline = %q", got)
+	}
+}
+
 func TestGitHubTestServerCreateConflict(t *testing.T) {
 	s := New(t, Config{})
 	resp, raw := create(t, s, "feature")

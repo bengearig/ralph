@@ -28,6 +28,7 @@ type check struct {
 const (
 	ctlMerge      = "Merge"
 	ctlDecline    = "Decline"
+	ctlSetHead    = "SetHead"
 	ctlReview     = "AddReview"
 	ctlInline     = "AddInline"
 	ctlComment    = "AddComment"
@@ -48,6 +49,7 @@ var checks = []check{
 	{"GetUnknownNumber", nil, getUnknownNumber},
 	{"MergedState", []string{ctlMerge}, mergedState},
 	{"DeclinedState", []string{ctlDecline}, declinedState},
+	{"head commit is reported and survives a merge", []string{ctlMerge, ctlSetHead}, headCommitSurvivesMerge},
 	{"FeedbackInline", []string{ctlInline}, feedbackInline},
 	{"FeedbackComment", []string{ctlComment}, feedbackComment},
 	{"FeedbackReviewChangesRequested", []string{ctlReview}, feedbackReviewChangesRequested},
@@ -86,6 +88,8 @@ func missing(s Subject, control string) bool {
 		return s.Merge == nil
 	case ctlDecline:
 		return s.Decline == nil
+	case ctlSetHead:
+		return s.SetHead == nil
 	case ctlReview:
 		return s.AddReview == nil
 	case ctlInline:
@@ -281,6 +285,26 @@ func declinedState(t runT, s Subject) {
 	}
 	if got.MergeCommit != "" {
 		t.Errorf("merge commit = %q, want empty", got.MergeCommit)
+	}
+}
+
+func headCommitSurvivesMerge(t runT, s Subject) {
+	pr := create(t, s, "conformance/head", false)
+	const sha = "0123456789abcdef0123456789abcdef01234567"
+	s.SetHead(t, pr.Number, sha)
+	if got := get(t, s, pr.Number); got.HeadCommit != sha {
+		t.Errorf("get head commit = %q, want %q", got.HeadCommit, sha)
+	}
+	found, ok, err := s.Provider.FindPullRequest(ctx, "conformance/head")
+	if err != nil || !ok {
+		t.Fatalf("find = %+v, %v, %v", found, ok, err)
+	}
+	if found.HeadCommit != sha {
+		t.Errorf("find head commit = %q, want %q", found.HeadCommit, sha)
+	}
+	s.Merge(t, pr.Number)
+	if got := get(t, s, pr.Number); got.HeadCommit != sha {
+		t.Errorf("head commit after merge = %q, want %q", got.HeadCommit, sha)
 	}
 }
 

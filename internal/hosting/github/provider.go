@@ -20,6 +20,7 @@ type pullRequestJSON struct {
 	MergeCommitSHA string     `json:"merge_commit_sha"`
 	Head           struct {
 		Ref string `json:"ref"`
+		SHA string `json:"sha"`
 	} `json:"head"`
 	Base struct {
 		Ref string `json:"ref"`
@@ -36,6 +37,8 @@ func (j pullRequestJSON) toPullRequest() hosting.PullRequest {
 		Base:   j.Base.Ref,
 		Draft:  j.Draft,
 		State:  hosting.StateClosed,
+
+		HeadCommit: j.Head.SHA,
 	}
 	switch {
 	case j.State == "open":

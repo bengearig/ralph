@@ -125,6 +125,52 @@ func TestGitHubCreateReturnsPullRequest(t *testing.T) {
 	}
 }
 
+const headSHA = "0123456789abcdef0123456789abcdef01234567"
+
+func TestGitHubHeadCommitMapped(t *testing.T) {
+	body := `{"number":5,"state":"open","head":{"ref":"feat","sha":"` + headSHA + `"}}`
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost:
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(body))
+		case r.URL.Path == "/repos/o/r/pulls":
+			_, _ = w.Write([]byte("[" + body + "]"))
+		default:
+			_, _ = w.Write([]byte(body))
+		}
+	})
+	ctx := context.Background()
+	created, err := p.CreatePullRequest(ctx, newPR())
+	if err != nil {
+		t.Fatal(err)
+	}
+	found, ok, err := p.FindPullRequest(ctx, "feat")
+	if err != nil || !ok {
+		t.Fatalf("find: ok = %v, err = %v", ok, err)
+	}
+	got, err := p.GetPullRequest(ctx, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, pr := range map[string]hosting.PullRequest{"create": created, "find": found, "get": got} {
+		if pr.HeadCommit != headSHA {
+			t.Errorf("%s head commit = %q, want %q", name, pr.HeadCommit, headSHA)
+		}
+	}
+}
+
+func TestGitHubHeadCommitMissingIsEmpty(t *testing.T) {
+	p := listServer(t, `{"number":5,"state":"open","head":{"ref":"feat"}}`)
+	got, err := p.GetPullRequest(context.Background(), 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.HeadCommit != "" {
+		t.Errorf("head commit = %q, want empty", got.HeadCommit)
+	}
+}
+
 func TestGitHubTokenResolvedPerRequest(t *testing.T) {
 	var seen []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

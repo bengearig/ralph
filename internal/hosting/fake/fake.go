@@ -180,6 +180,13 @@ func (p *Provider) Close(number int) {
 	p.mustGet(number).State = hosting.StateClosed
 }
 
+// SetHeadCommit sets the head commit reported for the pull request. It panics on an unknown number.
+func (p *Provider) SetHeadCommit(number int, sha string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.mustGet(number).HeadCommit = sha
+}
+
 // AddFeedback attaches feedback to the pull request. It panics on an unknown number.
 func (p *Provider) AddFeedback(number int, f hosting.Feedback) {
 	p.mu.Lock()

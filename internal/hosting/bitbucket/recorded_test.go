@@ -118,7 +118,7 @@ func TestRecordedBitbucketCreate(t *testing.T) {
 	wantPR(t, got, hosting.PullRequest{
 		Number: 7, URL: "https://bitbucket.org/acme/widgets/pull-requests/7",
 		Title: "Add widget caching", Body: "Caches widget lookups for a minute.\n\nCloses nothing yet.",
-		Head: "feature-x", Base: "main", Draft: true, State: hosting.StateOpen,
+		Head: "feature-x", Base: "main", Draft: true, State: hosting.StateOpen, HeadCommit: "6f1e2d3c4b5a69788796a5b4c3d2e1f001122334",
 	})
 }
 
@@ -166,20 +166,20 @@ func TestRecordedBitbucketGetStates(t *testing.T) {
 	}{
 		{7, hosting.PullRequest{
 			Number: 7, URL: "https://bitbucket.org/acme/widgets/pull-requests/7", Title: "Add widget caching",
-			Body: "Caches widget lookups for a minute.\n\nCloses nothing yet.", Head: "feature-x", Base: "main", State: hosting.StateOpen,
+			Body: "Caches widget lookups for a minute.\n\nCloses nothing yet.", Head: "feature-x", Base: "main", State: hosting.StateOpen, HeadCommit: "6f1e2d3c4b5a69788796a5b4c3d2e1f001122334",
 		}},
 		{5, hosting.PullRequest{
 			Number: 5, URL: "https://bitbucket.org/acme/widgets/pull-requests/5", Title: "Fix widget label encoding",
 			Body: "Labels were double encoded.", Head: "fix-labels", Base: "main", State: hosting.StateMerged,
-			MergeCommit: "9e8d7c6b5a4f30211203f4e5d6c7b8a990817263",
+			MergeCommit: "9e8d7c6b5a4f30211203f4e5d6c7b8a990817263", HeadCommit: "6f1e2d3c4b5a69788796a5b4c3d2e1f001122334",
 		}},
 		{6, hosting.PullRequest{
 			Number: 6, URL: "https://bitbucket.org/acme/widgets/pull-requests/6", Title: "Try a different cache",
-			Body: "An experiment.", Head: "feature-x", Base: "main", State: hosting.StateClosed,
+			Body: "An experiment.", Head: "feature-x", Base: "main", State: hosting.StateClosed, HeadCommit: "6f1e2d3c4b5a69788796a5b4c3d2e1f001122334",
 		}},
 		{4, hosting.PullRequest{
 			Number: 4, URL: "https://bitbucket.org/acme/widgets/pull-requests/4", Title: "Old widget cache",
-			Body: "Replaced by a rebased pull request.", Head: "feature-old", Base: "main", State: hosting.StateClosed,
+			Body: "Replaced by a rebased pull request.", Head: "feature-old", Base: "main", State: hosting.StateClosed, HeadCommit: "6f1e2d3c4b5a69788796a5b4c3d2e1f001122334",
 		}},
 	}
 	for _, c := range cases {
@@ -188,6 +188,20 @@ func TestRecordedBitbucketGetStates(t *testing.T) {
 			t.Fatalf("get #%d: %v", c.number, err)
 		}
 		wantPR(t, got, c.want)
+	}
+}
+
+func TestRecordedBitbucketHeadCommit(t *testing.T) {
+	p := recordedProvider(t, get("/pullrequests/5", "pr_merged.json"))
+	got, err := p.GetPullRequest(context.Background(), 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.HeadCommit != "6f1e2d3c4b5a69788796a5b4c3d2e1f001122334" {
+		t.Errorf("head commit = %q", got.HeadCommit)
+	}
+	if got.HeadCommit == got.MergeCommit {
+		t.Error("head commit must not be the merge commit")
 	}
 }
 

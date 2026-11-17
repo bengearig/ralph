@@ -4,6 +4,8 @@
 package githubtest
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -50,6 +52,7 @@ type pull struct {
 	title    string
 	body     string
 	head     string
+	headSHA  string
 	base     string
 	draft    bool
 	merged   bool
@@ -143,6 +146,15 @@ func (s *Server) Merge(number int) {
 	p := s.must(number)
 	p.closed, p.merged = true, true
 	p.mergedAt = s.tick(time.Time{})
+}
+
+// SetHead sets the commit the pull request's head branch is reported at. The
+// default is a hash derived from the head branch name.
+func (s *Server) SetHead(number int, sha string) {
+	s.t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.must(number).headSHA = sha
 }
 
 // Decline closes the pull request without merging it.
@@ -484,6 +496,18 @@ func user(login string) map[string]any {
 	}
 }
 
+func branchCommit(branch string) string {
+	sum := sha256.Sum256([]byte(branch))
+	return hex.EncodeToString(sum[:])[:40]
+}
+
+func (p *pull) headCommit() string {
+	if p.headSHA != "" {
+		return p.headSHA
+	}
+	return branchCommit(p.head)
+}
+
 func commitID(number int) string { return fmt.Sprintf("%040x", 0xabc000+number) }
 
 func (s *Server) html(path string) string {
@@ -529,7 +553,7 @@ func (s *Server) pullJSON(p *pull, _ *http.Request) map[string]any {
 		"merged_at":          mergedAt,
 		"merge_commit_sha":   commitID(p.number),
 		"draft":              p.draft,
-		"head":               map[string]any{"label": s.cfg.Owner + ":" + p.head, "ref": p.head, "sha": commitID(p.number), "user": user(s.cfg.Owner), "repo": repo},
+		"head":               map[string]any{"label": s.cfg.Owner + ":" + p.head, "ref": p.head, "sha": p.headCommit(), "user": user(s.cfg.Owner), "repo": repo},
 		"base":               map[string]any{"label": s.cfg.Owner + ":" + p.base, "ref": p.base, "sha": commitID(0), "user": user(s.cfg.Owner), "repo": repo},
 		"author_association": "MEMBER",
 		"merged":             p.merged,

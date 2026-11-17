@@ -166,6 +166,57 @@ func authCapture(auth *string) http.HandlerFunc {
 	}
 }
 
+const headHash = "0123456789abcdef0123456789abcdef01234567"
+
+func TestBitbucketHeadCommitMapped(t *testing.T) {
+	body := func() map[string]any {
+		b := prBody(5, "OPEN", "feat", "ws/rp")
+		b["source"].(map[string]any)["commit"] = map[string]any{"hash": headHash}
+		return b
+	}
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost:
+			writeJSON(w, 201, body())
+		case r.URL.Path == "/repositories/ws/rp/pullrequests":
+			writeJSON(w, 200, map[string]any{"values": []any{body()}})
+		default:
+			writeJSON(w, 200, body())
+		}
+	})
+	ctx := context.Background()
+	created, err := p.CreatePullRequest(ctx, newPR())
+	if err != nil {
+		t.Fatal(err)
+	}
+	found, ok, err := p.FindPullRequest(ctx, "feat")
+	if err != nil || !ok {
+		t.Fatalf("find: ok = %v, err = %v", ok, err)
+	}
+	got, err := p.GetPullRequest(ctx, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, pr := range map[string]hosting.PullRequest{"create": created, "find": found, "get": got} {
+		if pr.HeadCommit != headHash {
+			t.Errorf("%s head commit = %q, want %q", name, pr.HeadCommit, headHash)
+		}
+	}
+}
+
+func TestBitbucketHeadCommitMissingIsEmpty(t *testing.T) {
+	p := newTestProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, prBody(5, "OPEN", "feat", "ws/rp"))
+	})
+	got, err := p.GetPullRequest(context.Background(), 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.HeadCommit != "" {
+		t.Errorf("head commit = %q, want empty", got.HeadCommit)
+	}
+}
+
 func TestBitbucketBearerWhenNoUser(t *testing.T) {
 	var auth string
 	p := newTestProvider(t, authCapture(&auth))

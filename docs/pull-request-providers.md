@@ -19,8 +19,11 @@ A provider is one repository on one host. A pull request is identified by its nu
 - get a pull request by number, or report that it is not found;
 - read the review feedback on a pull request, oldest first, optionally only what is newer than a time.
 
-A pull request has a number, a URL, a title, a body, a head, a base, a draft flag, a state and, when merged, the merge
-commit. The state is one of `open`, `closed` (closed without merging) and `merged`.
+A pull request has a number, a URL, a title, a body, a head, a base, a draft flag, a state, a head commit and, when
+merged, the merge commit. The state is one of `open`, `closed` (closed without merging) and `merged`. The head commit is
+the tip of the head branch as the host last knew it for the pull request, which for a merged pull request is the commit
+that was merged; ralph compares a branch's tip with it to tell whether the branch holds anything the merge did not, and
+it is empty when the host does not report one.
 
 A piece of feedback has an identifier that is unique within the pull request, a kind (`review`, `inline` or `comment`),
 an author, a body, a path and line for an inline comment, a review state for a review, a time and a URL. A review state is

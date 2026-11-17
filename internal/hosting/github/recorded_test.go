@@ -91,7 +91,7 @@ func TestRecordedCreate(t *testing.T) {
 	wantPR(t, got, hosting.PullRequest{
 		Number: 1347, URL: "https://github.com/octo-org/hello-world/pull/1347",
 		Title: "Amazing new feature", Body: "Please pull these awesome changes in!",
-		Head: "feature-x", Base: "main", Draft: true, State: hosting.StateOpen,
+		Head: "feature-x", Base: "main", Draft: true, State: hosting.StateOpen, HeadCommit: "6dcb09b5b57875f334f61aebed695e2e4193db5e",
 	})
 }
 
@@ -125,9 +125,9 @@ func TestRecordedGetOpenMergedClosed(t *testing.T) {
 		number int
 		want   hosting.PullRequest
 	}{
-		{1347, hosting.PullRequest{Number: 1347, URL: "https://github.com/octo-org/hello-world/pull/1347", Title: "Amazing new feature", Body: "Please pull these awesome changes in!", Head: "feature-x", Base: "main", State: hosting.StateOpen}},
-		{1349, hosting.PullRequest{Number: 1349, URL: "https://github.com/octo-org/hello-world/pull/1349", Title: "Fix the thing", Body: "Fixes #12.", Head: "feature-y", Base: "main", State: hosting.StateMerged, MergeCommit: "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"}},
-		{1351, hosting.PullRequest{Number: 1351, URL: "https://github.com/octo-org/hello-world/pull/1351", Title: "Abandoned idea", Body: "Never mind.", Head: "feature-z", Base: "main", State: hosting.StateClosed}},
+		{1347, hosting.PullRequest{Number: 1347, URL: "https://github.com/octo-org/hello-world/pull/1347", Title: "Amazing new feature", Body: "Please pull these awesome changes in!", Head: "feature-x", Base: "main", State: hosting.StateOpen, HeadCommit: "6dcb09b5b57875f334f61aebed695e2e4193db5e"}},
+		{1349, hosting.PullRequest{Number: 1349, URL: "https://github.com/octo-org/hello-world/pull/1349", Title: "Fix the thing", Body: "Fixes #12.", Head: "feature-y", Base: "main", State: hosting.StateMerged, MergeCommit: "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678", HeadCommit: "6dcb09b5b57875f334f61aebed695e2e4193db5e"}},
+		{1351, hosting.PullRequest{Number: 1351, URL: "https://github.com/octo-org/hello-world/pull/1351", Title: "Abandoned idea", Body: "Never mind.", Head: "feature-z", Base: "main", State: hosting.StateClosed, HeadCommit: "6dcb09b5b57875f334f61aebed695e2e4193db5e"}},
 	}
 	for _, c := range cases {
 		t.Run(strconv.Itoa(c.number), func(t *testing.T) {

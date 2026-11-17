@@ -18,6 +18,10 @@ type Subject struct {
 	Merge   func(t testing.TB, number int)
 	Decline func(t testing.TB, number int)
 
+	// SetHead sets the commit the pull request's head branch is at on the
+	// service, which the provider reports as HeadCommit.
+	SetHead func(t testing.TB, number int, sha string)
+
 	// AddReview adds a review (Kind review, State CHANGES_REQUESTED or APPROVED).
 	// A provider that cannot carry a body ignores it.
 	AddReview func(t testing.TB, number int, f hosting.Feedback)
@@ -42,7 +46,7 @@ type Subject struct {
 // that no conformance subtest is skipped for want of one.
 func (s Subject) MissingControls() []string {
 	var out []string
-	for _, c := range []string{ctlMerge, ctlDecline, ctlReview, ctlInline, ctlComment, ctlReject, ctlRateLimit, ctlBringDown} {
+	for _, c := range []string{ctlMerge, ctlDecline, ctlSetHead, ctlReview, ctlInline, ctlComment, ctlReject, ctlRateLimit, ctlBringDown} {
 		if missing(s, c) {
 			out = append(out, c)
 		}

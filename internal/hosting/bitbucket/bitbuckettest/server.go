@@ -4,7 +4,9 @@
 package bitbuckettest
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -55,6 +57,7 @@ type pull struct {
 	title       string
 	description string
 	source      string
+	sourceHash  string
 	destination string
 	draft       bool
 	state       string
@@ -129,6 +132,15 @@ func (s *Server) User() string  { return s.cfg.User }
 
 // Merge merges the pull request.
 func (s *Server) Merge(number int) { s.setState(number, "MERGED") }
+
+// SetHead sets the commit the pull request's source branch is reported at. The
+// default is a hash derived from the source branch name.
+func (s *Server) SetHead(number int, sha string) {
+	s.t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.must(number).sourceHash = sha
+}
 
 // Decline declines the pull request.
 func (s *Server) Decline(number int) { s.setState(number, "DECLINED") }
@@ -502,6 +514,14 @@ func (s *Server) repoJSON() map[string]any {
 	}
 }
 
+func (p *pull) headHash() string {
+	if p.sourceHash != "" {
+		return p.sourceHash
+	}
+	sum := sha256.Sum256([]byte(p.source))
+	return hex.EncodeToString(sum[:])[:40]
+}
+
 func hash(n int) string { return fmt.Sprintf("%040x", 0xdef000+n) }
 
 func (s *Server) html(path string) string {
@@ -537,7 +557,7 @@ func (s *Server) pullJSON(p *pull) map[string]any {
 		},
 		"summary": map[string]any{"raw": p.description, "markup": "markdown", "html": "<p>" + p.description + "</p>"},
 		"source": map[string]any{
-			"branch": map[string]any{"name": p.source}, "commit": map[string]any{"type": "commit", "hash": hash(p.id)},
+			"branch": map[string]any{"name": p.source}, "commit": map[string]any{"type": "commit", "hash": p.headHash()},
 			"repository": s.repoJSON(),
 		},
 		"destination": map[string]any{

@@ -36,6 +36,48 @@ func request(t *testing.T, s *Server, method, path, body, auth string) (*http.Re
 	return resp, raw
 }
 
+func TestBitbucketTestServerHeadCommit(t *testing.T) {
+	s := New(t, Config{})
+	headHash := func(number string) string {
+		t.Helper()
+		_, raw := request(t, s, http.MethodGet, "/pullrequests/"+number, "", bearer(s))
+		var pr struct {
+			Source struct {
+				Commit struct {
+					Hash string `json:"hash"`
+				} `json:"commit"`
+			} `json:"source"`
+		}
+		if err := json.Unmarshal(raw, &pr); err != nil {
+			t.Fatal(err)
+		}
+		return pr.Source.Commit.Hash
+	}
+	create(t, s, "feature")
+	def := headHash("1")
+	if len(def) != 40 {
+		t.Fatalf("default head = %q", def)
+	}
+	create(t, s, "other")
+	if headHash("2") == def {
+		t.Error("different branches share a default head")
+	}
+	const sha = "0123456789abcdef0123456789abcdef01234567"
+	s.SetHead(1, sha)
+	if got := headHash("1"); got != sha {
+		t.Errorf("head = %q, want %q", got, sha)
+	}
+	s.Merge(1)
+	if got := headHash("1"); got != sha {
+		t.Errorf("head after merge = %q", got)
+	}
+	s.SetHead(2, sha)
+	s.Decline(2)
+	if got := headHash("2"); got != sha {
+		t.Errorf("head after decline = %q", got)
+	}
+}
+
 func bearer(s *Server) string { return "Bearer " + s.Token() }
 
 func create(t *testing.T, s *Server, head string) (*http.Response, []byte) {

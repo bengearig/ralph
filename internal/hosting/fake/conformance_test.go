@@ -27,6 +27,7 @@ func subjectOf(p *fake.Provider) hostingtest.Subject {
 		Provider:          p,
 		Merge:             func(_ testing.TB, number int) { p.Merge(number) },
 		Decline:           func(_ testing.TB, number int) { p.Close(number) },
+		SetHead:           func(_ testing.TB, number int, sha string) { p.SetHeadCommit(number, sha) },
 		AddReview:         add("review", hosting.KindReview),
 		AddInline:         add("inline", hosting.KindInline),
 		AddComment:        add("comment", hosting.KindComment),
