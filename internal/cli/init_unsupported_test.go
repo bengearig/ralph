@@ -91,3 +91,9 @@ func containsLine(lines []string, want string) bool {
 	}
 	return false
 }
+
+func (unsupportedAdapter) Headless(harness.HeadlessRequest) (harness.Invocation, error) {
+	return harness.Invocation{}, nil
+}
+func (unsupportedAdapter) NewParser() harness.Parser          { return nil }
+func (unsupportedAdapter) Capabilities() harness.Capabilities { return harness.Capabilities{} }

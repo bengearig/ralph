@@ -52,3 +52,9 @@ func TestDetectionUnsupportedField(t *testing.T) {
 		t.Errorf("Unsupported = %q", d.Unsupported)
 	}
 }
+
+func (projectReader) Headless(HeadlessRequest) (Invocation, error) {
+	return Invocation{}, nil
+}
+func (projectReader) NewParser() Parser          { return nil }
+func (projectReader) Capabilities() Capabilities { return Capabilities{} }

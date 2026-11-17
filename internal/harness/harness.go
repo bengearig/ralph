@@ -48,4 +48,11 @@ type Adapter interface {
 	Detect(ctx context.Context, root string) Detection
 	// Artifacts returns, deterministically, what should exist for the inputs.
 	Artifacts(in Inputs) ([]Artifact, error)
+	// Headless describes, without starting it, the process for one
+	// non-interactive run.
+	Headless(req HeadlessRequest) (Invocation, error)
+	// NewParser returns a parser for the standard output of a headless run.
+	NewParser() Parser
+	// Capabilities says what the harness can do on its own.
+	Capabilities() Capabilities
 }

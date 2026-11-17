@@ -191,3 +191,9 @@ func TestInputsForSetsProject(t *testing.T) {
 		t.Errorf("read = %q, %v", got, err)
 	}
 }
+
+func (f *fakeAdapter) Headless(harness.HeadlessRequest) (harness.Invocation, error) {
+	return harness.Invocation{}, nil
+}
+func (f *fakeAdapter) NewParser() harness.Parser          { return nil }
+func (f *fakeAdapter) Capabilities() harness.Capabilities { return harness.Capabilities{} }

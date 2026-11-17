@@ -1,0 +1,1 @@
+{"mcp":{"servers":{"ralph":{"type":"local","command":["/bin/ralph","mcp","--x"]}}},"permissions":[{"action":"*","resource":"*","effect":"deny"}]}

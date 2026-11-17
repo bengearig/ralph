@@ -293,3 +293,9 @@ func TestCheckInstallDetectsStrayFiles(t *testing.T) {
 		t.Errorf("stray file not detected: %v", r.msgs)
 	}
 }
+
+func (f *fake) Headless(harness.HeadlessRequest) (harness.Invocation, error) {
+	return harness.Invocation{}, nil
+}
+func (f *fake) NewParser() harness.Parser          { return nil }
+func (f *fake) Capabilities() harness.Capabilities { return harness.Capabilities{} }

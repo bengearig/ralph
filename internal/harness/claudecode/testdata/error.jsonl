@@ -1,0 +1,2 @@
+{"type":"system","subtype":"init","session_id":"sess-2","model":"claude-sonnet-5-5","permissionMode":"dontAsk"}
+{"type":"result","subtype":"error_max_budget_usd","is_error":true,"terminal_reason":"budget_exhausted","total_cost_usd":0.00104264,"errors":["Reached maximum budget ($0.0005)"],"session_id":"sess-2"}

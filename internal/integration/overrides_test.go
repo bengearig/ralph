@@ -98,3 +98,9 @@ func TestOutOfDateAfterOverrideEdit(t *testing.T) {
 		t.Errorf("outdated after apply: %v", got)
 	}
 }
+
+func (commandAdapter) Headless(harness.HeadlessRequest) (harness.Invocation, error) {
+	return harness.Invocation{}, nil
+}
+func (commandAdapter) NewParser() harness.Parser          { return nil }
+func (commandAdapter) Capabilities() harness.Capabilities { return harness.Capabilities{} }
