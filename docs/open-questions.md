@@ -8,9 +8,6 @@ Status: draft
 | Should search cover tickets and issues after the first release? | documents |
 | Is the fixed set of levels right, or should nesting be arbitrary? | concepts, workflow |
 | Does the same in-session option apply to feature work, or only to orphan tasks? | workflow |
-| When a unit starts from a Jira ticket whose type the level mapping does not cover, what does ralph do? | task-manager-and-issues |
-| Does ralph comment on or move an issue it started work from, beyond the reference in the pull request? | task-manager-and-issues |
-| What does the issue-source interface look like (listing, searching, reading), and how does a user find an issue to start from? | task-manager-and-issues |
 | Which system is added after Jira, and in which role? | task-manager-and-issues |
 | What are the fingerprint, the stale-write error and the reconciliation path, concretely? | architecture |
 | What would permissions attach to (user, team, project, record) so they can be added later? | architecture |

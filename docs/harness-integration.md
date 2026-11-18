@@ -41,6 +41,14 @@ notice with the code `tickets_need_attention` to a tool result, once for each se
 It says what differs and asks the agent to put the question to the user: the agent does not run `ralph tickets accept` or
 `overwrite` on its own. See [task-manager-and-issues.md](task-manager-and-issues.md).
 
+The `issue_get` tool reads one ticket from the issue source, given a key such as `ABC-123` or the ticket's address, and
+returns its key, address, title, type, status, parent and Markdown body, and an `instruction`: the system, key and title,
+then the body. It reads only and writes nothing, in ralph or in the issue source, and it is there when the issue source
+is configured (`issues.provider`); a reference that cannot be read says what to ask the user to set or fix. The `quick`
+and Receive instructions tell the agent to read a ticket with it and to treat the `instruction` text as the user's own
+words: the brief's body is that text word for word, and `quick_start` and `unit_create` take the ticket as `issue`. See
+[task-manager-and-issues.md](task-manager-and-issues.md).
+
 The MCP server covers only what agents need. The CLI covers what people run, such as installing integration files and
 monitoring. Actions an agent needs to finish its own work, such as finalizing quick work, are MCP tools, and
 [0007](decisions/0007-orphan-task-delivery.md) also names a CLI form for it. Quick start and finish are both a command

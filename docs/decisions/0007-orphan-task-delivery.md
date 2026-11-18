@@ -12,7 +12,8 @@ to arrive as a reviewable change. Small work must stay lighter than feature work
 - An orphan task gets its own branch and pull request by default. This is implemented so the behavior can be made
   configurable later.
 - It is received through a dedicated entry point, `quick` (`/ralph:quick`), that takes either an instruction or a
-  reference to an existing issue or ticket. See [0020](0020-task-manager-and-issue-source.md).
+  reference to an existing issue or ticket. See [0020](0020-task-manager-and-issue-source.md). A Jira ticket key or
+  address is accepted as that reference (`ralph quick start --issue`), and the task starts from the ticket's title and body.
 - The interview scales with ambiguity: questions are asked only where the instruction is ambiguous (Article I). An
   unambiguous instruction, such as changing a color to a given value, needs none. No slices are produced. The agent in
   the session judges ambiguity from the instruction's wording; there is no numeric threshold.

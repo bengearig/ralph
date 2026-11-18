@@ -63,11 +63,12 @@ themselves are defined by the docs of the features they belong to.
 ### Task manager settings
 
 The task manager of [task-manager-and-issues.md](task-manager-and-issues.md) is off until `taskmanager.provider` is
-`jira`.
+`jira`, and its issue source is off until `issues.provider` is `jira`. Both use the `jira.*` settings.
 
 | Setting | Scope | Default | Meaning |
 | --- | --- | --- | --- |
 | `taskmanager.provider` | any layer | `none` | `none` makes no ticket and no request; `jira` pushes briefs, slices and tasks as tickets. |
+| `issues.provider` | any layer | `none` | `none` reads no ticket; `jira` reads the ticket work starts from (`ralph issue show`, `ralph quick start --issue`, the `issue_get` tool), with the `jira.*` credentials below. It writes nothing to Jira and works with `taskmanager.provider` at `none`. |
 | `jira.site` | user-only | none | The address of the Jira Cloud site. https, or http on a loopback host; no credentials, query or fragment. |
 | `jira.user` | user-only | none | The email of the Atlassian account that owns the API token. |
 | `jira.token` | user-only | `env:JIRA_TOKEN` | A reference to the API token, never the token. |
@@ -83,7 +84,13 @@ The site, the user and the token are user-only because they choose where ticket 
 it. A committed file that could name the site would send a developer's briefs, slices and tasks to a place a stranger
 chose, so those three are ignored in the committed project file with a warning. The provider and the project key may be
 committed so a team shares them, but without the user's own site a committed `taskmanager.provider: jira` does nothing
-until the user sets it up: automatic runs stay quiet and `ralph tickets` says that `jira.site` is not set.
+until the user sets it up: automatic runs stay quiet and `ralph tickets` says that `jira.site` is not set. The same holds
+for a committed `issues.provider: jira`: `ralph issue show` and the other readers say that `jira.site` is not set.
+
+The branch and commit templates have a `.Ticket` field, the key of the ticket the work was started from, empty when there
+is none. The defaults are `ralph/{{if .Ticket}}{{lower .Ticket}}-{{end}}{{lower .ID}}-{{.Slug}}` for `git.branch_template` and
+`{{if .Ticket}}{{.Ticket}} {{end}}{{.ID}}: {{.Title}}` for `git.commit_template`, so without a ticket the names are what they
+always were. A template of one's own is checked with and without a ticket.
 
 ## Minimalism
 

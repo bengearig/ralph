@@ -24,8 +24,12 @@ Input: an instruction from the user.
 - Receive records the dependencies between middle units when one needs another finished first. A middle unit waits for
   another, in the same top-level unit or another, and a dependency is satisfied when the unit it waits on is done. A
   cycle is rejected. See [0010](decisions/0010-sequencing-and-merge-detection.md).
-- Receive can start from an issue in an issue source, which becomes its input and is linked to the resulting units. See
-  [task-manager-and-issues.md](task-manager-and-issues.md).
+- Receive can start from a ticket in the issue source, given as a key such as `ABC-123` or the ticket's address. The agent
+  reads it with the `issue_get` tool, takes its `instruction` text as the instructions, and does not ask what the ticket
+  already answers. The brief's body is that text word for word, and creating the brief with the `issue` argument links it
+  to the ticket. Nothing is created when the ticket cannot be read or a unit already holds it. The slices and tasks take
+  the ticket's key from the brief for their branches, commits and pull requests, and the ticket itself is not changed.
+  See [task-manager-and-issues.md](task-manager-and-issues.md).
 - Receive searches the existing documents before it writes new ones, stores what the work needs as documents, and links
   the documents the work relies on to its units. See [documents-and-search.md](documents-and-search.md).
 
@@ -148,11 +152,15 @@ no slice, delivered as its own pull request.
 
 1. The entry point is `/ralph:quick <instruction>` in the harness session, or `ralph quick start <title>` on the command
    line. The agent asks the user only where the instruction is ambiguous, and says so when the request is much larger than
-   quick work; the user decides.
+   quick work; the user decides. The instruction may be a ticket key or address, read from the issue source: the entry
+   point is then `ralph quick start --issue <ref>`, the title may be left out, and the task starts from the ticket's
+   title and body and is linked to the ticket. See [task-manager-and-issues.md](task-manager-and-issues.md).
 2. Before anything is created, ralph checks that the checkout is on the base branch, that the working tree has no changes
    other than the files ralph keeps local, and that the base branch is not ahead of its remote. A failed check names what to
    fix and creates nothing.
-3. Ralph creates the task and its branch from the base branch, and moves the task to in progress.
+3. Ralph creates the task and its branch from the base branch, and moves the task to in progress. A ticket is read
+   before anything is created, so one that cannot be read, or that a unit already holds, creates nothing. When the task
+   has a ticket, its key is part of the branch name, the commit subject, the pull request title and a line of its body.
 4. The agent implements the task in the session.
 5. `quick_finish` (or `ralph quick finish`) runs the commands in the `verify.commands` setting, showing them and where
    they came from first. Ralph enforces these commands; the acceptance criteria are for the agent and the reviewer and are

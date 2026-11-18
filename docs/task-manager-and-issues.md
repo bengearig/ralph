@@ -25,7 +25,8 @@ other systems can be added without changing the model.
 Every ralph record that corresponds to a ticket or issue carries a link to it. The link is stored in ralph's record and
 identifies the system, the project in it, and the item. For Jira the link is an external link on the unit of the form
 `jira:<KEY>`, such as `jira:ABC-12`; the project is the key's prefix. Removing the link detaches the unit, as described
-under [Detaching](#detaching).
+under [Detaching](#detaching). A unit started from a ticket also carries `issue:jira:<KEY>`, described under
+[Starting work from an issue](#starting-work-from-an-issue).
 
 ## Task manager
 
@@ -172,22 +173,78 @@ for each session, saying the same and telling the agent to ask the user before a
 
 ## Issue source
 
+### The interface
+
+The issue source role is an interface that names no Jira specific. It parses a reference into a ticket reference (a
+system and a key) and reads the ticket: its key, address, type, status, title, parent and a Markdown body. Reading is the
+whole of it. Listing and searching for tickets are not part of the first release, so the user names the ticket to start
+from. Its errors are the ones of the task manager: not found, unauthorized (naming the setting), invalid, rate limited and
+unavailable. It also says that the issue source is not configured, naming the setting to set.
+
+`issues.provider` is `none` by default, which reads nothing, or `jira`. The issue source reuses the `jira.*` credentials of
+the task manager (`jira.site`, `jira.user`, `jira.token`, user-only), so one login serves both roles, and it works with
+`taskmanager.provider` at `none`. The provider may be committed so a team shares it; without the user's own site it does
+nothing, and the command that needs it says that `jira.site` is not set. The settings are in
+[configuration.md](configuration.md).
+
+The Jira reads were written from Atlassian's published API and are checked against a stub of it, which is how the tests
+run. The live test is how they are checked on a real site (see the README).
+
+### References
+
+A reference is a ticket key such as `ABC-123` (any case, read as upper case), the address of the ticket on the configured
+site (`https://<site>/browse/ABC-123`), or an address on that site that selects the ticket in a board or backlog with
+`selectedIssue`. An address on another site, or anything else, is refused and the message says what a reference looks
+like. Ralph reads the ticket under the key the site reports for it, so a ticket that moved to a new key is followed.
+
+`ralph issue show <ref>` prints the ticket (`--json` prints it as data) and the `issue_get` tool returns it. Both read
+only: nothing is written in ralph or in Jira.
+
 ### Starting work from an issue
 
-- Quick work starts from an issue by passing its reference to the quick-work entry point of
-  [0007](decisions/0007-orphan-task-delivery.md). Larger work starts the Receive flow with the issue as its input.
-- Ralph reads the issue to give the interview its starting point. After that, the unit's own record holds the data, and
-  the issue is not kept in step with it.
-- The unit stores a link to the issue.
-- When the issue is itself a ticket in the task manager, the unit links to that ticket and the task manager role
-  updates it. It does not create a second ticket. How this works when the ticket's type is not one the mapping covers
-  is open.
+- Quick work starts from a ticket with `ralph quick start --issue <ref>`, or the `issue` argument of `quick_start`. The
+  title may be left out and is the ticket's title, and the task's body is the ticket's body. See
+  [0007](decisions/0007-orphan-task-delivery.md).
+- Larger work starts the Receive flow with the ticket as its input. The agent reads it with `issue_get`, carries the
+  returned `instruction` into the interview as the user's own words, and creates the brief with `unit_create` and the
+  `issue` argument, with that text as the brief's body. `issue` is allowed for a brief and for a task that has no parent;
+  a slice or a task under a slice cannot start from a ticket of their own, because they take it from their brief.
+- Ralph reads the ticket before anything is created. A ticket that cannot be read, a reference that does not parse, an
+  issue source that is not configured, or a ticket that a unit already holds ends the command with an error, and no
+  task, branch, link or row is left behind. A ticket is held by one unit: the error names the unit.
+- After the first read the unit's own record holds the data. The ticket is not kept in step with it.
+
+Starting from a ticket adds two links to the unit, both external:
+
+- `issue:jira:<KEY>` says the unit was started from that ticket, so the branch name, the commit subject and the pull
+  request carry its key. The slices of the brief and their tasks take the ticket
+  of the brief, so the key follows the work down.
+- `jira:<KEY>` is the link of [Link](#link): it says the unit has that ticket as its ticket, which is what lets the task
+  manager role find it.
+
+The unit's row in [the ticket rows](#the-ticket-rows) is marked with the origin `issue`. A ticket that was already there
+is not made again: no second ticket is created for the unit, whatever the level mapping says. The ticket's title and
+body are left alone: ralph never pushes a title or a body over a ticket it started from, and a person's edit to them in
+Jira is not reported as a difference. When the unit's level is mapped to a ticket type, the ticket's status still follows
+the unit, moving once when the status the unit maps to changes and never first moving the ticket back, and a ticket that
+no longer exists is reported by `ralph tickets check`. When the level is not mapped, as for a task by default, the
+ticket is not touched at all. The ticket's own type is never checked against the mapping: the unit links to the ticket
+whatever its type.
+
+### Branches, commits and pull requests
+
+When a unit has a ticket, its key is part of the names ralph makes. With the default templates the branch is
+`ralph/abc-7-t-1-fix-the-login-crash`, the commit subject is `ABC-7 T-1: Fix the login crash`, the pull request title
+starts with `ABC-7`, and the pull request body has a line `Issue: ABC-7 <site>/browse/ABC-7` before the closing line, in a
+form Jira understands so it can link the pull request itself. Without a ticket the names are exactly what they were. A
+branch that was already made keeps its name when a ticket is linked later, because the branch is recorded on the unit.
+The templates are in [configuration.md](configuration.md).
 
 ### Completing work
 
-Pull requests that ralph creates carry a reference to the linked issue in a form the system understands, so the system
-can link or close the item itself. This reuses what the system already does instead of ralph pushing states. Whether
-ralph also comments on or moves the issue is open.
+Ralph writes nothing back to the issue source: it posts no comment on the ticket, does not edit it and does not move it
+because a pull request was opened or merged, beyond the status move of a mapped level above. The reference in the pull
+request is what lets the system link the ticket and close it itself.
 
 ## Detecting changes
 

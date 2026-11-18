@@ -37,12 +37,18 @@ type prE2E struct {
 
 // newPRE2E builds a repository with a bare origin, a fake GitHub and a fake
 // claude that edits files, ready for ralph.
-func newPRE2E(t *testing.T) *prE2E {
+func newPRE2E(t *testing.T) *prE2E { return newPRE2EWith(t, nil) }
+
+// newPRE2EWith is newPRE2E with a step that prepares the environment before the first command runs.
+func newPRE2EWith(t *testing.T, prepare func(*quickE2E)) *prE2E {
 	t.Helper()
 	if !strings.Contains(prFakeClaude, "sed -n") {
 		t.Fatal("the fake claude was not adapted")
 	}
 	q := newQuickE2E(t)
+	if prepare != nil {
+		prepare(q)
+	}
 	var fake string
 	for _, kv := range q.env {
 		if dir, ok := strings.CutPrefix(kv, "PATH="); ok {

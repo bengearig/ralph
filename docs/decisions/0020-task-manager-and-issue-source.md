@@ -45,4 +45,16 @@ linked, and the source of truth is configurable.
   are checked against a stub; a live check against a real site is how they are verified there.
 - A ticket carries a label that names the unit it was made for, so a ticket made just before ralph could record it is
   found and adopted, and no duplicate is created.
+- The issue source reads a ticket and nothing more: no listing, no searching, and no write to the ticket, not a comment,
+  not an edit and not a move on account of a pull request. The user names the ticket to start from. It reuses the
+  `jira.*` credentials, so `issues.provider` is the only new setting, and it works without the task manager.
+- Starting from a ticket links the unit twice: `issue:jira:<KEY>` says where the work came from and `jira:<KEY>` makes it
+  the unit's ticket. The unit's row is marked as started from the ticket, so ralph never pushes the unit's title or body
+  over it, never reports a person's edit of them, and still moves its status when the unit's level is mapped. A ticket
+  type the mapping does not cover is no obstacle: the unit links to the ticket whatever its type.
+- The ticket's key is part of the branch name, the commit subject, the pull request title and a line of its body, through
+  the `.Ticket` field of the templates. A branch already made keeps its name.
+- Starting from a ticket fails closed: when it cannot be read or a unit already holds it, nothing is created.
+- The Jira reads, like the task manager's requests, were written from Atlassian's published API and are checked against a
+  stub; the live test is how they are checked on a real site.
 - The per-level mapping adds configuration, and a level's mapping must be valid for the system's ticket types.

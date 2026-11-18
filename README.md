@@ -62,6 +62,13 @@ The project is under construction. The design is in [docs/](docs/README.md).
   written from Atlassian's published API and are checked against a stub; `RALPH_JIRA_LIVE=1` with `RALPH_JIRA_SITE`,
   `RALPH_JIRA_USER`, `RALPH_JIRA_TOKEN` and `RALPH_JIRA_PROJECT` runs the checks against a real site, in a project you
   can write to, and `RALPH_JIRA_DELETE=1` removes the tickets the checks made.
+- Work can start from a Jira ticket: set `issues.provider` to `jira` (it uses the same `jira.*` settings) and run
+  `ralph issue show ABC-123` to read a ticket or `ralph quick start --issue ABC-123` to start quick work from it; in an
+  agent session, give `/ralph:quick` or `/ralph:receive` a ticket key or address. The ticket's key is then part of the
+  branch, the commit subject and the pull request, and nothing is written to the ticket. `RALPH_JIRA_LIVE=1` with
+  `RALPH_JIRA_SITE`, `RALPH_JIRA_USER`, `RALPH_JIRA_TOKEN` and `RALPH_JIRA_ISSUE` (the key of a ticket the account can
+  read) runs the check against a real site; it only reads. See
+  [docs/task-manager-and-issues.md](docs/task-manager-and-issues.md).
 - `ralph runs purge` removes run records under `.ralph/runs/` (`--older-than DURATION`, `--slice <ID>`; it lists unless
   `--yes`), and a loop removes those older than `runs.keep_days` when it starts.
 - Headless runs, which the loop uses, are set by `headless.permissions` (user-only, `restricted` by default or `auto`),
