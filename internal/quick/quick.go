@@ -9,6 +9,8 @@ import (
 
 	"github.com/bengearig/ralph/internal/hosting"
 	"github.com/bengearig/ralph/internal/integration"
+	"github.com/bengearig/ralph/internal/issuesource"
+	"github.com/bengearig/ralph/internal/tickets"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/verify"
 	"github.com/bengearig/ralph/internal/workspace"
@@ -37,6 +39,10 @@ type Deps struct {
 	Provider func(ctx context.Context) (hosting.Provider, error)
 	// Runner runs the verification commands; nil means a verify.Runner over the project root.
 	Runner Runner
+	// Issues reads the ticket a start names; nil when no issue source is configured.
+	Issues issuesource.Source
+	// Tickets holds the database and settings issuelink needs, set with Issues; its Units is ignored.
+	Tickets tickets.Deps
 }
 
 // Runner runs verification commands; verify.Runner satisfies it.

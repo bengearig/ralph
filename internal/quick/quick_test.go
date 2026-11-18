@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/bengearig/ralph/internal/db"
+	"github.com/bengearig/ralph/internal/issuesource"
 	"github.com/bengearig/ralph/internal/testutil"
+	"github.com/bengearig/ralph/internal/tickets"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/verify"
 	"github.com/bengearig/ralph/internal/workspace"
@@ -19,10 +21,13 @@ import (
 const testTemplate = "ralph/{{.ID | lower}}-{{.Slug}}"
 
 type fixture struct {
+	db    *db.DB
 	repo  *testutil.Repo
 	units units.Service
 	ws    workspace.Workspace
 	cfg   Config
+	// issues, when set, is the issue source of the service.
+	issues issuesource.Source
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -33,16 +38,18 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	d := testutil.NewDB(t, db.Migrations)
 	return &fixture{
+		db:    d,
 		repo:  repo,
-		units: units.NewService(testutil.NewDB(t, db.Migrations)),
+		units: units.NewService(d),
 		ws:    ws,
 		cfg:   Config{Root: repo.Dir, Remote: "origin", BranchTemplate: testTemplate},
 	}
 }
 
 func (f *fixture) service() *Service {
-	return New(Deps{Units: f.units, Workspace: f.ws, Config: f.cfg})
+	return New(Deps{Units: f.units, Workspace: f.ws, Config: f.cfg, Issues: f.issues, Tickets: tickets.Deps{DB: f.db}})
 }
 
 func (f *fixture) start(t *testing.T, title string) (Started, error) {

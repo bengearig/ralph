@@ -81,8 +81,8 @@ func TestQuickToolsListed(t *testing.T) {
 			t.Errorf("%s is read-only", name)
 		}
 	}
-	if got := schemaOf(t, all["quick_start"]).Required; len(got) != 1 || got[0] != "title" {
-		t.Errorf("quick_start required = %v, want [title]", got)
+	if got := schemaOf(t, all["quick_start"]).Required; len(got) != 0 {
+		t.Errorf("quick_start required = %v, want none: the title is required only without issue", got)
 	}
 	if got := schemaOf(t, all["quick_finish"]).Required; len(got) != 0 {
 		t.Errorf("quick_finish required = %v, want none", got)
@@ -146,18 +146,6 @@ func TestQuickStartResult(t *testing.T) {
 	}
 	if !strings.HasSuffix(txt, "then call quick_finish.") {
 		t.Errorf("text does not end with the next step: %s", txt)
-	}
-}
-
-func TestQuickStartMissingTitleRejectedBySchema(t *testing.T) {
-	f := &fakeQuick{}
-	cs := quickClient(t, f)
-	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "quick_start", Arguments: map[string]any{"body": "x"}})
-	if err == nil && (res == nil || !res.IsError) {
-		t.Fatalf("missing title accepted: %+v", res)
-	}
-	if len(f.startIn) != 0 {
-		t.Errorf("fake called: %+v", f.startIn)
 	}
 }
 

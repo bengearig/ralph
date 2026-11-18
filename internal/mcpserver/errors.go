@@ -10,6 +10,7 @@ import (
 	"github.com/bengearig/ralph/internal/db"
 	"github.com/bengearig/ralph/internal/documents"
 	"github.com/bengearig/ralph/internal/hosting"
+	"github.com/bengearig/ralph/internal/issuelink"
 	"github.com/bengearig/ralph/internal/issuesource"
 	"github.com/bengearig/ralph/internal/quick"
 	"github.com/bengearig/ralph/internal/search"
@@ -98,6 +99,10 @@ func classify(err error) (code, text string) {
 	switch {
 	case errors.As(err, &nce):
 		return codeNotConfigured, err.Error() + ". Ask the user to set it with `ralph config set`, then try again."
+	case errors.Is(err, quick.ErrNoIssueSource):
+		return codeNotConfigured, err.Error() + ". Ask the user to set it with `ralph config set`, then try again."
+	case errors.Is(err, issuelink.ErrAlreadyLinked):
+		return codeInvalid, err.Error() + ". Nothing was created. Ask the user whether to work on that unit instead."
 	case errors.Is(err, issuesource.ErrUnauthorized):
 		return codeUnauthorized, issueAuthText(err)
 	case errors.Is(err, issuesource.ErrRateLimited):

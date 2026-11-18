@@ -42,13 +42,25 @@ func newQuickCommand(a *app) *cobra.Command {
 }
 
 func newQuickStartCommand(a *app) *cobra.Command {
-	var body, bodyFile, criteria, criteriaFile string
+	var body, bodyFile, criteria, criteriaFile, issue string
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:   "start <title>",
+		Use:   "start <title> | --issue <ref>",
 		Short: "Create a task and its branch for a small piece of work",
-		Args:  cobra.ExactArgs(1),
+		Long: "Create a task and its branch for a small piece of work.\n" +
+			"With --issue the work starts from a ticket: the ticket is read first, the title and the body default to its title\n" +
+			"and description, and the title argument may be left out. A ticket that cannot be read creates nothing.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("issue") {
+				return cobra.MaximumNArgs(1)(cmd, args)
+			}
+			return cobra.ExactArgs(1)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			title := ""
+			if len(args) == 1 {
+				title = args[0]
+			}
 			bodyText, err := textOrFile(cmd, body, "body-file", bodyFile)
 			if err != nil {
 				return err
@@ -65,7 +77,7 @@ func newQuickStartCommand(a *app) *cobra.Command {
 			}
 			defer closeStore()
 
-			st, err := q.Start(a.actorContext(ctx, cmd), quick.StartInput{Title: args[0], Body: bodyText, AcceptanceCriteria: criteriaText})
+			st, err := q.Start(a.actorContext(ctx, cmd), quick.StartInput{Title: title, Body: bodyText, AcceptanceCriteria: criteriaText, Issue: issue})
 			if err != nil {
 				return err
 			}
@@ -76,6 +88,9 @@ func newQuickStartCommand(a *app) *cobra.Command {
 			}
 			_, _ = fmt.Fprintf(out, "started %s: %s\n", res.Task.ID, res.Task.Title)
 			_, _ = fmt.Fprintf(out, "branch: %s (base %s)\n", res.Branch, res.Base)
+			if res.Issue != nil {
+				_, _ = fmt.Fprintf(out, "issue: %s %s (%s)\n", res.Issue.Key, res.Issue.Title, res.Issue.Status)
+			}
 			printVerification(out, res.Verification.Commands, res.Verification.Source)
 			return nil
 		},
@@ -84,6 +99,7 @@ func newQuickStartCommand(a *app) *cobra.Command {
 	cmd.Flags().StringVar(&bodyFile, "body-file", "", "read the body from a file, or standard input for -")
 	cmd.Flags().StringVar(&criteria, "criteria", "", "how a reviewer can tell the work is done")
 	cmd.Flags().StringVar(&criteriaFile, "criteria-file", "", "read the criteria from a file, or standard input for -")
+	cmd.Flags().StringVar(&issue, "issue", "", "start from a ticket: its key or address")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print JSON")
 	cmd.MarkFlagsMutuallyExclusive("body", "body-file")
 	cmd.MarkFlagsMutuallyExclusive("criteria", "criteria-file")
@@ -168,7 +184,7 @@ func openQuick(ctx context.Context, a *app) (*quick.Service, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	q, err := newQuickService(ctx, a, units.NewService(d))
+	q, err := newQuickService(ctx, a, units.NewService(d), d)
 	if err != nil {
 		_ = d.Close()
 		return nil, nil, err

@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -61,7 +62,7 @@ func TestQuickInstructionFrontMatter(t *testing.T) {
 }
 
 func TestQuickInstructionToolsReferenced(t *testing.T) {
-	if got, want := quickInstruction(t).Tools(), []string{"quick_finish", "quick_start"}; !reflect.DeepEqual(got, want) {
+	if got, want := quickInstruction(t).Tools(), []string{"issue_get", "quick_finish", "quick_start"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("Tools() = %v, want %v", got, want)
 	}
 }
@@ -83,6 +84,51 @@ func TestQuickInstructionContent(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("rendered text lacks %q", want)
 		}
+	}
+}
+
+func TestQuickInstructionTicket(t *testing.T) {
+	out, err := quickInstruction(t).Render(RenderContext{Tool: func(n string) string { return "<" + n + ">" }, Arguments: "ARGS"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"ticket key such as ABC-123",
+		"address of a ticket",
+		"<issue_get>",
+		"no issue source is configured",
+		"the user's words",
+		"much larger than a small change",
+		"as `issue`",
+		"<quick_start>",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("rendered text lacks %q", want)
+		}
+	}
+}
+
+func TestQuickInstructionOtherWordingUnchanged(t *testing.T) {
+	want, err := os.ReadFile("testdata/quick_before_ticket.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kept []string
+	var added int
+	for _, line := range strings.SplitAfter(quickInstruction(t).Body, "\n") {
+		if strings.Contains(line, "ticket") || strings.Contains(line, "issue") {
+			added++
+			continue
+		}
+		kept = append(kept, line)
+	}
+	if added != 3 {
+		t.Errorf("%d lines are about a ticket, want 3", added)
+	}
+	_, body, _ := strings.Cut(string(want), "---\n")
+	_, body, _ = strings.Cut(body, "---\n")
+	if got := strings.Join(kept, ""); got != body {
+		t.Errorf("wording outside the ticket steps changed:\n%s\nwant:\n%s", got, body)
 	}
 }
 

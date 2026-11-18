@@ -133,7 +133,11 @@ func runMCP(ctx context.Context, a *app, t mcp.Transport) error {
 		Sources:     []mcpserver.NoticeSource{integrationNotice(a.root), semanticNotice(a, store), ticketsNotice(a, store)},
 		UnitSources: []func(units.Service) mcpserver.NoticeSource{quickNotice},
 		Quick: func(ctx context.Context, svc units.Service) (mcpserver.Quick, error) {
-			return newQuickService(ctx, a, svc)
+			d, err := store(ctx)
+			if err != nil {
+				return nil, err
+			}
+			return newQuickService(ctx, a, svc, d)
 		},
 		Open: func(ctx context.Context) (units.Service, error) {
 			d, err := store(ctx)

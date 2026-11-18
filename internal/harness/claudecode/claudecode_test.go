@@ -9,6 +9,8 @@ import (
 	"github.com/bengearig/ralph/internal/documents"
 	"github.com/bengearig/ralph/internal/harness"
 	"github.com/bengearig/ralph/internal/harness/harnesstest"
+	"github.com/bengearig/ralph/internal/issuesource"
+	"github.com/bengearig/ralph/internal/issuesource/issuetest"
 	"github.com/bengearig/ralph/internal/mcpserver"
 	"github.com/bengearig/ralph/internal/quick"
 	"github.com/bengearig/ralph/internal/search"
@@ -156,6 +158,15 @@ func TestArtifactsIncludeQuickCommand(t *testing.T) {
 	}
 }
 
+func TestQuickInstructionTicket(t *testing.T) {
+	c := string(artifactAt(t, inputs(t), ".claude/commands/ralph/quick.md").Content)
+	for _, want := range []string{"mcp__ralph__issue_get", "mcp__ralph__quick_start", "`issue`", "ticket key"} {
+		if !strings.Contains(c, want) {
+			t.Errorf("content lacks %q:\n%s", want, c)
+		}
+	}
+}
+
 func TestSectionListsQuickCommand(t *testing.T) {
 	if c := string(sectionArtifact(t, inputs(t)).Content); !strings.Contains(c, "/ralph:quick") {
 		t.Errorf("section lacks /ralph:quick:\n%s", c)
@@ -171,6 +182,9 @@ func TestToolNamesExistOnTheServer(t *testing.T) {
 		Quick:     func(context.Context, units.Service) (mcpserver.Quick, error) { return stubQuick{}, nil },
 		Documents: func(context.Context) (documents.Service, error) { return nil, nil },
 		Search:    func(context.Context) (search.Service, error) { return nil, nil },
+		Issues: func(context.Context) (issuesource.Source, error) {
+			return issuetest.NewFake("jira", "example.atlassian.net"), nil
+		},
 	})
 	st, ct := mcp.NewInMemoryTransports()
 	ss, err := srv.Connect(ctx, st, nil)

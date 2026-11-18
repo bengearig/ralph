@@ -37,6 +37,8 @@ func afterBranchError(branch string, cause, cancelErr error) error {
 }
 
 var (
+	// ErrNoIssueSource means a ticket was named and no issue source is configured.
+	ErrNoIssueSource = errors.New("no issue source is configured: set issues.provider to jira")
 	// ErrNotQuickWork means the task asked for is not an in-progress orphan task with a branch.
 	ErrNotQuickWork = errors.New("not quick work in progress")
 	// ErrAmbiguousTask means more than one quick work task matches.

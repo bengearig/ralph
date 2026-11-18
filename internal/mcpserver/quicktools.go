@@ -19,7 +19,7 @@ type Quick interface {
 
 const quickStartDescription = `Start a small piece of work the user has agreed on. This creates one orphan task (no brief, no slice) in progress and its own branch from the base branch, then returns them. It refuses, creating nothing, when the working tree is not clean or the checkout is not on the base branch; in that case ask the user to commit or stash their changes or to switch branches, then call it again.
 
-title is required and must be one line. body says what to do and why; it defaults to the title. acceptance_criteria is prose that you and the reviewer read: ralph does not run it. The verification commands in the result are what quick_finish will run, so make them pass.
+title is required, and must be one line, unless issue is given. issue is a ticket key such as ABC-123 or the address of the ticket: ralph reads the ticket before creating anything and links the new task to it, and title and body default to the ticket's title and description; give your own only when you have a better one. A ticket that cannot be read, or that is already linked to a unit, ends the call with an error and nothing created. body says what to do and why; it defaults to the title. acceptance_criteria is prose that you and the reviewer read: ralph does not run it. The verification commands in the result are what quick_finish will run, so make them pass.
 
 After this call, implement the task in the working tree, then call quick_finish.`
 
@@ -30,9 +30,10 @@ It stops at the first problem and changes nothing before verification passes: fi
 summary is a short account of what changed, for the pull request description.`
 
 type quickStartInput struct {
-	Title              string `json:"title" jsonschema:"short one-line title, not blank"`
+	Title              string `json:"title,omitempty" jsonschema:"short one-line title, not blank; required unless issue is given, then it defaults to the ticket's title"`
 	Body               string `json:"body,omitempty" jsonschema:"what to do and why; defaults to the title"`
 	AcceptanceCriteria string `json:"acceptance_criteria,omitempty" jsonschema:"how the reviewer can tell the work is done; read by people, not run by ralph"`
+	Issue              string `json:"issue,omitempty" jsonschema:"a ticket key such as ABC-123 or the address of the ticket to start from; when given, title and body may be omitted and default to the ticket's"`
 }
 
 type quickFinishInput struct {
@@ -55,12 +56,22 @@ type QuickSettings struct {
 	Source   string   `json:"source"`
 }
 
+// QuickIssue is the ticket quick work was started from.
+type QuickIssue struct {
+	Key    string `json:"key"`
+	URL    string `json:"url"`
+	Title  string `json:"title"`
+	Type   string `json:"type"`
+	Status string `json:"status"`
+}
+
 type QuickStartResult struct {
 	Task         QuickTask     `json:"task"`
 	Branch       string        `json:"branch"`
 	Base         string        `json:"base"`
 	StartedFrom  string        `json:"started_from"`
 	Verification QuickSettings `json:"verification"`
+	Issue        *QuickIssue   `json:"issue,omitempty"`
 }
 
 type QuickFinishedTask struct {
@@ -113,7 +124,7 @@ func verificationOf(configured bool, report verify.Report) QuickVerification {
 
 // NewQuickStartResult builds the quick_start result from what the service returned.
 func NewQuickStartResult(st quick.Started) QuickStartResult {
-	return QuickStartResult{
+	res := QuickStartResult{
 		Task: QuickTask{
 			ID: st.Task.ID, Title: st.Task.Title, Body: st.Task.Body,
 			AcceptanceCriteria: st.Task.AcceptanceCriteria, State: string(st.Task.State),
@@ -125,6 +136,11 @@ func NewQuickStartResult(st quick.Started) QuickStartResult {
 			Timeout:  st.Verify.Timeout.String(), Source: st.Verify.Source,
 		},
 	}
+	if st.Issue != nil {
+		i := QuickIssue(*st.Issue)
+		res.Issue = &i
+	}
+	return res
 }
 
 // NewQuickFinishResult builds the quick_finish result from what the service returned.
@@ -175,7 +191,7 @@ func (s *server) addQuickTools(srv *mcp.Server) {
 		if err != nil {
 			return nil, "", err
 		}
-		st, err := q.Start(ctx, quick.StartInput{Title: in.Title, Body: in.Body, AcceptanceCriteria: in.AcceptanceCriteria})
+		st, err := q.Start(ctx, quick.StartInput{Title: in.Title, Body: in.Body, AcceptanceCriteria: in.AcceptanceCriteria, Issue: in.Issue})
 		if err != nil {
 			return nil, "", err
 		}
@@ -213,6 +229,9 @@ func startText(r QuickStartResult) string {
 		for _, c := range r.Verification.Commands {
 			fmt.Fprintf(&b, "  %s\n", c)
 		}
+	}
+	if r.Issue != nil {
+		fmt.Fprintf(&b, "Started from %s %q (%s): %s\n", r.Issue.Key, r.Issue.Title, r.Issue.Status, r.Issue.URL)
 	}
 	b.WriteString("Implement the task in the working tree, then call quick_finish.")
 	return b.String()

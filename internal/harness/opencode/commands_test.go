@@ -150,6 +150,24 @@ func TestOpenCodeCommandBodyUsesBareToolsAndArguments(t *testing.T) {
 	}
 }
 
+func TestQuickInstructionTicket(t *testing.T) {
+	quick, ok, err := workflow.Get("quick")
+	if err != nil || !ok {
+		t.Fatalf("quick: %v, %v", ok, err)
+	}
+	content := oneCommand(t, quick, "ralph")
+	for _, want := range []string{"`issue_get`", "`quick_start`", "`issue`", "ticket key"} {
+		if !strings.Contains(content, want) {
+			t.Errorf("content lacks %q:\n%s", want, content)
+		}
+	}
+	for _, bad := range []string{"mcp__", "ralph_issue_get"} {
+		if strings.Contains(content, bad) {
+			t.Errorf("contains %q", bad)
+		}
+	}
+}
+
 func TestOpenCodeCommandEndsWithNewline(t *testing.T) {
 	for _, body := range []string{"no newline", "newline\n"} {
 		content := oneCommand(t, workflow.Instruction{Name: "x", Description: "d", Body: body}, "ralph")

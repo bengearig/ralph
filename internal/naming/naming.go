@@ -16,6 +16,8 @@ type Data struct {
 	Slug     string
 	ParentID string
 	Number   int
+	// Ticket is the key of the ticket the work was started from, empty when none.
+	Ticket string
 }
 
 const maxSlug = 40

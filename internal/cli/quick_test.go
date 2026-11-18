@@ -24,8 +24,8 @@ func TestNewQuickServiceBuildsFromConfig(t *testing.T) {
 	repo.Git("commit", "-m", "project files")
 
 	a := loadedApp(t)
-	svc := units.NewService(testutil.NewDB(t, db.Migrations))
-	q, err := newQuickService(context.Background(), a, svc)
+	d := testutil.NewDB(t, db.Migrations)
+	q, err := newQuickService(context.Background(), a, units.NewService(d), d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestNewQuickServiceOutsideRepository(t *testing.T) {
 	testutil.IsolateEnv(t)
 	t.Chdir(t.TempDir())
 	a := loadedApp(t)
-	_, err := newQuickService(context.Background(), a, nil)
+	_, err := newQuickService(context.Background(), a, nil, nil)
 	if err == nil || err.Error() != "not in a git repository" {
 		t.Errorf("err = %v", err)
 	}
