@@ -19,6 +19,7 @@ import (
 	"github.com/bengearig/ralph/internal/mcpserver"
 	"github.com/bengearig/ralph/internal/quick"
 	"github.com/bengearig/ralph/internal/search"
+	"github.com/bengearig/ralph/internal/taskmanager"
 	"github.com/bengearig/ralph/internal/tickets"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/version"
@@ -154,6 +155,17 @@ func runMCP(ctx context.Context, a *app, t mcp.Transport) error {
 			return newDocumentsService(a, d), nil
 		},
 		Issues: func(ctx context.Context) (issuesource.Source, error) { return openIssueSource(ctx, a) },
+		Tickets: func(ctx context.Context, _ units.Service) (tickets.Deps, error) {
+			d, err := store(ctx)
+			if err != nil {
+				return tickets.Deps{}, err
+			}
+			tm, err := taskmanager.FromConfig(a.cfg)
+			if err != nil {
+				return tickets.Deps{}, err
+			}
+			return tickets.Deps{DB: d, Settings: tm, ProjectID: a.setting("project.id")}, nil
+		},
 		Search: func(ctx context.Context) (search.Service, error) {
 			d, err := store(ctx)
 			if err != nil {

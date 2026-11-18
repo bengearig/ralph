@@ -11,6 +11,7 @@ import (
 	"github.com/bengearig/ralph/internal/documents"
 	"github.com/bengearig/ralph/internal/issuesource"
 	"github.com/bengearig/ralph/internal/search"
+	"github.com/bengearig/ralph/internal/tickets"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -41,6 +42,9 @@ type Options struct {
 	// Issues supplies the issue source on the first issue tool call; nil
 	// leaves the issue tools out.
 	Issues func(ctx context.Context) (issuesource.Source, error)
+	// Tickets supplies what unit_create needs to link a new unit to its ticket; nil, like a nil Issues, leaves
+	// unit_create without the issue input's effect.
+	Tickets func(ctx context.Context, svc units.Service) (tickets.Deps, error)
 	// AfterWrite is called, without being waited for, after a tool that is not read-only has committed a write.
 	// Its context outlives the call; nil does nothing.
 	AfterWrite func(ctx context.Context)

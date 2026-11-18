@@ -127,3 +127,19 @@ func TestInstructionsRenderForBothHarnesses(t *testing.T) {
 		}
 	}
 }
+
+func TestReceiveInstructionTicket(t *testing.T) {
+	receive, ok, err := workflow.Get("receive")
+	if err != nil || !ok {
+		t.Fatal(ok, err)
+	}
+	c := oneCommand(t, receive, "ralph")
+	for _, want := range []string{"`issue_get`", "`unit_create`", "as `issue` in this same call", "ticket key such as ABC-123"} {
+		if !strings.Contains(c, want) {
+			t.Errorf("content lacks %q", want)
+		}
+	}
+	if strings.Contains(c, "mcp__") {
+		t.Error("content has Claude Code tool names")
+	}
+}

@@ -334,7 +334,7 @@ func TestReceiveFrontMatter(t *testing.T) {
 }
 
 func TestReceiveToolsReferenced(t *testing.T) {
-	want := []string{"dependency_add", "doc_create", "doc_update", "link_add", "note_add", "planning_settings", "search", "status", "task_set_state", "unit_create", "unit_get", "unit_list", "unit_update"}
+	want := []string{"dependency_add", "doc_create", "doc_update", "issue_get", "link_add", "note_add", "planning_settings", "search", "status", "task_set_state", "unit_create", "unit_get", "unit_list", "unit_update"}
 	if got := receiveInstruction(t).Tools(); !reflect.DeepEqual(got, want) {
 		t.Errorf("Tools() = %v, want %v", got, want)
 	}
@@ -588,5 +588,50 @@ func TestArticulateNamesNoLoopCommand(t *testing.T) {
 	}
 	if strings.Contains(strings.ToLower(in.Body), "loop") {
 		t.Error("body names a loop command")
+	}
+}
+
+func TestReceiveInstructionTicket(t *testing.T) {
+	out, err := receiveInstruction(t).Render(RenderContext{Tool: func(n string) string { return "<" + n + ">" }, Arguments: "ARGS"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	requireAll(t, out,
+		"ticket key such as ABC-123",
+		"address of a ticket",
+		"<issue_get>",
+		"no issue source is configured",
+		"continue with what was typed as the instructions",
+		"`instruction` text",
+		"the brief's title is the ticket's title",
+		"the brief's body is the `instruction` text word for word",
+		"as `issue` in this same call",
+		"created without `issue`",
+		"do not ask what it already answers",
+		"<note_add>",
+	)
+}
+
+func TestReceiveInstructionOtherWordingUnchanged(t *testing.T) {
+	want, err := os.ReadFile("testdata/receive_before_ticket.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kept []string
+	var added int
+	for _, line := range strings.SplitAfter(receiveInstruction(t).Body, "\n") {
+		if strings.HasPrefix(line, "   - For a ticket,") || strings.HasPrefix(line, "   - If it is a ticket key") {
+			added++
+			continue
+		}
+		kept = append(kept, line)
+	}
+	if added != 3 {
+		t.Errorf("%d new lines, want 3", added)
+	}
+	_, body, _ := strings.Cut(string(want), "---\n")
+	_, body, _ = strings.Cut(body, "---\n")
+	if got := strings.Join(kept, ""); got != body {
+		t.Errorf("wording outside the ticket steps changed:\n%s\nwant:\n%s", got, body)
 	}
 }

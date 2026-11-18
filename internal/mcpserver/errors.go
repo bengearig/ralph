@@ -96,7 +96,11 @@ func errorResult(err error) *mcp.CallToolResult {
 func classify(err error) (code, text string) {
 	var oe *openError
 	var nce *NotConfiguredError
+	var lfe *linkFailedError
 	switch {
+	case errors.As(err, &lfe):
+		code, _ := classify(lfe.err)
+		return code, err.Error() + ". The unit exists and is kept: add the link with link_add (kind external, target " + lfe.target + ") if it is still wanted."
 	case errors.As(err, &nce):
 		return codeNotConfigured, err.Error() + ". Ask the user to set it with `ralph config set`, then try again."
 	case errors.Is(err, quick.ErrNoIssueSource):

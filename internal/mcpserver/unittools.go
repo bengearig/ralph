@@ -9,6 +9,8 @@ import (
 
 	"github.com/bengearig/ralph/internal/doclinks"
 	"github.com/bengearig/ralph/internal/documents"
+	"github.com/bengearig/ralph/internal/issuelink"
+	"github.com/bengearig/ralph/internal/quick"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/view"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -72,6 +74,7 @@ type createInput struct {
 	Body               string `json:"body,omitempty" jsonschema:"description; for a brief, the user's words verbatim"`
 	AcceptanceCriteria string `json:"acceptance_criteria,omitempty" jsonschema:"how to verify the work; tasks only"`
 	Position           int    `json:"position,omitempty" jsonschema:"1-based place among siblings; omit to append"`
+	Issue              string `json:"issue,omitempty" jsonschema:"a ticket key such as ABC-123 or the address of the ticket the unit starts from; only for a brief or a task with no parent"`
 }
 
 type updateInput struct {
@@ -177,28 +180,16 @@ func (s *server) addUnitTools(srv *mcp.Server) {
 
 ` + levelsText + `
 
-Parents: a slice's parent_id is a brief; a task's parent_id is a slice, or omitted for an orphan task. A brief has no parent. Acceptance criteria are for tasks only. A brief's body is stored verbatim and cannot be edited afterwards.`,
+Parents: a slice's parent_id is a brief; a task's parent_id is a slice, or omitted for an orphan task. A brief has no parent. Acceptance criteria are for tasks only. A brief's body is stored verbatim and cannot be edited afterwards.
+
+issue is a ticket key such as ABC-123 or the address of the ticket the unit starts from, allowed only for a brief or a task with no parent. Ralph reads the ticket before anything is created and links the new unit to it, so that branch names, commits and the pull request carry the ticket's key, and returns the ticket as issue. A ticket that cannot be read, or that is already linked to a unit, ends the call with an error and nothing created. The ticket itself is not changed. Pass the title and the text you were given as the title and body; for a brief the body is the user's words verbatim.`,
 		InputSchema: schemaFor[createInput](func(p map[string]*jsonschema.Schema) {
 			p["level"] = enum(levelEnum)
 		}),
 		Annotations:  writes(false),
-		OutputSchema: outputFor[unitResult](),
+		OutputSchema: outputFor[createResult](),
 	}, func(ctx context.Context, svc units.Service, in createInput) (any, string, error) {
-		parent := ""
-		if in.ParentID != "" {
-			var err error
-			if parent, err = parseID(in.ParentID); err != nil {
-				return nil, "", err
-			}
-		}
-		u, err := svc.Create(ctx, units.NewUnit{
-			Level: units.Level(in.Level), ParentID: parent, Title: in.Title, Body: in.Body,
-			AcceptanceCriteria: in.AcceptanceCriteria, Position: in.Position,
-		})
-		if err != nil {
-			return nil, "", err
-		}
-		return s.unitOut(ctx, svc, u.ID)
+		return s.createUnit(ctx, svc, in)
 	})
 
 	addTool(s, srv, &mcp.Tool{
@@ -308,6 +299,90 @@ Parents: a slice's parent_id is a brief; a task's parent_id is a slice, or omitt
 	}, func(ctx context.Context, svc units.Service, in linkInput) (any, string, error) {
 		return s.changeLink(ctx, svc, in, false)
 	})
+}
+
+// createResult is a created unit and, when it was started from one, the ticket.
+type createResult struct {
+	unitResult
+	Issue *QuickIssue `json:"issue,omitempty"`
+}
+
+// linkFailedError says a unit was created but could not be linked to its ticket.
+type linkFailedError struct {
+	id, key, target string
+	err             error
+}
+
+func (e *linkFailedError) Error() string {
+	return fmt.Sprintf("created %s but could not link %s: %v", e.id, e.key, e.err)
+}
+
+func (e *linkFailedError) Unwrap() error { return e.err }
+
+const issueOnlyForRoot = "issue can only start a brief or a task with no parent"
+
+func (s *server) createUnit(ctx context.Context, svc units.Service, in createInput) (any, string, error) {
+	parent := ""
+	if in.ParentID != "" {
+		var err error
+		if parent, err = parseID(in.ParentID); err != nil {
+			return nil, "", err
+		}
+	}
+	n := units.NewUnit{
+		Level: units.Level(in.Level), ParentID: parent, Title: in.Title, Body: in.Body,
+		AcceptanceCriteria: in.AcceptanceCriteria, Position: in.Position,
+	}
+	issue := strings.TrimSpace(in.Issue)
+	if issue == "" {
+		u, err := svc.Create(ctx, n)
+		if err != nil {
+			return nil, "", err
+		}
+		return s.unitOut(ctx, svc, u.ID)
+	}
+	if n.Level == units.LevelSlice || (n.Level == units.LevelTask && parent != "") {
+		return nil, "", fmt.Errorf("%w: %s", units.ErrInvalid, issueOnlyForRoot)
+	}
+	if s.opts.Issues == nil || s.opts.Tickets == nil {
+		return nil, "", quick.ErrNoIssueSource
+	}
+	src, err := s.issueSource(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+	ref, err := src.Parse(issue)
+	if err != nil {
+		return nil, "", err
+	}
+	got, err := src.Get(ctx, ref)
+	if err != nil {
+		if !strings.Contains(err.Error(), ref.Key) {
+			err = fmt.Errorf("read %s: %w", ref.Key, err)
+		}
+		return nil, "", err
+	}
+	td, err := s.opts.Tickets(ctx, svc)
+	if err != nil {
+		return nil, "", &openError{err}
+	}
+	td.Units = svc
+	if err := issuelink.Check(ctx, td, "", ref); err != nil {
+		return nil, "", err
+	}
+	u, err := svc.Create(ctx, n)
+	if err != nil {
+		return nil, "", err
+	}
+	if err := issuelink.Attach(ctx, td, u.ID, got); err != nil {
+		return nil, "", &linkFailedError{id: u.ID, key: ref.Key, target: issuelink.Target(ref), err: err}
+	}
+	out, txt, err := s.unitOut(ctx, svc, u.ID)
+	if err != nil {
+		return nil, "", err
+	}
+	info := &QuickIssue{Key: got.Ref.Key, URL: got.URL, Title: got.Title, Type: got.Type, Status: got.Status}
+	return createResult{unitResult: out.(unitResult), Issue: info}, txt + "\nissue: " + info.Key + " " + info.Title, nil
 }
 
 func parseID(raw string) (string, error) {

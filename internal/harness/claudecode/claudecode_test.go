@@ -383,3 +383,25 @@ func TestInstructionsRenderForBothHarnesses(t *testing.T) {
 		t.Errorf("no artifact %s", path)
 	}
 }
+
+func TestReceiveInstructionTicket(t *testing.T) {
+	c := string(artifactAt(t, inputs(t), ".claude/commands/ralph/receive.md").Content)
+	for _, want := range []string{"mcp__ralph__issue_get", "mcp__ralph__unit_create", "as `issue` in this same call", "ticket key such as ABC-123"} {
+		if !strings.Contains(c, want) {
+			t.Errorf("content lacks %q", want)
+		}
+	}
+}
+
+func TestReceiveInstructionTicketKeepsPlanModeParagraph(t *testing.T) {
+	c := string(artifactAt(t, inputs(t), ".claude/commands/ralph/receive.md").Content)
+	for _, want := range []string{
+		"If this session is already in plan mode when this command starts, write tools are unavailable.",
+		"Reading a ticket is allowed, because it writes nothing; the brief, including its link to the ticket, is created only after the plan is approved.",
+		"After the plan is approved, create the brief and then the outline.",
+	} {
+		if !strings.Contains(c, want) {
+			t.Errorf("content lacks %q", want)
+		}
+	}
+}
