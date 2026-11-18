@@ -69,6 +69,8 @@ type env struct {
 	store *Store
 	deps  Deps
 	log   []Event
+	// base is how many fake calls had been made when a test finished its setup.
+	base int
 }
 
 func newEnv(t *testing.T) *env {

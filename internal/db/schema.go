@@ -290,3 +290,7 @@ CREATE TABLE ticket_state (
 const addMappedStatusSQL = `
 ALTER TABLE tickets ADD COLUMN mapped_status TEXT NOT NULL DEFAULT '';
 `
+
+const addTicketOriginSQL = `
+ALTER TABLE tickets ADD COLUMN origin TEXT NOT NULL DEFAULT '';
+`

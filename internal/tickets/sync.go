@@ -34,6 +34,9 @@ const (
 	stepMove     = "move"
 
 	driftDeleted = "deleted"
+
+	// OriginIssue marks the row of a unit started from an existing ticket, whose title and body stay as they are.
+	OriginIssue = "issue"
 )
 
 // SyncOptions choose what a pass covers.
@@ -390,6 +393,9 @@ func (p *pass) push(ctx context.Context, u units.Unit) error {
 		return nil
 	}
 	want := content(p.d, u, string(p.states[u.ID]))
+	if row.Origin == OriginIssue {
+		return p.pushStatus(ctx, u, want)
+	}
 	if held, err := p.pushFields(ctx, u, want); held || err != nil {
 		return err
 	}

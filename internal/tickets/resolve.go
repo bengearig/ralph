@@ -91,6 +91,13 @@ func PlanResolve(ctx context.Context, d Deps, unitID, action string, fields []st
 	if len(drifted) == 0 {
 		return ResolvePlan{}, fmt.Errorf("%s has no differences to resolve", unitID)
 	}
+	if row.Origin == OriginIssue {
+		for _, f := range fields {
+			if f != driftDeleted {
+				return ResolvePlan{}, fmt.Errorf("tickets: %s was started from %s, so only %q can be resolved, not %q", unitID, row.Key, driftDeleted, f)
+			}
+		}
+	}
 	for _, f := range fields {
 		if !slices.Contains(resolvableFields, f) {
 			return ResolvePlan{}, fmt.Errorf("tickets: unknown field %q", f)

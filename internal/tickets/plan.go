@@ -24,6 +24,13 @@ func Plan(obs []Observation, normalize func(taskmanager.Fields) taskmanager.Fiel
 			out = append(out, dr)
 			continue
 		}
+		if o.Row.Origin == OriginIssue {
+			if o.Ticket.Key != "" && o.Ticket.Key != o.Row.Key {
+				dr.MovedTo = o.Ticket.Key
+				out = append(out, dr)
+			}
+			continue
+		}
 		norm := normalize(taskmanager.Fields{Title: o.Ticket.Title, Body: o.Ticket.Body})
 		if o.Row.PushedTitle != "" && Hash(norm.Title) != o.Row.PushedTitle {
 			dr.Fields = append(dr.Fields, "title")

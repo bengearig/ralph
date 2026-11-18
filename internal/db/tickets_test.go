@@ -190,3 +190,84 @@ func TestMigrationKeepsTicketRows(t *testing.T) {
 		t.Errorf("row = %q %q %q", key, pushed, mapped)
 	}
 }
+
+func originMigration(t *testing.T) Migration {
+	t.Helper()
+	for _, m := range Migrations {
+		if m.Name == "record ticket origin" {
+			return m
+		}
+	}
+	t.Fatal("no ticket origin migration")
+	return Migration{}
+}
+
+func TestMigrationAddsOriginColumn(t *testing.T) {
+	m := originMigration(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "old.db")
+	old, err := openWith(t, path, Migrations[:m.Version-1], MigrateAuto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(columnsOf(t, old, "tickets"), "origin") {
+		t.Fatal("origin exists before the migration")
+	}
+	_ = old.Close()
+
+	backups := filepath.Join(dir, "backups")
+	d, err := Open(context.Background(), path, Options{Mode: MigrateAuto, BackupDir: backups})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = d.Close() }()
+	if v := version(t, d); v != len(Migrations) {
+		t.Errorf("version = %d, want %d", v, len(Migrations))
+	}
+	if !slices.Contains(columnsOf(t, d, "tickets"), "origin") {
+		t.Error("origin missing")
+	}
+	matches, err := filepath.Glob(filepath.Join(backups, "pre-migrate-v"+strconv.Itoa(m.Version-1)+"-*.db"))
+	if err != nil || len(matches) != 1 {
+		t.Errorf("backups = %v, %v", matches, err)
+	}
+	fresh, err := openWith(t, filepath.Join(t.TempDir(), "fresh.db"), Migrations, MigrateAuto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = fresh.Close() }()
+	if strings.Join(schemaOf(t, fresh), "\n") != strings.Join(schemaOf(t, d), "\n") {
+		t.Error("schemas differ")
+	}
+}
+
+func TestMigrationKeepsTicketRowsAcrossOrigin(t *testing.T) {
+	m := originMigration(t)
+	path := filepath.Join(t.TempDir(), "old.db")
+	old, err := openWith(t, path, Migrations[:m.Version-1], MigrateAuto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		"INSERT INTO units (id, level, number, parent_id, position, title, body, acceptance_criteria, state, created_at, updated_at) VALUES ('B-1', 'brief', 1, NULL, 0, 'Brief', 'b', '', NULL, 'x', 'x')",
+		"INSERT INTO tickets (unit_id, system, ticket_key, pushed_status, mapped_status) VALUES ('B-1', 'jira', 'ABC-1', 'In Progress', 'In Progress')",
+	} {
+		if _, err := old.SQL().Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = old.Close()
+
+	d, err := openWith(t, path, Migrations, MigrateAuto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = d.Close() }()
+	var key, pushed, mapped, origin string
+	if err := d.SQL().QueryRow("SELECT ticket_key, pushed_status, mapped_status, origin FROM tickets WHERE unit_id = 'B-1'").Scan(&key, &pushed, &mapped, &origin); err != nil {
+		t.Fatal(err)
+	}
+	if key != "ABC-1" || pushed != "In Progress" || mapped != "In Progress" || origin != "" {
+		t.Errorf("row = %q %q %q %q", key, pushed, mapped, origin)
+	}
+}

@@ -29,13 +29,15 @@ type Row struct {
 	Scheduled bool
 	// LinkConfirmed is set once the unit's external link is written; a row without it was cut short by a crash.
 	LinkConfirmed bool
-	Drift         string
-	DriftSeenAt   time.Time
-	FailedStep    string
-	FailedAt      time.Time
-	LastError     string
-	Attempts      int
-	SyncedAt      time.Time
+	// Origin is "issue" for a row of a unit started from an existing ticket, whose title and body ralph never pushes.
+	Origin      string
+	Drift       string
+	DriftSeenAt time.Time
+	FailedStep  string
+	FailedAt    time.Time
+	LastError   string
+	Attempts    int
+	SyncedAt    time.Time
 }
 
 // Store reads and writes the ticket rows of a project database.
@@ -46,11 +48,11 @@ type Store struct {
 // NewStore returns the store of d.
 func NewStore(d *db.DB) *Store { return &Store{db: d} }
 
-const rowColumns = "unit_id, system, ticket_key, ticket_id, pushed_title, pushed_body, pushed_status, pushed_parent, mapped_status, scheduled, link_confirmed, drift, drift_seen_at, failed_step, failed_at, last_error, attempts, synced_at"
+const rowColumns = "unit_id, system, ticket_key, ticket_id, pushed_title, pushed_body, pushed_status, pushed_parent, mapped_status, scheduled, link_confirmed, origin, drift, drift_seen_at, failed_step, failed_at, last_error, attempts, synced_at"
 
 const updateColumns = "system = excluded.system, ticket_key = excluded.ticket_key, ticket_id = excluded.ticket_id, pushed_title = excluded.pushed_title, " +
 	"pushed_body = excluded.pushed_body, pushed_status = excluded.pushed_status, pushed_parent = excluded.pushed_parent, mapped_status = excluded.mapped_status, scheduled = excluded.scheduled, " +
-	"link_confirmed = excluded.link_confirmed, drift = excluded.drift, drift_seen_at = excluded.drift_seen_at, failed_step = excluded.failed_step, " +
+	"link_confirmed = excluded.link_confirmed, origin = excluded.origin, drift = excluded.drift, drift_seen_at = excluded.drift_seen_at, failed_step = excluded.failed_step, " +
 	"failed_at = excluded.failed_at, last_error = excluded.last_error, attempts = excluded.attempts, synced_at = excluded.synced_at"
 
 type scanner interface{ Scan(dest ...any) error }
@@ -62,7 +64,7 @@ func scanRow(s scanner) (Row, error) {
 		driftSeen, failedAt, syncedAtStr string
 	)
 	err := s.Scan(&r.UnitID, &r.System, &r.Key, &r.ID, &r.PushedTitle, &r.PushedBody, &r.PushedStatus, &r.PushedParent, &r.MappedStatus,
-		&scheduled, &confirmed, &r.Drift, &driftSeen, &r.FailedStep, &failedAt, &r.LastError, &r.Attempts, &syncedAtStr)
+		&scheduled, &confirmed, &r.Origin, &r.Drift, &driftSeen, &r.FailedStep, &failedAt, &r.LastError, &r.Attempts, &syncedAtStr)
 	if err != nil {
 		return Row{}, err
 	}
@@ -133,9 +135,9 @@ func (s *Store) List(ctx context.Context) ([]Row, error) {
 // Put inserts the row or replaces the one of the same unit; a ticket key another unit holds is an error.
 func (s *Store) Put(ctx context.Context, r Row) error {
 	err := s.db.WriteTx(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, "INSERT INTO tickets ("+rowColumns+") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (unit_id) DO UPDATE SET "+updateColumns,
+		_, err := tx.ExecContext(ctx, "INSERT INTO tickets ("+rowColumns+") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (unit_id) DO UPDATE SET "+updateColumns,
 			r.UnitID, r.System, r.Key, r.ID, r.PushedTitle, r.PushedBody, r.PushedStatus, r.PushedParent, r.MappedStatus,
-			flag(r.Scheduled), flag(r.LinkConfirmed), r.Drift, formatTime(r.DriftSeenAt), r.FailedStep, formatTime(r.FailedAt),
+			flag(r.Scheduled), flag(r.LinkConfirmed), r.Origin, r.Drift, formatTime(r.DriftSeenAt), r.FailedStep, formatTime(r.FailedAt),
 			r.LastError, r.Attempts, formatTime(r.SyncedAt))
 		return err
 	})
@@ -180,4 +182,16 @@ func (s *Store) SetState(ctx context.Context, key, value string) error {
 		return fmt.Errorf("tickets: write state %s: %w", key, err)
 	}
 	return nil
+}
+
+// ByKey returns the row holding a ticket and whether there is one.
+func (s *Store) ByKey(ctx context.Context, system, key string) (Row, bool, error) {
+	r, err := scanRow(s.db.SQL().QueryRowContext(ctx, "SELECT "+rowColumns+" FROM tickets WHERE system = ? AND ticket_key = ?", system, key))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Row{}, false, nil
+	}
+	if err != nil {
+		return Row{}, false, fmt.Errorf("tickets: get %s %s: %w", system, key, err)
+	}
+	return r, true, nil
 }
