@@ -10,8 +10,10 @@ import (
 	"github.com/bengearig/ralph/internal/db"
 	"github.com/bengearig/ralph/internal/documents"
 	"github.com/bengearig/ralph/internal/hosting"
+	"github.com/bengearig/ralph/internal/issuesource"
 	"github.com/bengearig/ralph/internal/quick"
 	"github.com/bengearig/ralph/internal/search"
+	"github.com/bengearig/ralph/internal/taskmanager"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/workspace"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -28,6 +30,10 @@ const (
 	codeReasonRequired = "reason_required"
 	codeWaiting        = "waiting"
 	codeInternal       = "internal"
+	codeNotConfigured  = "not_configured"
+	codeUnauthorized   = "unauthorized"
+	codeRateLimited    = "rate_limited"
+	codeUnavailable    = "unavailable"
 
 	codeDirtyTree          = "dirty_tree"
 	codeNotOnBase          = "not_on_base"
@@ -88,7 +94,20 @@ func errorResult(err error) *mcp.CallToolResult {
 
 func classify(err error) (code, text string) {
 	var oe *openError
+	var nce *NotConfiguredError
 	switch {
+	case errors.As(err, &nce):
+		return codeNotConfigured, err.Error() + ". Ask the user to set it with `ralph config set`, then try again."
+	case errors.Is(err, issuesource.ErrUnauthorized):
+		return codeUnauthorized, issueAuthText(err)
+	case errors.Is(err, issuesource.ErrRateLimited):
+		return codeRateLimited, err.Error() + ". Wait and try again later."
+	case errors.Is(err, issuesource.ErrUnavailable):
+		return codeUnavailable, err.Error() + ". The issue source could not be reached: try again later, or ask the user to check the site setting and their network."
+	case errors.Is(err, issuesource.ErrNotFound):
+		return codeNotFound, err.Error()
+	case errors.Is(err, issuesource.ErrInvalid):
+		return codeInvalid, err.Error()
 	case errors.As(err, &oe):
 		if errors.Is(err, db.ErrNotFound) || errors.Is(err, os.ErrNotExist) {
 			return codeNotInitialized, notInitializedText
@@ -197,4 +216,12 @@ func pullRequestText(err error) string {
 		}
 	}
 	return text
+}
+
+func issueAuthText(err error) string {
+	text := err.Error() + ". The issue source refused the credentials"
+	if setting, ok := taskmanager.CredentialSetting(err); ok {
+		return text + ": ask the user to check the setting " + setting + " holds a valid token."
+	}
+	return text + ": ask the user to check jira.user and jira.token."
 }

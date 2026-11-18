@@ -9,6 +9,7 @@ import (
 
 	"github.com/bengearig/ralph/internal/db"
 	"github.com/bengearig/ralph/internal/documents"
+	"github.com/bengearig/ralph/internal/issuesource"
 	"github.com/bengearig/ralph/internal/search"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -37,6 +38,9 @@ type Options struct {
 	// Search supplies the search service on the first search call; nil leaves
 	// the search tool out.
 	Search func(ctx context.Context) (search.Service, error)
+	// Issues supplies the issue source on the first issue tool call; nil
+	// leaves the issue tools out.
+	Issues func(ctx context.Context) (issuesource.Source, error)
 	// AfterWrite is called, without being waited for, after a tool that is not read-only has committed a write.
 	// Its context outlives the call; nil does nothing.
 	AfterWrite func(ctx context.Context)
@@ -58,6 +62,9 @@ type server struct {
 	searchMu sync.Mutex
 	search   search.Service
 
+	issueMu sync.Mutex
+	issues  issuesource.Source
+
 	toolsMu  sync.Mutex
 	readOnly map[string]bool
 
@@ -76,6 +83,7 @@ func New(opts Options) *mcp.Server {
 	s.addQuickTools(srv)
 	s.addDocTools(srv)
 	s.addSearchTool(srv)
+	s.addIssueTool(srv)
 	s.addPlanningTool(srv)
 	return srv
 }

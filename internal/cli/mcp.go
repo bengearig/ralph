@@ -15,6 +15,7 @@ import (
 	"github.com/bengearig/ralph/internal/harness/all"
 	"github.com/bengearig/ralph/internal/identity"
 	"github.com/bengearig/ralph/internal/integration"
+	"github.com/bengearig/ralph/internal/issuesource"
 	"github.com/bengearig/ralph/internal/mcpserver"
 	"github.com/bengearig/ralph/internal/quick"
 	"github.com/bengearig/ralph/internal/search"
@@ -148,6 +149,7 @@ func runMCP(ctx context.Context, a *app, t mcp.Transport) error {
 			}
 			return newDocumentsService(a, d), nil
 		},
+		Issues: func(ctx context.Context) (issuesource.Source, error) { return openIssueSource(ctx, a) },
 		Search: func(ctx context.Context) (search.Service, error) {
 			d, err := store(ctx)
 			if err != nil {
