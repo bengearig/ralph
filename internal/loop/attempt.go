@@ -8,6 +8,7 @@ import (
 
 	"github.com/bengearig/ralph/internal/harness"
 	"github.com/bengearig/ralph/internal/headless"
+	"github.com/bengearig/ralph/internal/issuelink"
 	"github.com/bengearig/ralph/internal/naming"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/verify"
@@ -286,9 +287,13 @@ func (a *attempt) commit(ctx context.Context, head string, dirty bool) (string, 
 		return noChangesFailure, nil
 	}
 	task, in := a.in.Task, a.in
+	ticket, _, err := issuelink.Of(ctx, a.d.Units, task.ID)
+	if err != nil {
+		return "", fmt.Errorf("find the ticket of %s: %w", task.ID, err)
+	}
 	subject, err := naming.RenderSubject(a.d.CommitTemplate, naming.Data{
 		ID: task.ID, Level: "task", Number: task.Number, Title: task.Title,
-		Slug: naming.Slugify(task.Title), ParentID: in.Slice.ID,
+		Slug: naming.Slugify(task.Title), ParentID: in.Slice.ID, Ticket: ticket.Key,
 	})
 	if err != nil {
 		return "", fmt.Errorf("render the commit subject: %w", err)

@@ -114,6 +114,7 @@ func prDeps(cmd *cobra.Command, a *app, d *db.DB) (prstep.Deps, error) {
 			CommitTemplate: a.setting("git.commit_template"),
 			Draft:          draft,
 			Verify:         settings,
+			JiraSite:       a.setting("jira.site"),
 		},
 		Report: func(line string) { _, _ = fmt.Fprintln(out, line) },
 	}, nil

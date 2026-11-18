@@ -439,3 +439,35 @@ func TestLoopPrepareRefusesStoppedSlice(t *testing.T) {
 func lockPathFor(root string) string {
 	return filepath.Join(project.RalphDir(root), project.LoopLockFile)
 }
+
+func TestSliceBranchCarriesBriefTicketKey(t *testing.T) {
+	p := newPrepFixture(t, 1)
+	if err := p.units.AddLink(ctx, p.brief.ID, units.LinkExternal, "issue:jira:ABC-9"); err != nil {
+		t.Fatal(err)
+	}
+	const want = "ralph/abc-9-s-1-the-slice"
+	plan := p.prepare(t, false)
+	if plan.Branch != want || plan.Action != loop.Create {
+		t.Fatalf("plan = %+v", plan)
+	}
+	links, err := p.units.Links(ctx, p.slice.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, l := range links {
+		found = found || l.Target == "branch:"+want
+	}
+	if !found {
+		t.Fatalf("links = %+v, want the branch recorded", links)
+	}
+	plan.Close()
+
+	if err := p.units.AddLink(ctx, p.slice.ID, units.LinkExternal, "issue:jira:ABC-10"); err != nil {
+		t.Fatal(err)
+	}
+	again := p.prepare(t, false)
+	if again.Branch != want || again.Action != loop.Resume {
+		t.Fatalf("after a later issue link: plan = %+v", again)
+	}
+}

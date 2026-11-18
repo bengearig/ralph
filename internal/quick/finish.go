@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/bengearig/ralph/internal/hosting"
+	"github.com/bengearig/ralph/internal/issuelink"
 	"github.com/bengearig/ralph/internal/naming"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/verify"
@@ -85,8 +86,13 @@ func (s *Service) Finish(ctx context.Context, in FinishInput) (Finished, error) 
 		out.Verification = report
 	}
 
+	ticket, hasTicket, err := issuelink.Of(ctx, s.deps.Units, task.ID)
+	if err != nil {
+		return Finished{}, fmt.Errorf("quick work: find the ticket of %s: %w", task.ID, err)
+	}
 	subject, err := naming.RenderSubject(cfg.CommitTemplate, naming.Data{
 		ID: task.ID, Level: "task", Number: task.Number, Title: task.Title, Slug: naming.Slugify(task.Title),
+		Ticket: ticket.Key,
 	})
 	if err != nil {
 		return Finished{}, fmt.Errorf("quick work: render the commit subject: %w", err)
@@ -105,10 +111,14 @@ func (s *Service) Finish(ctx context.Context, in FinishInput) (Finished, error) 
 		return Finished{}, fmt.Errorf("%w: %w; the commit is kept, call finish again to retry", ErrPushFailed, err)
 	}
 
-	body := BuildPullRequestBody(BodyInput{
+	bodyIn := BodyInput{
 		ID: task.ID, Body: task.Body, AcceptanceCriteria: task.AcceptanceCriteria, Summary: in.Summary,
 		Report: out.Verification, Configured: out.VerificationConfigured,
-	})
+	}
+	if hasTicket {
+		bodyIn.Issue = &BodyIssue{Key: ticket.Key, URL: IssueURL(cfg.JiraSite, ticket.Key)}
+	}
+	body := BuildPullRequestBody(bodyIn)
 	pr, reused, err := s.openPullRequest(ctx, hosting.NewPullRequest{
 		Head: branch, Base: base, Title: subject, Body: body, Draft: cfg.Draft,
 	})

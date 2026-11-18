@@ -8,8 +8,8 @@ import (
 func TestGitSettings(t *testing.T) {
 	r := DefaultRegistry()
 	defaults := map[string]string{
-		"git.branch_template": "ralph/{{lower .ID}}-{{.Slug}}",
-		"git.commit_template": "{{.ID}}: {{.Title}}",
+		"git.branch_template": "ralph/{{if .Ticket}}{{lower .Ticket}}-{{end}}{{lower .ID}}-{{.Slug}}",
+		"git.commit_template": "{{if .Ticket}}{{.Ticket}} {{end}}{{.ID}}: {{.Title}}",
 		"git.commit_trailer":  "true",
 	}
 	for path, want := range defaults {
@@ -43,4 +43,28 @@ func TestGitSettings(t *testing.T) {
 	check("git.commit_trailer", "true", true)
 	check("git.commit_trailer", "false", true)
 	check("git.commit_trailer", "yes", false)
+}
+
+func TestDefaultTemplatesMentionTicket(t *testing.T) {
+	for _, path := range []string{"git.branch_template", "git.commit_template"} {
+		s, ok := DefaultRegistry().Lookup(path)
+		if !ok {
+			t.Fatalf("no setting %s", path)
+		}
+		if !strings.Contains(s.Description, "Ticket") || !strings.Contains(s.Description, "empty when there is none") {
+			t.Errorf("%s description = %q", path, s.Description)
+		}
+		if !strings.Contains(s.Default, ".Ticket") {
+			t.Errorf("%s default = %q", path, s.Default)
+		}
+	}
+}
+
+func TestDefaultTemplatesValidate(t *testing.T) {
+	for _, path := range []string{"git.branch_template", "git.commit_template"} {
+		s, _ := DefaultRegistry().Lookup(path)
+		if err := s.Validate(s.Default); err != nil {
+			t.Errorf("%s: %v", path, err)
+		}
+	}
 }

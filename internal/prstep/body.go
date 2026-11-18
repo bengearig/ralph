@@ -26,6 +26,8 @@ type BodyInput struct {
 	Report              verify.Report
 	// Configured is whether verification commands are configured.
 	Configured bool
+	// Issue is the ticket the slice or its brief was started from, nil when none.
+	Issue *quick.BodyIssue
 }
 
 // BuildBody builds the pull request description of a slice.
@@ -52,6 +54,9 @@ func BuildBody(in BodyInput) string {
 		add(strings.Join(lines, "\n"))
 	}
 	add(verificationSection(in))
+	if in.Issue != nil && in.Issue.Key != "" {
+		add(quick.IssueLine(*in.Issue))
+	}
 	add("Opened by ralph for " + in.SliceID + ".")
 	return strings.Join(sections, "\n\n") + "\n"
 }

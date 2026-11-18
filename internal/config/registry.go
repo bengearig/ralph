@@ -630,14 +630,14 @@ func DefaultRegistry() *Registry {
 		},
 		Setting{
 			Path:        "git.branch_template",
-			Description: "Template for branch names; fields ID, Level, Number, Title, Slug, ParentID; functions lower, upper, trunc",
-			Default:     "ralph/{{lower .ID}}-{{.Slug}}",
+			Description: "Template for branch names; fields ID, Level, Number, Title, Slug, ParentID, Ticket (the key of the ticket the work was started from, empty when there is none); functions lower, upper, trunc",
+			Default:     "ralph/{{if .Ticket}}{{lower .Ticket}}-{{end}}{{lower .ID}}-{{.Slug}}",
 			Validate:    naming.ValidateBranchTemplate,
 		},
 		Setting{
 			Path:        "git.commit_template",
-			Description: "Template for commit subjects; fields ID, Level, Number, Title, Slug, ParentID; functions lower, upper, trunc",
-			Default:     "{{.ID}}: {{.Title}}",
+			Description: "Template for commit subjects; fields ID, Level, Number, Title, Slug, ParentID, Ticket (the key of the ticket the work was started from, empty when there is none); functions lower, upper, trunc",
+			Default:     "{{if .Ticket}}{{.Ticket}} {{end}}{{.ID}}: {{.Title}}",
 			Validate:    naming.ValidateSubjectTemplate,
 		},
 		Setting{

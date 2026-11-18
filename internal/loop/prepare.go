@@ -175,12 +175,9 @@ func Prepare(ctx context.Context, d Deps, in PrepareInput) (plan Plan, err error
 	}
 	remote := settingValue(d, "pr.remote")
 	plan.Base = hosting.BaseBranch(ctx, d.Root, remote, settingValue(d, "pr.base_branch"))
-	plan.Branch, err = naming.RenderBranch(settingValue(d, "git.branch_template"), naming.Data{
-		ID: slice.ID, Level: "slice", Number: slice.Number, Title: slice.Title,
-		Slug: naming.Slugify(slice.Title), ParentID: slice.ParentID,
-	})
+	plan.Branch, err = prstep.SliceBranch(ctx, d.Units, settingValue(d, "git.branch_template"), slice)
 	if err != nil {
-		return plan, fmt.Errorf("render the branch name: %w", err)
+		return plan, err
 	}
 
 	st, err := d.Workspace.State(ctx)
@@ -219,6 +216,9 @@ func Prepare(ctx context.Context, d Deps, in PrepareInput) (plan Plan, err error
 		if plan.Action == Create {
 			if err := d.Workspace.CreateBranch(ctx, plan.Branch); err != nil {
 				return plan, fmt.Errorf("create the branch %s: %w", plan.Branch, err)
+			}
+			if err := prstep.RecordBranch(ctx, d.Units, slice.ID, plan.Branch); err != nil {
+				return plan, fmt.Errorf("record the branch %s: %w", plan.Branch, err)
 			}
 		}
 		if err := recoverTasks(ctx, d, slice.ID, plan.Base); err != nil {

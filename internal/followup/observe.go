@@ -235,7 +235,7 @@ func poll(ctx context.Context, pd prstep.Deps, p hosting.Provider, o *Observatio
 }
 
 func localBranch(ctx context.Context, d Deps, slice units.Unit) (string, bool, error) {
-	name, err := prstep.BranchName(d.PR.Config.BranchTemplate, slice)
+	name, err := prstep.SliceBranch(ctx, d.Units, d.PR.Config.BranchTemplate, slice)
 	if err != nil {
 		return "", false, err
 	}

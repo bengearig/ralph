@@ -82,14 +82,35 @@ func render(tmpl string, d Data) (string, error) {
 
 var sampleData = Data{ID: "S-1", Level: "slice", Number: 1, Title: "Sample title", Slug: "sample-title", ParentID: "B-1"}
 
-// ValidateBranchTemplate checks that tmpl parses and renders a valid branch name.
-func ValidateBranchTemplate(tmpl string) error {
-	_, err := RenderBranch(tmpl, sampleData)
-	return err
+func sampleVariants() []Data {
+	withTicket := sampleData
+	withTicket.Ticket = "ABC-123"
+	return []Data{sampleData, withTicket}
 }
 
-// ValidateSubjectTemplate checks that tmpl parses and renders.
+// ValidateBranchTemplate checks that tmpl parses and renders a valid branch name with and without a ticket.
+func ValidateBranchTemplate(tmpl string) error {
+	for _, d := range sampleVariants() {
+		if _, err := RenderBranch(tmpl, d); err != nil {
+			return withTicketNote(err, d)
+		}
+	}
+	return nil
+}
+
+// ValidateSubjectTemplate checks that tmpl parses and renders with and without a ticket.
 func ValidateSubjectTemplate(tmpl string) error {
-	_, err := RenderSubject(tmpl, sampleData)
+	for _, d := range sampleVariants() {
+		if _, err := RenderSubject(tmpl, d); err != nil {
+			return withTicketNote(err, d)
+		}
+	}
+	return nil
+}
+
+func withTicketNote(err error, d Data) error {
+	if d.Ticket != "" {
+		return fmt.Errorf("with ticket %s: %w", d.Ticket, err)
+	}
 	return err
 }

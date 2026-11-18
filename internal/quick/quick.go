@@ -28,6 +28,8 @@ type Config struct {
 	CommitTrailer  bool
 	Draft          bool
 	Verify         verify.Settings
+	// JiraSite is jira.site; empty means no ticket address can be built.
+	JiraSite string
 }
 
 // Deps are the collaborators of a Service.

@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/bengearig/ralph/internal/db"
 	"github.com/bengearig/ralph/internal/issuesource"
+	"github.com/bengearig/ralph/internal/naming"
 	"github.com/bengearig/ralph/internal/taskmanager"
 	"github.com/bengearig/ralph/internal/taskmanager/taskmanagertest"
 	"github.com/bengearig/ralph/internal/testutil"
@@ -320,3 +322,17 @@ func TestAttachOnSliceAndBriefAndTask(t *testing.T) {
 }
 
 func ptr(s string) *string { return &s }
+
+func TestOfUsedByNaming(t *testing.T) {
+	e := newEnv(t)
+	b, s, tk := e.tree()
+	e.link(b.ID, "issue:jira:ABC-7")
+	const tmpl = "ralph/{{if .Ticket}}{{lower .Ticket}}-{{end}}{{lower .ID}}-{{.Slug}}"
+	for _, u := range []units.Unit{b, s, tk} {
+		ref, _ := e.of(u.ID)
+		got, err := naming.RenderBranch(tmpl, naming.Data{ID: u.ID, Slug: "unit", Ticket: ref.Key})
+		if err != nil || got != "ralph/abc-7-"+strings.ToLower(u.ID)+"-unit" {
+			t.Errorf("%s: branch %q, %v", u.ID, got, err)
+		}
+	}
+}

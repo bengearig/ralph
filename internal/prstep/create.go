@@ -8,6 +8,7 @@ import (
 
 	"github.com/bengearig/ralph/internal/hosting"
 	"github.com/bengearig/ralph/internal/naming"
+	"github.com/bengearig/ralph/internal/quick"
 	"github.com/bengearig/ralph/internal/units"
 	"github.com/bengearig/ralph/internal/verify"
 	"github.com/bengearig/ralph/internal/workspace"
@@ -118,7 +119,7 @@ func Create(ctx context.Context, d Deps, in CreateInput) (CreateResult, error) {
 	if err != nil {
 		return CreateResult{}, err
 	}
-	branch, err := BranchName(cfg.BranchTemplate, slice)
+	branch, err := SliceBranch(ctx, d.Units, cfg.BranchTemplate, slice)
 	if err != nil {
 		return CreateResult{}, err
 	}
@@ -136,11 +137,15 @@ func Create(ctx context.Context, d Deps, in CreateInput) (CreateResult, error) {
 	}
 	d.report(fmt.Sprintf("pushed %s to %s", branch, cfg.Remote))
 
-	body, err := buildSliceBody(ctx, d.Units, slice, done, report, configured)
+	body, err := buildSliceBody(ctx, d, slice, done, report, configured)
 	if err != nil {
 		return CreateResult{}, pushedError(err)
 	}
-	subject, err := naming.RenderSubject(cfg.CommitTemplate, sliceData(slice))
+	ticket, err := SliceTicket(ctx, d.Units, slice)
+	if err != nil {
+		return CreateResult{}, pushedError(err)
+	}
+	subject, err := naming.RenderSubject(cfg.CommitTemplate, sliceData(slice, ticket))
 	if err != nil {
 		return CreateResult{}, pushedError(fmt.Errorf("render the pull request title: %w", err))
 	}
@@ -233,8 +238,16 @@ func runVerification(ctx context.Context, d Deps) (verify.Report, bool, error) {
 	return report, true, nil
 }
 
-func buildSliceBody(ctx context.Context, svc units.Service, slice units.Unit, done []units.Unit, report verify.Report, configured bool) (string, error) {
+func buildSliceBody(ctx context.Context, d Deps, slice units.Unit, done []units.Unit, report verify.Report, configured bool) (string, error) {
+	svc := d.Units
 	in := BodyInput{SliceID: slice.ID, SliceBody: slice.Body, Report: report, Configured: configured}
+	ticket, err := SliceTicket(ctx, svc, slice)
+	if err != nil {
+		return "", err
+	}
+	if ticket != "" {
+		in.Issue = &quick.BodyIssue{Key: ticket, URL: quick.IssueURL(d.Config.JiraSite, ticket)}
+	}
 	if slice.ParentID != "" {
 		brief, err := svc.Get(ctx, slice.ParentID)
 		if err != nil {

@@ -38,6 +38,7 @@ func newQuickService(ctx context.Context, a *app, svc units.Service, d *db.DB) (
 			CommitTrailer:  trailer,
 			Draft:          draft,
 			Verify:         settings,
+			JiraSite:       a.setting("jira.site"),
 		},
 		Provider: func(ctx context.Context) (hosting.Provider, error) { return openProvider(ctx, a) },
 		Runner:   verify.Runner{Dir: a.root, Timeout: settings.Timeout},
